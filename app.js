@@ -1,1 +1,2101 @@
-const STORAGE_KEY="setting-drawer-folders-v1";const categories={all:"전체",characters:"캐릭터",places:"지역",factions:"조직",events:"사건",items:"아이템",abilities:"능력",notes:"메모",timeline:"타임라인",relations:"관계도"};const dataCategories=["characters","places","factions","events","items","abilities","notes"];const templates={character:{name:"캐릭터",category:"characters",tags:"캐릭터",body:`이름:\n\n나이:\n\n성격:\n\n원하는 것:\n\n두려워하는 것:\n\n관계:\n\n숨기고 있는 것:\n\n변화:`},place:{name:"지역",category:"places",tags:"지역",body:`이름:\n\n환경:\n\n분위기:\n\n사는 사람들:\n\n중요한 장소:\n\n위험한 점:\n\n관련 사건:`},faction:{name:"조직",category:"factions",tags:"조직",body:`이름:\n\n사상:\n\n지도자:\n\n구성원:\n\n목적:\n\n전투 방식:\n\n적대 관계:\n\n비밀:`},event:{name:"사건",category:"events",tags:"사건",body:`이름:\n\n발생 시점:\n\n원인:\n\n전개:\n\n결과:\n\n관련 인물:\n\n남은 흔적:`},item:{name:"아이템",category:"items",tags:"아이템",body:`이름:\n\n외형:\n\n소유자:\n\n기능:\n\n기원:\n\n사용 조건:\n\n관련 사건:`},ability:{name:"능력",category:"abilities",tags:"능력",body:`이름:\n\n사용자:\n\n효과:\n\n조건:\n\n한계:\n\n부작용:\n\n약점:`}};const emptyFolders={characters:[],places:[],factions:[],events:[],items:[],abilities:[],notes:[]};const emptyState={characters:[],places:[],factions:[],events:[],items:[],abilities:[],notes:[],folders:structuredClone(emptyFolders),recent:[],relationMaps:[{id:"default-map",name:"기본 관계도",nodes:[],edges:[]}],activeRelationMapId:"default-map"};let state=loadState(),currentCategory="all",currentTag="",currentFolderId="",editing=null,detailTarget=null,formImageData="",selectedLinkIds=[],editingFolderId=null,draggedCardId=null,draggedCardCategory=null,relationConnectMode=false,selectedRelationNodes=[],selectedRelationEdgeId=null,selectedRelationNodeId=null,editingNodeId=null,editingMapId=null;const $=id=>document.getElementById(id);const nav=$("nav"),pageTitle=$("pageTitle"),pageDesc=$("pageDesc"),cardGrid=$("cards"),emptyBox=$("empty"),tagLine=$("tagLine"),folderLine=$("folderLine"),timelineView=$("timeline"),searchInput=$("searchInput"),sortSelect=$("sortSelect"),viewSelect=$("viewSelect"),toast=$("toast"),saveText=$("saveText"),listBar=$("bar"),quickInput=$("quickInput"),mapWrap=$("mapWrap"),stage=$("stage"),svg=$("svg"),mapTabs=$("mapTabs"),formCategory=$("formCategory"),formFolder=$("formFolder"),formDate=$("formDate"),formTitle=$("formTitle"),formSummary=$("formSummary"),formBody=$("formBody"),formTags=$("formTags"),formLinks=$("formLinks"),formImagePreview=$("formImagePreview"),folderCategoryInput=$("folderCategoryInput"),folderNameInput=$("folderNameInput"),nodeName=$("nodeName"),nodeDesc=$("nodeDesc"),mapName=$("mapName"),edgeName=$("edgeName"),importSearch=$("importSearch"),importCategory=$("importCategory"),importList=$("importList");function loadState(){const saved=localStorage.getItem(STORAGE_KEY);if(!saved)return structuredClone(emptyState);try{const parsed=JSON.parse(saved);Object.keys(emptyState).forEach(k=>{if(!parsed[k])parsed[k]=structuredClone(emptyState[k])});if(!parsed.folders)parsed.folders=structuredClone(emptyFolders);dataCategories.forEach(c=>{if(!parsed.folders[c])parsed.folders[c]=[];if(!parsed[c])parsed[c]=[];parsed[c].forEach((it,i)=>{if(it.folderId===undefined)it.folderId="";if(!it.links)it.links=[];if(it.order===undefined)it.order=i})});if(!parsed.relationMaps||!parsed.relationMaps.length)parsed.relationMaps=structuredClone(emptyState.relationMaps);if(!parsed.activeRelationMapId)parsed.activeRelationMapId=parsed.relationMaps[0].id;return parsed}catch{return structuredClone(emptyState)}}function saveState(){localStorage.setItem(STORAGE_KEY,JSON.stringify(state));updateSaveText()}function updateSaveText(){saveText.textContent="저장됨 · "+new Date().toLocaleTimeString("ko-KR",{hour:"2-digit",minute:"2-digit"})}function uid(){return crypto.randomUUID?crypto.randomUUID():"id-"+Date.now()+"-"+Math.random().toString(16).slice(2)}function now(){return new Date().toISOString()}function formatTime(v){if(!v)return"-";const d=new Date(v);if(Number.isNaN(d.getTime()))return v;return d.toLocaleString("ko-KR",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})}function showToast(m){toast.textContent=m;toast.classList.add("show");setTimeout(()=>toast.classList.remove("show"),1400)}function openModal(id){$(id).classList.add("show")}function closeModal(id){$(id).classList.remove("show")}function getActiveMap(){let m=state.relationMaps.find(x=>x.id===state.activeRelationMapId);if(!m){m=state.relationMaps[0];state.activeRelationMapId=m.id}return m}function getItems(){const a=[];dataCategories.forEach(c=>state[c].forEach(i=>a.push({category:c,...i})));return a}function findItem(c,id){return state[c]?.find(i=>i.id===id)}function getFolderName(c,id){if(!id)return"폴더 없음";const f=state.folders[c]?.find(x=>x.id===id);return f?f.name:"삭제된 폴더"}function countCategory(c){if(c==="all")return getItems().filter(i=>!i.archived).length;if(c==="timeline")return getItems().filter(i=>!i.archived&&i.dateText).length;if(c==="relations")return state.relationMaps.length;return state[c].filter(i=>!i.archived).length}function getVisibleItems(){const kw=searchInput.value.trim().toLowerCase();const arch=viewSelect.value==="archive";let items=getItems();if(currentCategory!=="all")items=items.filter(i=>i.category===currentCategory);items=items.filter(i=>Boolean(i.archived)===arch);if(dataCategories.includes(currentCategory)&&currentFolderId){if(currentFolderId==="__none")items=items.filter(i=>!i.folderId);else items=items.filter(i=>i.folderId===currentFolderId)}if(currentTag)items=items.filter(i=>i.tags.includes(currentTag));if(kw)items=items.filter(i=>[i.title,i.summary,i.body,i.dateText,getFolderName(i.category,i.folderId),i.tags.join(" "),categories[i.category]].join(" ").toLowerCase().includes(kw));return sortItems(items)}function sortItems(items){const s=sortSelect.value;return [...items].sort((a,b)=>{if(Number(b.pinned)!==Number(a.pinned))return Number(b.pinned)-Number(a.pinned);if(s==="title")return(a.title||"").localeCompare(b.title||"","ko");if(s==="created")return new Date(b.createdAt)-new Date(a.createdAt);if(s==="updated")return new Date(b.updatedAt)-new Date(a.updatedAt);return(a.order??0)-(b.order??0)})}function renderNav(){nav.innerHTML="";Object.keys(categories).forEach(c=>{const b=document.createElement("button");b.className="navBtn"+(currentCategory===c?" active":"");b.innerHTML=`<span>${categories[c]}</span><span class="count">${countCategory(c)}</span>`;b.onclick=()=>{currentCategory=c;currentTag="";currentFolderId="";render()};nav.appendChild(b)})}function renderFormCategoryOptions(){formCategory.innerHTML="";folderCategoryInput.innerHTML="";dataCategories.forEach(c=>{formCategory.add(new Option(categories[c],c));folderCategoryInput.add(new Option(categories[c],c))})}function renderImportCategoryOptions(){importCategory.innerHTML=`<option value="all">전체</option>`;dataCategories.forEach(c=>importCategory.add(new Option(categories[c],c)))}function renderFormFolderOptions(c,selected=""){formFolder.innerHTML="";formFolder.add(new Option("폴더 없음",""));(state.folders[c]||[]).forEach(f=>formFolder.add(new Option(f.name,f.id)));formFolder.value=selected||""}function renderTemplates(){const box=$("templateList");box.innerHTML="";Object.keys(templates).forEach(k=>{const t=templates[k],b=document.createElement("button");b.className="templateCard";b.innerHTML=`<strong>${t.name}</strong><span>${t.tags}</span>`;b.onclick=()=>applyTemplate(k);box.appendChild(b)})}function renderFolders(){folderLine.innerHTML="";if(!dataCategories.includes(currentCategory)){folderLine.style.display="none";return}folderLine.style.display="flex";const mk=(txt,val,fn)=>{const b=document.createElement("button");b.className="pill"+(currentFolderId===val||(!currentFolderId&&val==="")?" active":"");b.textContent=txt;b.onclick=fn;folderLine.appendChild(b)};mk("폴더 전체","",()=>{currentFolderId="";render()});mk("폴더 없음","__none",()=>{currentFolderId="__none";render()});(state.folders[currentCategory]||[]).forEach(f=>{const n=state[currentCategory].filter(i=>!i.archived&&i.folderId===f.id).length;const b=document.createElement("button");b.className="pill"+(currentFolderId===f.id?" active":"");b.textContent=`${f.name} ${n}`;b.onclick=()=>{currentFolderId=f.id;render()};b.ondblclick=()=>openFolderModal(currentCategory,f.id);folderLine.appendChild(b)});const add=document.createElement("button");add.className="pill";add.textContent="폴더 추가";add.onclick=()=>openFolderModal(currentCategory);folderLine.appendChild(add);if(currentFolderId&&currentFolderId!=="__none"){const edit=document.createElement("button");edit.className="pill";edit.textContent="현재 폴더 이름";edit.onclick=()=>openFolderModal(currentCategory,currentFolderId);folderLine.appendChild(edit)}}function renderTags(){tagLine.innerHTML="";if(currentCategory==="relations"||currentCategory==="timeline"){tagLine.style.display="none";return}tagLine.style.display="flex";let items=getItems().filter(i=>(currentCategory==="all"||i.category===currentCategory)&&!i.archived);if(dataCategories.includes(currentCategory)&&currentFolderId){if(currentFolderId==="__none")items=items.filter(i=>!i.folderId);else items=items.filter(i=>i.folderId===currentFolderId)}const tags=new Set();items.forEach(i=>i.tags.forEach(t=>tags.add(t)));const all=document.createElement("button");all.className="pill"+(!currentTag?" active":"");all.textContent="태그 전체";all.onclick=()=>{currentTag="";render()};tagLine.appendChild(all);[...tags].sort((a,b)=>a.localeCompare(b,"ko")).forEach(t=>{const b=document.createElement("button");b.className="pill"+(currentTag===t?" active":"");b.textContent=t;b.onclick=()=>{currentTag=t;render()};tagLine.appendChild(b)})}function renderTitle(){if(currentCategory==="relations"){const m=getActiveMap();pageTitle.textContent="관계도";pageDesc.textContent=`${m.name} · ${m.nodes.length}개의 노드, ${m.edges.length}개의 선`;return}if(currentCategory==="timeline"){pageTitle.textContent="타임라인";pageDesc.textContent=`${countCategory("timeline")}개의 시점 있는 메모`;return}pageTitle.textContent=viewSelect.value==="archive"?"보관함":categories[currentCategory];let d=`${getVisibleItems().length}개의 메모`;if(dataCategories.includes(currentCategory)&&currentFolderId)d+=" · "+(currentFolderId==="__none"?"폴더 없음":getFolderName(currentCategory,currentFolderId));pageDesc.textContent=d}function renderCards(){const rel=currentCategory==="relations",time=currentCategory==="timeline";cardGrid.style.display=rel||time?"none":"grid";mapWrap.style.display=rel?"block":"none";timelineView.style.display=time?"block":"none";listBar.style.display=rel||time?"none":"grid";emptyBox.style.display="none";document.querySelectorAll(".relationOnly").forEach(b=>b.style.display=rel?"":"none");if(rel){renderRelations();return}if(time){renderTimeline();return}const items=getVisibleItems();cardGrid.innerHTML="";items.forEach(i=>cardGrid.appendChild(makeCard(i)));emptyBox.style.display=items.length?"none":"block"}function makeCard(item){const card=document.createElement("article");card.className="card"+(item.archived?" archived":"");card.draggable=canDragCards();card.dataset.id=item.id;card.dataset.category=item.category;card.ondragstart=e=>{if(!canDragCards())return;draggedCardId=item.id;draggedCardCategory=item.category;card.classList.add("dragging");e.dataTransfer.effectAllowed="move"};card.ondragend=()=>{draggedCardId=null;draggedCardCategory=null;document.querySelectorAll(".card").forEach(el=>el.classList.remove("dragging","dropTarget"))};card.ondragover=e=>{if(!canDragCards()||draggedCardCategory!==item.category)return;e.preventDefault();card.classList.add("dropTarget")};card.ondragleave=()=>card.classList.remove("dropTarget");card.ondrop=e=>{if(!canDragCards())return;e.preventDefault();card.classList.remove("dropTarget");reorderCards(draggedCardCategory,draggedCardId,item.id)};const img=item.image?`<img src="${item.image}" alt="이미지">`:"이미지 없음";card.innerHTML=`<div class="image">${img}</div><div class="cardHead"><h3 class="cardTitle">${escapeHTML(item.title||"제목 없음")}</h3><span class="mark">${item.pinned?"고정":categories[item.category]}</span></div><div class="summary">${escapeHTML(item.summary||item.body||"내용 없음")}</div><div class="tags">${item.folderId?`<span class="tag">${escapeHTML(getFolderName(item.category,item.folderId))}</span>`:""}${item.dateText?`<span class="tag">${escapeHTML(item.dateText)}</span>`:""}${item.tags.map(t=>`<span class="tag ${item.category}">${escapeHTML(t)}</span>`).join("")}</div><div class="cardActions"></div>`;const a=card.querySelector(".cardActions");[["열기","primary",()=>openDetail(item.category,item.id)],["수정","",()=>openEdit(item.category,item.id)],[item.pinned?"고정 해제":"고정","",()=>togglePin(item.category,item.id)],[item.archived?"보관 해제":"보관","",()=>toggleArchive(item.category,item.id)],["삭제","danger",()=>deleteItem(item.category,item.id)]].forEach(([txt,cls,fn])=>{const b=document.createElement("button");b.textContent=txt;if(cls)b.classList.add(cls);b.onclick=fn;a.appendChild(b)});return card}function canDragCards(){return currentCategory!=="all"&&currentCategory!=="relations"&&currentCategory!=="timeline"&&viewSelect.value==="normal"&&sortSelect.value==="manual"&&!searchInput.value.trim()&&!currentTag}function reorderCards(c,from,to){if(!c||!from||!to||from===to)return;const list=state[c],fi=list.findIndex(i=>i.id===from),ti=list.findIndex(i=>i.id===to);if(fi<0||ti<0)return;const[m]=list.splice(fi,1);list.splice(ti,0,m);list.forEach((i,idx)=>{i.order=idx;i.updatedAt=now()});saveState();render();showToast("순서를 바꿨습니다.")}function renderTimeline(){timelineView.innerHTML="";const items=getItems().filter(i=>!i.archived&&i.dateText).sort((a,b)=>normalizeDateKey(a.dateText).localeCompare(normalizeDateKey(b.dateText)));if(!items.length){emptyBox.style.display="block";emptyBox.querySelector("h3").textContent="타임라인이 비어 있습니다.";emptyBox.querySelector("p").textContent="메모의 시점 칸을 채우면 여기에 나타납니다.";return}items.forEach(i=>{const row=document.createElement("article");row.className="timelineItem";row.innerHTML=`<div class="timelineDate">${escapeHTML(i.dateText)}</div><div class="dot"></div><div class="timelineCard"><h3>${escapeHTML(i.title||"제목 없음")}</h3><p>${escapeHTML(i.summary||i.body||"내용 없음")}</p><div class="tags"><span class="tag ${i.category}">${escapeHTML(categories[i.category])}</span>${i.folderId?`<span class="tag">${escapeHTML(getFolderName(i.category,i.folderId))}</span>`:""}</div></div>`;row.querySelector(".timelineCard").onclick=()=>openDetail(i.category,i.id);timelineView.appendChild(row)})}function normalizeDateKey(v){const t=String(v).trim(),m=t.match(/-?\d+/);if(m)return m[0].padStart(8,"0")+t;const o={과거:"00000001",이전:"00000002",현재:"50000000",미래:"90000000"};for(const k of Object.keys(o))if(t.includes(k))return o[k]+t;return"70000000"+t}function render(){renderNav();renderFolders();renderTags();renderTitle();renderCards()}function updateFormImagePreview(){formImagePreview.innerHTML=formImageData?`<img src="${formImageData}" alt="작성 이미지">`:"이미지 없음"}function renderFormLinks(curC=null,curId=null){formLinks.innerHTML="";const items=getItems().filter(i=>!(i.category===curC&&i.id===curId));if(!items.length){formLinks.innerHTML=`<span style="color:var(--muted)">연결할 메모가 없습니다.</span>`;return}items.forEach(i=>{const label=document.createElement("label");label.className="linkOpt";const val=`${i.category}:${i.id}`,checked=selectedLinkIds.some(l=>l.category===i.category&&l.id===i.id);label.innerHTML=`<input type="checkbox" value="${val}" ${checked?"checked":""}><span>${escapeHTML(i.title||"제목 없음")} · ${escapeHTML(categories[i.category])}</span>`;formLinks.appendChild(label)})}function readSelectedLinks(){return[...formLinks.querySelectorAll("input:checked")].map(i=>{const[category,id]=i.value.split(":");return{category,id}})}function openNew(c=null){editing=null;formImageData="";selectedLinkIds=[];$("editTitle").textContent="새 메모";formCategory.disabled=false;formCategory.value=c||(dataCategories.includes(currentCategory)?currentCategory:"characters");renderFormFolderOptions(formCategory.value,dataCategories.includes(currentCategory)&&currentFolderId&&currentFolderId!=="__none"?currentFolderId:"");formDate.value=formTitle.value=formSummary.value=formBody.value=formTags.value="";updateFormImagePreview();renderFormLinks();openModal("editModal");formTitle.focus()}function openEdit(c,id){const item=findItem(c,id);if(!item)return;editing={category:c,id};formImageData=item.image||"";selectedLinkIds=item.links||[];$("editTitle").textContent="수정";formCategory.disabled=true;formCategory.value=c;renderFormFolderOptions(c,item.folderId||"");formDate.value=item.dateText||"";formTitle.value=item.title||"";formSummary.value=item.summary||"";formBody.value=item.body||"";formTags.value=item.tags.join(", ");updateFormImagePreview();renderFormLinks(c,id);closeModal("detailModal");openModal("editModal");formTitle.focus()}function saveForm(){const category=formCategory.value,title=formTitle.value.trim(),summary=formSummary.value.trim(),body=formBody.value.trim(),dateText=formDate.value.trim(),folderId=formFolder.value,tags=formTags.value.split(",").map(t=>t.trim()).filter(Boolean),links=readSelectedLinks();if(!title){showToast("제목을 적어주세요.");return}if(editing){const item=findItem(editing.category,editing.id);if(item){Object.assign(item,{title,summary,body,dateText,folderId,tags:tags.length?tags:["미분류"],image:formImageData,links,updatedAt:now()})}saveState();closeModal("editModal");render();showToast("수정했습니다.");return}const item={id:uid(),title,summary,body,dateText,folderId,tags:tags.length?tags:["미분류"],links,image:formImageData,pinned:false,archived:false,order:state[category].length,createdAt:now(),updatedAt:now()};state[category].push(item);addRecent(category,item.id);saveState();currentCategory=category;currentTag="";if(folderId)currentFolderId=folderId;closeModal("editModal");render();showToast("저장했습니다.")}function addRecent(category,id){state.recent=state.recent.filter(r=>!(r.category===category&&r.id===id));state.recent.unshift({category,id,openedAt:now()});state.recent=state.recent.slice(0,10)}function openDetail(c,id){const item=findItem(c,id);if(!item)return;detailTarget={category:c,id};addRecent(c,id);saveState();$("detailTitle").textContent=item.title||"제목 없음";$("detailSub").textContent=item.summary||"";$("detailBody").textContent=item.body||"내용 없음";$("detailCategory").textContent=categories[c];$("detailFolder").textContent=getFolderName(c,item.folderId||"");$("detailDate").textContent=item.dateText||"-";$("detailTags").textContent=item.tags.join(", ");$("detailCreated").textContent=formatTime(item.createdAt);$("detailUpdated").textContent=formatTime(item.updatedAt);$("detailImage").innerHTML=item.image?`<img src="${item.image}" alt="이미지">`:"이미지 없음";renderDetailLinks(item.links||[]);$("pinBtn").textContent=item.pinned?"고정 해제":"고정";$("archiveBtn").textContent=item.archived?"보관 해제":"보관";openModal("detailModal");render()}function renderDetailLinks(links){const target=$("detailLinks");target.innerHTML="";if(!links||!links.length){target.innerHTML=`<span style="color:var(--muted);font-size:13px">연결된 메모가 없습니다.</span>`;return}links.forEach(l=>{const item=findItem(l.category,l.id);if(!item)return;const b=document.createElement("button");b.className="linkChip";b.textContent=`${item.title||"제목 없음"} · ${categories[l.category]}`;b.onclick=()=>openDetail(l.category,l.id);target.appendChild(b)})}function togglePin(c,id){const item=findItem(c,id);if(!item)return;item.pinned=!item.pinned;item.updatedAt=now();saveState();render();showToast(item.pinned?"고정했습니다.":"고정을 해제했습니다.")}function toggleArchive(c,id){const item=findItem(c,id);if(!item)return;item.archived=!item.archived;item.updatedAt=now();saveState();closeModal("detailModal");render();showToast(item.archived?"보관했습니다.":"보관을 해제했습니다.")}function deleteItem(c,id){const item=findItem(c,id);if(!item)return;if(!confirm(`'${item.title||"제목 없음"}' 메모를 삭제할까요?`))return;state[c]=state[c].filter(x=>x.id!==id);state.recent=state.recent.filter(r=>!(r.category===c&&r.id===id));dataCategories.forEach(cat=>state[cat].forEach(t=>t.links=(t.links||[]).filter(l=>!(l.category===c&&l.id===id))));state[c].forEach((x,i)=>x.order=i);state.relationMaps.forEach(m=>{const ids=m.nodes.filter(n=>n.sourceCategory===c&&n.sourceId===id).map(n=>n.id);m.nodes=m.nodes.filter(n=>!(n.sourceCategory===c&&n.sourceId===id));m.edges=m.edges.filter(e=>!ids.includes(e.from)&&!ids.includes(e.to))});saveState();closeModal("detailModal");render();showToast("삭제했습니다.")}function setImage(file){if(!detailTarget||!file)return;const item=findItem(detailTarget.category,detailTarget.id);if(!item)return;const r=new FileReader();r.onload=()=>{item.image=r.result;item.updatedAt=now();saveState();openDetail(detailTarget.category,detailTarget.id);showToast("이미지를 넣었습니다.")};r.readAsDataURL(file)}function removeImage(){if(!detailTarget)return;const item=findItem(detailTarget.category,detailTarget.id);if(!item)return;item.image="";item.updatedAt=now();saveState();openDetail(detailTarget.category,detailTarget.id);showToast("이미지를 지웠습니다.")}function applyTemplate(k){const t=templates[k];if(!t)return;closeModal("templateModal");openNew(t.category);formBody.value=t.body;formTags.value=t.tags}function saveQuickMemo(){const text=quickInput.value.trim();if(!text){showToast("메모를 적어주세요.");return}const item={id:uid(),title:text.slice(0,28),summary:text,body:text,dateText:"",folderId:"",tags:["빠른메모"],links:[],image:"",pinned:false,archived:false,order:state.notes.length,createdAt:now(),updatedAt:now()};state.notes.push(item);quickInput.value="";currentCategory="notes";saveState();render();showToast("빠른 메모를 저장했습니다.")}function openFolderModal(c=null,id=null){editingFolderId=id;const cat=c||(dataCategories.includes(currentCategory)?currentCategory:"characters");folderCategoryInput.value=cat;if(id){const f=state.folders[cat].find(x=>x.id===id);if(!f)return;$("folderTitle").textContent="폴더 수정";folderNameInput.value=f.name;$("deleteFolderBtn").style.display=""}else{$("folderTitle").textContent="폴더 추가";folderNameInput.value="";$("deleteFolderBtn").style.display="none"}openModal("folderModal");folderNameInput.focus()}function saveFolder(){const c=folderCategoryInput.value,name=folderNameInput.value.trim();if(!name){showToast("폴더 이름을 적어주세요.");return}if(editingFolderId){const f=state.folders[c].find(x=>x.id===editingFolderId);if(f)f.name=name}else{const f={id:uid(),name};state.folders[c].push(f);if(currentCategory===c)currentFolderId=f.id}saveState();closeModal("folderModal");renderFormFolderOptions(formCategory.value,formFolder.value);render();showToast("폴더를 저장했습니다.")}function deleteFolder(){const c=folderCategoryInput.value;if(!editingFolderId)return;const f=state.folders[c].find(x=>x.id===editingFolderId);if(!f)return;if(!confirm(`'${f.name}' 폴더를 삭제할까요? 폴더 안 메모는 '폴더 없음'으로 이동합니다.`))return;state.folders[c]=state.folders[c].filter(x=>x.id!==editingFolderId);state[c].forEach(i=>{if(i.folderId===editingFolderId)i.folderId=""});if(currentFolderId===editingFolderId)currentFolderId="";editingFolderId=null;saveState();closeModal("folderModal");render();showToast("폴더를 삭제했습니다.")}function exportData(){downloadBlob(new Blob([JSON.stringify(state,null,2)],{type:"application/json"}),"setting-drawer.json");showToast("JSON으로 내보냈습니다.")}function exportMarkdown(){let md="# 설정서랍\n\n";dataCategories.forEach(c=>{md+=`## ${categories[c]}\n\n`;[{id:"",name:"폴더 없음"},...(state.folders[c]||[])].forEach(f=>{const items=state[c].filter(i=>!i.archived&&(i.folderId||"")===f.id);if(!items.length)return;md+=`### ${f.name}\n\n`;items.sort((a,b)=>(a.order??0)-(b.order??0)).forEach(i=>{md+=`#### ${i.title||"제목 없음"}\n\n`;if(i.dateText)md+=`- 시점: ${i.dateText}\n`;if(i.tags?.length)md+=`- 태그: ${i.tags.join(", ")}\n`;if(i.summary)md+=`- 요약: ${i.summary}\n`;md+=`\n${i.body||""}\n\n`})})});md+=`## 관계도\n\n`;state.relationMaps.forEach(m=>{md+=`### ${m.name}\n\n`;m.nodes.forEach(n=>md+=`- ${getNodeTitle(n)}\n`);if(m.edges.length){md+=`\n연결:\n`;m.edges.forEach(e=>{const f=m.nodes.find(n=>n.id===e.from),t=m.nodes.find(n=>n.id===e.to);if(f&&t)md+=`- ${getNodeTitle(f)} -- ${e.label||"연결"} -- ${getNodeTitle(t)}\n`})}md+="\n"});downloadBlob(new Blob([md],{type:"text/markdown"}),"setting-drawer.md");showToast("마크다운으로 내보냈습니다.")}function downloadBlob(blob,name){const u=URL.createObjectURL(blob),a=document.createElement("a");a.href=u;a.download=name;a.click();URL.revokeObjectURL(u)}function importData(file){const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);Object.keys(emptyState).forEach(k=>{if(!d[k])d[k]=structuredClone(emptyState[k])});if(!d.folders)d.folders=structuredClone(emptyFolders);dataCategories.forEach(c=>{if(!d.folders[c])d.folders[c]=[]});if(!d.relationMaps?.length)d.relationMaps=structuredClone(emptyState.relationMaps);if(!d.activeRelationMapId)d.activeRelationMapId=d.relationMaps[0].id;state=d;saveState();currentCategory="all";currentTag="";currentFolderId="";viewSelect.value="normal";render();showToast("가져왔습니다.")}catch{showToast("파일을 읽을 수 없습니다.")}};r.readAsText(file)}function clearAll(){if(!confirm("모든 메모와 관계도를 비울까요?"))return;state=structuredClone(emptyState);saveState();currentCategory="all";currentTag="";currentFolderId="";viewSelect.value="normal";render();showToast("비웠습니다.")}function openMapModal(id=null){editingMapId=id;if(id){const m=state.relationMaps.find(x=>x.id===id);if(!m)return;$("mapTitle").textContent="관계도 탭 수정";mapName.value=m.name}else{$("mapTitle").textContent="관계도 탭 추가";mapName.value=""}openModal("mapModal");mapName.focus()}function saveMap(){const name=mapName.value.trim();if(!name){showToast("이름을 적어주세요.");return}if(editingMapId){const m=state.relationMaps.find(x=>x.id===editingMapId);if(m)m.name=name}else{const id=uid();state.relationMaps.push({id,name,nodes:[],edges:[]});state.activeRelationMapId=id}saveState();closeModal("mapModal");render();showToast("저장했습니다.")}function deleteActiveMap(){if(state.relationMaps.length<=1){showToast("관계도 탭은 하나 이상 필요합니다.");return}const m=getActiveMap();if(!confirm(`'${m.name}' 관계도 탭을 삭제할까요?`))return;state.relationMaps=state.relationMaps.filter(x=>x.id!==m.id);state.activeRelationMapId=state.relationMaps[0].id;selectedRelationEdgeId=null;selectedRelationNodeId=null;selectedRelationNodes=[];relationConnectMode=false;saveState();render();showToast("삭제했습니다.")}function openNodeModal(id=null){editingNodeId=id;const m=getActiveMap();if(id){const n=m.nodes.find(x=>x.id===id);if(!n)return;if(n.sourceId){openDetail(n.sourceCategory,n.sourceId);return}$("nodeTitle").textContent="노드 수정";nodeName.value=n.name||"";nodeDesc.value=n.desc||""}else{$("nodeTitle").textContent="관계 노드";nodeName.value="";nodeDesc.value=""}openModal("nodeModal");nodeName.focus()}function saveNode(){const name=nodeName.value.trim(),desc=nodeDesc.value.trim();if(!name){showToast("이름을 적어주세요.");return}const m=getActiveMap();if(editingNodeId){const n=m.nodes.find(x=>x.id===editingNodeId);if(n){n.name=name;n.desc=desc}}else m.nodes.push({id:uid(),name,desc,x:240+Math.random()*240,y:180+Math.random()*220});saveState();closeModal("nodeModal");renderRelations();renderNav();renderTitle();showToast("저장했습니다.")}function openImportCardModal(){importSearch.value="";importCategory.value="all";renderImportCards();openModal("importCardModal")}function renderImportCards(){const kw=importSearch.value.trim().toLowerCase(),cf=importCategory.value,m=getActiveMap();let items=getItems().filter(i=>!i.archived);if(cf!=="all")items=items.filter(i=>i.category===cf);if(kw)items=items.filter(i=>[i.title,i.summary,i.body,i.tags.join(" "),categories[i.category],getFolderName(i.category,i.folderId)].join(" ").toLowerCase().includes(kw));importList.innerHTML="";if(!items.length){importList.innerHTML=`<p style="color:var(--muted)">가져올 카드가 없습니다.</p>`;return}items.forEach(i=>{const already=m.nodes.some(n=>n.sourceCategory===i.category&&n.sourceId===i.id),b=document.createElement("button");b.className="templateCard";b.disabled=already;b.innerHTML=`<strong>${escapeHTML(i.title||"제목 없음")}</strong><span>${escapeHTML(categories[i.category])}${i.folderId?" · "+escapeHTML(getFolderName(i.category,i.folderId)):""}${already?" · 이미 있음":""}<br>${escapeHTML(i.summary||i.body||"")}</span>`;b.onclick=()=>addCardToRelation(i.category,i.id);importList.appendChild(b)})}function addCardToRelation(c,id){const item=findItem(c,id);if(!item)return;const m=getActiveMap();if(m.nodes.some(n=>n.sourceCategory===c&&n.sourceId===id)){showToast("이미 관계도에 있습니다.");return}m.nodes.push({id:uid(),name:item.title||"제목 없음",desc:item.summary||categories[c],sourceCategory:c,sourceId:id,x:240+Math.random()*300,y:190+Math.random()*240});saveState();closeModal("importCardModal");renderRelations();renderTitle();showToast("관계도에 추가했습니다.")}function renderRelationTabs(){mapTabs.innerHTML="";state.relationMaps.forEach(m=>{const tab=document.createElement("button");tab.className="mapTab"+(m.id===state.activeRelationMapId?" active":"");tab.textContent=m.name;tab.onclick=()=>{state.activeRelationMapId=m.id;selectedRelationEdgeId=null;selectedRelationNodeId=null;selectedRelationNodes=[];relationConnectMode=false;saveState();render()};tab.ondblclick=()=>openMapModal(m.id);mapTabs.appendChild(tab)});[["탭 추가","primary",()=>openMapModal()],["탭 이름","",()=>openMapModal(state.activeRelationMapId)],["탭 삭제","danger",deleteActiveMap]].forEach(([t,cls,fn])=>{const b=document.createElement("button");b.textContent=t;if(cls)b.classList.add(cls);b.onclick=fn;mapTabs.appendChild(b)})}function renderRelations(){const m=getActiveMap();renderRelationTabs();stage.querySelectorAll(".node,.edgeLabel").forEach(n=>n.remove());svg.innerHTML="";m.edges=m.edges.filter(e=>m.nodes.some(n=>n.id===e.from)&&m.nodes.some(n=>n.id===e.to));m.edges.forEach(e=>{const f=m.nodes.find(n=>n.id===e.from),t=m.nodes.find(n=>n.id===e.to);if(!f||!t)return;const line=document.createElementNS("http://www.w3.org/2000/svg","line");line.setAttribute("x1",f.x+80);line.setAttribute("y1",f.y+38);line.setAttribute("x2",t.x+80);line.setAttribute("y2",t.y+38);if(selectedRelationEdgeId===e.id)line.classList.add("selected");line.style.pointerEvents="stroke";line.onclick=ev=>{ev.stopPropagation();selectedRelationEdgeId=e.id;selectedRelationNodeId=null;renderRelations()};svg.appendChild(line);if(e.label){const lab=document.createElement("div");lab.className="edgeLabel";lab.textContent=e.label;lab.style.left=(f.x+t.x)/2+80+"px";lab.style.top=(f.y+t.y)/2+38+"px";stage.appendChild(lab)}});m.nodes.forEach(n=>{const source=n.sourceId?findItem(n.sourceCategory,n.sourceId):null,title=source?source.title:n.name,desc=source?(source.summary||source.body||""):n.desc,type=source?categories[n.sourceCategory]:"직접 노드";const el=document.createElement("div");el.className="node"+(n.sourceId?" fromCard":"")+(selectedRelationNodes.includes(n.id)||selectedRelationNodeId===n.id?" selected":"");el.style.left=n.x+"px";el.style.top=n.y+"px";el.innerHTML=`<strong>${escapeHTML(title||"이름 없음")}</strong><span>${escapeHTML(desc||"")}</span><em>${escapeHTML(type)}</em>`;el.onclick=ev=>{ev.stopPropagation();if(relationConnectMode){selectNodeForConnection(n.id);return}selectedRelationNodeId=n.id;selectedRelationEdgeId=null;selectedRelationNodes=[];renderRelations()};el.ondblclick=ev=>{ev.stopPropagation();n.sourceId?openDetail(n.sourceCategory,n.sourceId):openNodeModal(n.id)};makeNodeDraggable(el,n);stage.appendChild(el)});$("connectBtn").textContent=relationConnectMode?"연결 중":"선 연결"}function selectNodeForConnection(id){const m=getActiveMap();if(selectedRelationNodes.includes(id))selectedRelationNodes=selectedRelationNodes.filter(x=>x!==id);else selectedRelationNodes.push(id);if(selectedRelationNodes.length===2){const[from,to]=selectedRelationNodes,exists=m.edges.some(e=>(e.from===from&&e.to===to)||(e.from===to&&e.to===from));if(!exists&&from!==to){const eid=uid();m.edges.push({id:eid,from,to,label:""});selectedRelationEdgeId=eid;openEdgeModal();saveState()}selectedRelationNodes=[];relationConnectMode=false}renderRelations();renderTitle()}function makeNodeDraggable(el,n){let drag=false,ox=0,oy=0;el.onpointerdown=e=>{if(relationConnectMode)return;drag=true;el.setPointerCapture(e.pointerId);const r=el.getBoundingClientRect();ox=e.clientX-r.left;oy=e.clientY-r.top};el.onpointermove=e=>{if(!drag)return;const r=stage.getBoundingClientRect();let x=e.clientX-r.left-ox,y=e.clientY-r.top-oy;x=Math.max(10,Math.min(r.width-170,x));y=Math.max(118,Math.min(r.height-92,y));n.x=x;n.y=y;el.style.left=x+"px";el.style.top=y+"px";updateRelationLinesOnly()};el.onpointerup=e=>{if(!drag)return;drag=false;el.releasePointerCapture(e.pointerId);saveState();renderRelations()}}function updateRelationLinesOnly(){const m=getActiveMap();svg.innerHTML="";stage.querySelectorAll(".edgeLabel").forEach(l=>l.remove());m.edges.forEach(e=>{const f=m.nodes.find(n=>n.id===e.from),t=m.nodes.find(n=>n.id===e.to);if(!f||!t)return;const line=document.createElementNS("http://www.w3.org/2000/svg","line");line.setAttribute("x1",f.x+80);line.setAttribute("y1",f.y+38);line.setAttribute("x2",t.x+80);line.setAttribute("y2",t.y+38);if(selectedRelationEdgeId===e.id)line.classList.add("selected");svg.appendChild(line);if(e.label){const lab=document.createElement("div");lab.className="edgeLabel";lab.textContent=e.label;lab.style.left=(f.x+t.x)/2+80+"px";lab.style.top=(f.y+t.y)/2+38+"px";stage.appendChild(lab)}})}function openEdgeModal(){const e=getActiveMap().edges.find(x=>x.id===selectedRelationEdgeId);if(!e){showToast("이름을 붙일 선을 선택해주세요.");return}edgeName.value=e.label||"";openModal("edgeModal");edgeName.focus()}function saveEdgeLabel(){const e=getActiveMap().edges.find(x=>x.id===selectedRelationEdgeId);if(!e){showToast("선을 선택해주세요.");return}e.label=edgeName.value.trim();saveState();closeModal("edgeModal");renderRelations();showToast("선 이름을 저장했습니다.")}function deleteSelectedRelationEdge(){const m=getActiveMap();if(!selectedRelationEdgeId){showToast("삭제할 선을 선택해주세요.");return}m.edges=m.edges.filter(e=>e.id!==selectedRelationEdgeId);selectedRelationEdgeId=null;saveState();renderRelations();renderTitle();showToast("선을 삭제했습니다.")}function deleteSelectedRelationNode(){const m=getActiveMap();if(!selectedRelationNodeId){showToast("삭제할 노드를 선택해주세요.");return}const n=m.nodes.find(x=>x.id===selectedRelationNodeId);if(!confirm(`'${getNodeTitle(n)}' 노드를 삭제할까요? 원본 카드는 삭제되지 않습니다.`))return;m.nodes=m.nodes.filter(x=>x.id!==selectedRelationNodeId);m.edges=m.edges.filter(e=>e.from!==selectedRelationNodeId&&e.to!==selectedRelationNodeId);selectedRelationNodeId=null;selectedRelationEdgeId=null;selectedRelationNodes=[];saveState();renderRelations();renderNav();renderTitle();showToast("노드를 삭제했습니다.")}function getNodeTitle(n){if(!n)return"노드";if(n.sourceId){const s=findItem(n.sourceCategory,n.sourceId);return s?s.title||"제목 없음":"삭제된 카드"}return n.name||"이름 없음"}function escapeHTML(v){return String(v).replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;")}document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>closeModal(b.dataset.close));document.querySelectorAll(".modalBg").forEach(m=>m.onclick=e=>{if(e.target===m)closeModal(m.id)});$("newBtn").onclick=()=>openNew();$("emptyNewBtn").onclick=()=>openNew();$("saveBtn").onclick=saveForm;$("saveNowBtn").onclick=()=>{saveState();showToast("저장했습니다.")};$("quickBtn").onclick=saveQuickMemo;$("templateBtn").onclick=()=>openModal("templateModal");$("insertTemplateBtn").onclick=()=>openModal("templateModal");$("exportBtn").onclick=exportData;$("exportMdBtn").onclick=exportMarkdown;$("clearBtn").onclick=clearAll;$("importBtn").onclick=()=>$("importFile").click();$("importFile").onchange=e=>{const f=e.target.files[0];if(f)importData(f);e.target.value=""};$("editBtn").onclick=()=>detailTarget&&openEdit(detailTarget.category,detailTarget.id);$("pinBtn").onclick=()=>{if(!detailTarget)return;togglePin(detailTarget.category,detailTarget.id);openDetail(detailTarget.category,detailTarget.id)};$("archiveBtn").onclick=()=>detailTarget&&toggleArchive(detailTarget.category,detailTarget.id);$("deleteBtn").onclick=()=>detailTarget&&deleteItem(detailTarget.category,detailTarget.id);$("imageInput").onchange=e=>{const f=e.target.files[0];setImage(f);e.target.value=""};$("removeImageBtn").onclick=removeImage;formCategory.onchange=()=>renderFormFolderOptions(formCategory.value,"");$("formImageInput").onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{formImageData=r.result;updateFormImagePreview()};r.readAsDataURL(f);e.target.value=""};$("formImageRemoveBtn").onclick=()=>{formImageData="";updateFormImagePreview()};$("saveFolderBtn").onclick=saveFolder;$("deleteFolderBtn").onclick=deleteFolder;searchInput.oninput=render;sortSelect.onchange=render;viewSelect.onchange=render;quickInput.onkeydown=e=>{if(e.key==="Enter")saveQuickMemo()};$("nodeBtn").onclick=()=>openNodeModal();$("addNodeBtn").onclick=()=>openNodeModal();$("saveNodeBtn").onclick=saveNode;$("cardToMapBtn").onclick=openImportCardModal;$("importNodeBtn").onclick=openImportCardModal;$("connectBtn").onclick=()=>{relationConnectMode=!relationConnectMode;selectedRelationNodes=[];selectedRelationEdgeId=null;selectedRelationNodeId=null;renderRelations();showToast(relationConnectMode?"연결할 노드 2개를 선택하세요.":"선 연결을 취소했습니다.")};$("edgeNameBtn").onclick=openEdgeModal;$("saveEdgeBtn").onclick=saveEdgeLabel;$("delEdgeBtn").onclick=deleteSelectedRelationEdge;$("delNodeBtn").onclick=deleteSelectedRelationNode;$("saveMapBtn").onclick=saveMap;importSearch.oninput=renderImportCards;importCategory.onchange=renderImportCards;stage.onclick=()=>{selectedRelationEdgeId=null;selectedRelationNodeId=null;selectedRelationNodes=[];if(currentCategory==="relations")renderRelations()};document.onkeydown=e=>{if(e.key==="Escape"){["editModal","detailModal","templateModal","folderModal","nodeModal","mapModal","edgeModal","importCardModal"].forEach(closeModal);relationConnectMode=false;selectedRelationNodes=[];selectedRelationEdgeId=null;selectedRelationNodeId=null;if(currentCategory==="relations")renderRelations()}if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault();searchInput.focus()}if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="n"){e.preventDefault();openNew()}};renderFormCategoryOptions();renderImportCategoryOptions();renderTemplates();updateSaveText();render();
+const $ = (id) => document.getElementById(id);
+
+const STORAGE_KEY = "setting-drawer-stable-v1";
+
+const categories = {
+  all: "전체",
+  characters: "캐릭터",
+  places: "지역",
+  factions: "조직",
+  events: "사건",
+  items: "아이템",
+  abilities: "능력",
+  notes: "메모",
+  timeline: "타임라인",
+  relations: "관계도"
+};
+
+const dataCategories = [
+  "characters",
+  "places",
+  "factions",
+  "events",
+  "items",
+  "abilities",
+  "notes"
+];
+
+const templates = {
+  character: {
+    name: "캐릭터",
+    category: "characters",
+    tags: "캐릭터",
+    body: `이름:
+
+나이:
+
+성격:
+
+원하는 것:
+
+두려워하는 것:
+
+관계:
+
+숨기고 있는 것:
+
+변화:`
+  },
+  place: {
+    name: "지역",
+    category: "places",
+    tags: "지역",
+    body: `이름:
+
+환경:
+
+분위기:
+
+사는 사람들:
+
+중요한 장소:
+
+위험한 점:
+
+관련 사건:`
+  },
+  faction: {
+    name: "조직",
+    category: "factions",
+    tags: "조직",
+    body: `이름:
+
+사상:
+
+지도자:
+
+구성원:
+
+목적:
+
+전투 방식:
+
+적대 관계:
+
+비밀:`
+  },
+  event: {
+    name: "사건",
+    category: "events",
+    tags: "사건",
+    body: `이름:
+
+발생 시점:
+
+원인:
+
+전개:
+
+결과:
+
+관련 인물:
+
+남은 흔적:`
+  },
+  item: {
+    name: "아이템",
+    category: "items",
+    tags: "아이템",
+    body: `이름:
+
+외형:
+
+소유자:
+
+기능:
+
+기원:
+
+사용 조건:
+
+관련 사건:`
+  },
+  ability: {
+    name: "능력",
+    category: "abilities",
+    tags: "능력",
+    body: `이름:
+
+사용자:
+
+효과:
+
+조건:
+
+한계:
+
+부작용:
+
+약점:`
+  }
+};
+
+const emptyFolders = {
+  characters: [],
+  places: [],
+  factions: [],
+  events: [],
+  items: [],
+  abilities: [],
+  notes: []
+};
+
+const emptyState = {
+  characters: [],
+  places: [],
+  factions: [],
+  events: [],
+  items: [],
+  abilities: [],
+  notes: [],
+  folders: structuredClone(emptyFolders),
+  timelineMaps: [
+    {
+      id: "default-timeline",
+      name: "기본 타임라인",
+      points: []
+    }
+  ],
+  activeTimelineMapId: "default-timeline",
+  relationMaps: [
+    {
+      id: "default-map",
+      name: "기본 관계도",
+      nodes: [],
+      edges: []
+    }
+  ],
+  activeRelationMapId: "default-map"
+};
+
+let state = loadState();
+
+let currentCategory = "all";
+let currentFolderId = "";
+let currentTag = "";
+let editingCard = null;
+let detailTarget = null;
+let formImage = "";
+let selectedLinks = [];
+
+let editingFolderId = null;
+
+let selectedTimelineId = null;
+let editingTimelineId = null;
+let editingTimelineMapId = null;
+let pendingTimelineX = 50;
+let pendingTimelineY = 50;
+let pendingDotX = 50;
+
+let editingNodeId = null;
+let selectedNodeId = null;
+let selectedEdgeId = null;
+let connectMode = false;
+let connectNodes = [];
+let editingMapId = null;
+
+let draggedCardId = null;
+let draggedCardCategory = null;
+
+function uid() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return "id-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+}
+
+function now() {
+  return new Date().toISOString();
+}
+
+function loadState() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+
+  if (!saved) {
+    return structuredClone(emptyState);
+  }
+
+  try {
+    const data = JSON.parse(saved);
+
+    Object.keys(emptyState).forEach((key) => {
+      if (data[key] === undefined) data[key] = structuredClone(emptyState[key]);
+    });
+
+    if (data.timelinePoints && !data.timelineMaps) {
+      data.timelineMaps = [
+        {
+          id: "default-timeline",
+          name: "기본 타임라인",
+          points: data.timelinePoints
+        }
+      ];
+      data.activeTimelineMapId = "default-timeline";
+      delete data.timelinePoints;
+    }
+
+    if (!data.timelineMaps || data.timelineMaps.length === 0) {
+      data.timelineMaps = structuredClone(emptyState.timelineMaps);
+      data.activeTimelineMapId = "default-timeline";
+    }
+
+    if (!data.activeTimelineMapId) {
+      data.activeTimelineMapId = data.timelineMaps[0].id;
+    }
+
+    dataCategories.forEach((category) => {
+      if (!data[category]) data[category] = [];
+      if (!data.folders[category]) data.folders[category] = [];
+
+      data[category].forEach((item, index) => {
+        if (item.folderId === undefined) item.folderId = "";
+        if (item.links === undefined) item.links = [];
+        if (item.order === undefined) item.order = index;
+      });
+    });
+
+    if (!data.relationMaps || data.relationMaps.length === 0) {
+      data.relationMaps = structuredClone(emptyState.relationMaps);
+      data.activeRelationMapId = "default-map";
+    }
+
+    return data;
+  } catch {
+    return structuredClone(emptyState);
+  }
+}
+
+function saveState() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  updateSaveText();
+}
+
+function updateSaveText() {
+  const time = new Date().toLocaleTimeString("ko-KR", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+
+  $("saveText").textContent = `저장됨 · ${time}`;
+}
+
+function showToast(message) {
+  $("toast").textContent = message;
+  $("toast").classList.add("show");
+
+  setTimeout(() => {
+    $("toast").classList.remove("show");
+  }, 1400);
+}
+
+function openModal(id) {
+  $(id).classList.add("show");
+}
+
+function closeModal(id) {
+  $(id).classList.remove("show");
+}
+
+function escapeHTML(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function getItems() {
+  const result = [];
+
+  dataCategories.forEach((category) => {
+    state[category].forEach((item) => {
+      result.push({ ...item, category });
+    });
+  });
+
+  return result;
+}
+
+function findItem(category, id) {
+  return state[category]?.find((item) => item.id === id);
+}
+
+function getFolderName(category, folderId) {
+  if (!folderId) return "폴더 없음";
+  const folder = state.folders[category]?.find((item) => item.id === folderId);
+  return folder ? folder.name : "삭제된 폴더";
+}
+
+function countCategory(category) {
+  if (category === "all") {
+    return getItems().filter((item) => !item.archived).length;
+  }
+
+  if (category === "timeline") {
+    return getActiveTimeline().points.length;
+  }
+
+  if (category === "relations") {
+    return state.relationMaps.length;
+  }
+
+  return state[category].filter((item) => !item.archived).length;
+}
+
+function getVisibleItems() {
+  const keyword = $("searchInput").value.trim().toLowerCase();
+  const archiveMode = $("viewSelect").value === "archive";
+
+  let items = getItems();
+
+  if (dataCategories.includes(currentCategory)) {
+    items = items.filter((item) => item.category === currentCategory);
+  }
+
+  items = items.filter((item) => Boolean(item.archived) === archiveMode);
+
+  if (dataCategories.includes(currentCategory) && currentFolderId) {
+    if (currentFolderId === "__none") {
+      items = items.filter((item) => !item.folderId);
+    } else {
+      items = items.filter((item) => item.folderId === currentFolderId);
+    }
+  }
+
+  if (currentTag) {
+    items = items.filter((item) => item.tags.includes(currentTag));
+  }
+
+  if (keyword) {
+    items = items.filter((item) => {
+      const text = [
+        item.title,
+        item.summary,
+        item.body,
+        item.dateText,
+        item.tags.join(" "),
+        getFolderName(item.category, item.folderId),
+        categories[item.category]
+      ].join(" ").toLowerCase();
+
+      return text.includes(keyword);
+    });
+  }
+
+  return sortItems(items);
+}
+
+function sortItems(items) {
+  const mode = $("sortSelect").value;
+  const copy = [...items];
+
+  copy.sort((a, b) => {
+    if (Number(b.pinned) !== Number(a.pinned)) {
+      return Number(b.pinned) - Number(a.pinned);
+    }
+
+    if (mode === "title") {
+      return (a.title || "").localeCompare(b.title || "", "ko");
+    }
+
+    if (mode === "created") {
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    }
+
+    if (mode === "updated") {
+      return new Date(b.updatedAt) - new Date(a.updatedAt);
+    }
+
+    return (a.order ?? 0) - (b.order ?? 0);
+  });
+
+  return copy;
+}
+
+function render() {
+  renderNav();
+  renderFolders();
+  renderTags();
+  renderTitle();
+  renderMain();
+}
+
+function renderNav() {
+  $("nav").innerHTML = "";
+
+  Object.keys(categories).forEach((category) => {
+    const button = document.createElement("button");
+    button.className = currentCategory === category ? "active" : "";
+    button.innerHTML = `<span>${categories[category]}</span><span>${countCategory(category)}</span>`;
+
+    button.addEventListener("click", () => {
+      currentCategory = category;
+      currentFolderId = "";
+      currentTag = "";
+      render();
+    });
+
+    $("nav").appendChild(button);
+  });
+}
+
+function renderTitle() {
+  if (currentCategory === "timeline") {
+    $("pageTitle").textContent = "타임라인";
+    const timeline = getActiveTimeline();
+    $("pageDesc").textContent = `${timeline.name} · ${timeline.points.length}개의 점`;
+    return;
+  }
+
+  if (currentCategory === "relations") {
+    const map = getActiveMap();
+    $("pageTitle").textContent = "관계도";
+    $("pageDesc").textContent = `${map.name} · ${map.nodes.length}개의 노드, ${map.edges.length}개의 선`;
+    return;
+  }
+
+  $("pageTitle").textContent = $("viewSelect").value === "archive" ? "보관함" : categories[currentCategory];
+
+  let text = `${getVisibleItems().length}개의 메모`;
+
+  if (dataCategories.includes(currentCategory) && currentFolderId) {
+    text += ` · ${currentFolderId === "__none" ? "폴더 없음" : getFolderName(currentCategory, currentFolderId)}`;
+  }
+
+  $("pageDesc").textContent = text;
+}
+
+function renderFolders() {
+  $("folderRow").innerHTML = "";
+
+  if (!dataCategories.includes(currentCategory)) {
+    $("folderRow").style.display = "none";
+    return;
+  }
+
+  $("folderRow").style.display = "flex";
+
+  const all = createPill("폴더 전체", !currentFolderId, () => {
+    currentFolderId = "";
+    render();
+  });
+  $("folderRow").appendChild(all);
+
+  const none = createPill("폴더 없음", currentFolderId === "__none", () => {
+    currentFolderId = "__none";
+    render();
+  });
+  $("folderRow").appendChild(none);
+
+  state.folders[currentCategory].forEach((folder) => {
+    const count = state[currentCategory].filter((item) => !item.archived && item.folderId === folder.id).length;
+
+    const button = createPill(`${folder.name} ${count}`, currentFolderId === folder.id, () => {
+      currentFolderId = folder.id;
+      render();
+    });
+
+    button.addEventListener("dblclick", () => openFolderModal(currentCategory, folder.id));
+
+    $("folderRow").appendChild(button);
+  });
+
+  const add = createPill("폴더 추가", false, () => openFolderModal(currentCategory));
+  $("folderRow").appendChild(add);
+
+  if (currentFolderId && currentFolderId !== "__none") {
+    const edit = createPill("현재 폴더 이름", false, () => openFolderModal(currentCategory, currentFolderId));
+    $("folderRow").appendChild(edit);
+  }
+}
+
+function renderTags() {
+  $("tagRow").innerHTML = "";
+
+  if (currentCategory === "timeline" || currentCategory === "relations") {
+    $("tagRow").style.display = "none";
+    return;
+  }
+
+  $("tagRow").style.display = "flex";
+
+  const items = getVisibleItems();
+  const tags = new Set();
+
+  items.forEach((item) => {
+    item.tags.forEach((tag) => tags.add(tag));
+  });
+
+  $("tagRow").appendChild(createPill("태그 전체", !currentTag, () => {
+    currentTag = "";
+    render();
+  }));
+
+  Array.from(tags).sort((a, b) => a.localeCompare(b, "ko")).forEach((tag) => {
+    $("tagRow").appendChild(createPill(tag, currentTag === tag, () => {
+      currentTag = tag;
+      render();
+    }));
+  });
+}
+
+function createPill(text, active, onClick) {
+  const button = document.createElement("button");
+  button.className = "pill" + (active ? " active" : "");
+  button.textContent = text;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function renderMain() {
+  const isTimeline = currentCategory === "timeline";
+  const isRelation = currentCategory === "relations";
+
+  $("cardGrid").style.display = isTimeline || isRelation ? "none" : "grid";
+  $("timelineView").style.display = isTimeline ? "block" : "none";
+  $("relationView").style.display = isRelation ? "block" : "none";
+  $("listTools").style.display = isTimeline || isRelation ? "none" : "grid";
+  $("emptyBox").style.display = "none";
+
+  if (isTimeline) {
+    renderTimeline();
+    return;
+  }
+
+  if (isRelation) {
+    renderRelations();
+    return;
+  }
+
+  renderCards();
+}
+
+function renderCards() {
+  const items = getVisibleItems();
+  $("cardGrid").innerHTML = "";
+
+  items.forEach((item) => {
+    $("cardGrid").appendChild(createCard(item));
+  });
+
+  $("emptyBox").style.display = items.length === 0 ? "block" : "none";
+}
+
+function createCard(item) {
+  const card = document.createElement("article");
+  card.className = "card" + (item.archived ? " archived" : "");
+  card.draggable = canDragCards();
+  card.dataset.id = item.id;
+  card.dataset.category = item.category;
+
+  card.addEventListener("dragstart", () => {
+    if (!canDragCards()) return;
+    draggedCardId = item.id;
+    draggedCardCategory = item.category;
+    card.classList.add("dragging");
+  });
+
+  card.addEventListener("dragend", () => {
+    draggedCardId = null;
+    draggedCardCategory = null;
+    document.querySelectorAll(".card").forEach((el) => el.classList.remove("dragging", "drop-target"));
+  });
+
+  card.addEventListener("dragover", (event) => {
+    if (!canDragCards()) return;
+    if (draggedCardCategory !== item.category) return;
+    event.preventDefault();
+    card.classList.add("drop-target");
+  });
+
+  card.addEventListener("dragleave", () => {
+    card.classList.remove("drop-target");
+  });
+
+  card.addEventListener("drop", (event) => {
+    if (!canDragCards()) return;
+    event.preventDefault();
+    reorderCards(item.category, draggedCardId, item.id);
+  });
+
+  const image = item.image
+    ? `<img src="${item.image}" alt="${escapeHTML(item.title)}">`
+    : "이미지 없음";
+
+  card.innerHTML = `
+    <div class="card-image">${image}</div>
+    <h3>${escapeHTML(item.title || "제목 없음")}</h3>
+    <div class="card-summary">${escapeHTML(item.summary || item.body || "내용 없음")}</div>
+    <div class="tags">
+      ${item.folderId ? `<span class="tag">${escapeHTML(getFolderName(item.category, item.folderId))}</span>` : ""}
+      ${item.dateText ? `<span class="tag">${escapeHTML(item.dateText)}</span>` : ""}
+      ${item.tags.map((tag) => `<span class="tag">${escapeHTML(tag)}</span>`).join("")}
+    </div>
+    <div class="card-actions"></div>
+  `;
+
+  const actions = card.querySelector(".card-actions");
+
+  actions.appendChild(actionButton("열기", "primary", () => openDetail(item.category, item.id)));
+  actions.appendChild(actionButton("수정", "", () => openEditCard(item.category, item.id)));
+  actions.appendChild(actionButton(item.pinned ? "고정 해제" : "고정", "", () => togglePin(item.category, item.id)));
+  actions.appendChild(actionButton(item.archived ? "보관 해제" : "보관", "", () => toggleArchive(item.category, item.id)));
+  actions.appendChild(actionButton("삭제", "danger", () => deleteCard(item.category, item.id)));
+
+  return card;
+}
+
+function actionButton(text, className, onClick) {
+  const button = document.createElement("button");
+  button.textContent = text;
+  if (className) button.className = className;
+  button.addEventListener("click", onClick);
+  return button;
+}
+
+function canDragCards() {
+  return dataCategories.includes(currentCategory)
+    && $("viewSelect").value === "normal"
+    && $("sortSelect").value === "manual"
+    && !$("searchInput").value.trim()
+    && !currentTag;
+}
+
+function reorderCards(category, fromId, toId) {
+  if (!fromId || !toId || fromId === toId) return;
+
+  const list = state[category];
+  const fromIndex = list.findIndex((item) => item.id === fromId);
+  const toIndex = list.findIndex((item) => item.id === toId);
+
+  if (fromIndex === -1 || toIndex === -1) return;
+
+  const [moved] = list.splice(fromIndex, 1);
+  list.splice(toIndex, 0, moved);
+
+  list.forEach((item, index) => {
+    item.order = index;
+    item.updatedAt = now();
+  });
+
+  saveState();
+  render();
+}
+
+function fillCategorySelects() {
+  $("cardCategory").innerHTML = "";
+  $("folderCategory").innerHTML = "";
+  $("importCategory").innerHTML = `<option value="all">전체</option>`;
+
+  dataCategories.forEach((category) => {
+    const label = categories[category];
+
+    $("cardCategory").appendChild(new Option(label, category));
+    $("folderCategory").appendChild(new Option(label, category));
+    $("importCategory").appendChild(new Option(label, category));
+  });
+}
+
+function fillFolderSelect(category, selected = "") {
+  $("cardFolder").innerHTML = "";
+  $("cardFolder").appendChild(new Option("폴더 없음", ""));
+
+  state.folders[category].forEach((folder) => {
+    $("cardFolder").appendChild(new Option(folder.name, folder.id));
+  });
+
+  $("cardFolder").value = selected || "";
+}
+
+function openNewCard(category = null) {
+  editingCard = null;
+  formImage = "";
+  selectedLinks = [];
+
+  $("cardModalTitle").textContent = "새 메모";
+  $("cardCategory").disabled = false;
+  $("cardCategory").value = category || (dataCategories.includes(currentCategory) ? currentCategory : "characters");
+
+  fillFolderSelect($("cardCategory").value, dataCategories.includes(currentCategory) ? currentFolderId : "");
+
+  $("cardDate").value = "";
+  $("cardTitle").value = "";
+  $("cardSummary").value = "";
+  $("cardBody").value = "";
+  $("cardTags").value = "";
+  renderImagePreview();
+  renderLinkPicker();
+
+  openModal("cardModal");
+}
+
+function openEditCard(category, id) {
+  const item = findItem(category, id);
+  if (!item) return;
+
+  editingCard = { category, id };
+  formImage = item.image || "";
+  selectedLinks = item.links || [];
+
+  $("cardModalTitle").textContent = "수정";
+  $("cardCategory").disabled = true;
+  $("cardCategory").value = category;
+  fillFolderSelect(category, item.folderId || "");
+
+  $("cardDate").value = item.dateText || "";
+  $("cardTitle").value = item.title || "";
+  $("cardSummary").value = item.summary || "";
+  $("cardBody").value = item.body || "";
+  $("cardTags").value = item.tags.join(", ");
+  renderImagePreview();
+  renderLinkPicker(category, id);
+
+  closeModal("detailModal");
+  openModal("cardModal");
+}
+
+function renderImagePreview() {
+  $("imagePreview").innerHTML = formImage ? `<img src="${formImage}" alt="이미지">` : "이미지 없음";
+}
+
+function renderLinkPicker(editCategory = null, editId = null) {
+  const box = $("linkPicker");
+  box.innerHTML = "";
+
+  const items = getItems().filter((item) => !(item.category === editCategory && item.id === editId));
+
+  if (items.length === 0) {
+    box.innerHTML = `<span style="color: var(--muted)">연결할 메모가 없습니다.</span>`;
+    return;
+  }
+
+  items.forEach((item) => {
+    const value = `${item.category}:${item.id}`;
+    const checked = selectedLinks.some((link) => link.category === item.category && link.id === item.id);
+
+    const label = document.createElement("label");
+    label.className = "link-option";
+    label.innerHTML = `
+      <input type="checkbox" value="${value}" ${checked ? "checked" : ""}>
+      <span>${escapeHTML(item.title || "제목 없음")} · ${escapeHTML(categories[item.category])}</span>
+    `;
+
+    box.appendChild(label);
+  });
+}
+
+function readLinks() {
+  return Array.from($("linkPicker").querySelectorAll("input:checked")).map((input) => {
+    const [category, id] = input.value.split(":");
+    return { category, id };
+  });
+}
+
+function saveCard() {
+  const category = $("cardCategory").value;
+  const title = $("cardTitle").value.trim();
+
+  if (!title) {
+    showToast("제목을 적어주세요.");
+    return;
+  }
+
+  const data = {
+    title,
+    summary: $("cardSummary").value.trim(),
+    body: $("cardBody").value.trim(),
+    dateText: $("cardDate").value.trim(),
+    folderId: $("cardFolder").value,
+    tags: $("cardTags").value.split(",").map((tag) => tag.trim()).filter(Boolean),
+    links: readLinks(),
+    image: formImage,
+    updatedAt: now()
+  };
+
+  if (data.tags.length === 0) data.tags = ["미분류"];
+
+  if (editingCard) {
+    const item = findItem(editingCard.category, editingCard.id);
+    Object.assign(item, data);
+  } else {
+    state[category].push({
+      id: uid(),
+      ...data,
+      pinned: false,
+      archived: false,
+      order: state[category].length,
+      createdAt: now()
+    });
+
+    currentCategory = category;
+    currentFolderId = data.folderId;
+  }
+
+  saveState();
+  closeModal("cardModal");
+  render();
+}
+
+function openDetail(category, id) {
+  const item = findItem(category, id);
+  if (!item) return;
+
+  detailTarget = { category, id };
+
+  $("detailTitle").textContent = item.title || "제목 없음";
+  $("detailSummary").textContent = item.summary || "";
+  $("detailBody").textContent = item.body || "내용 없음";
+  $("detailCategory").textContent = categories[category];
+  $("detailFolder").textContent = getFolderName(category, item.folderId);
+  $("detailDate").textContent = item.dateText || "-";
+  $("detailTags").textContent = item.tags.join(", ");
+  $("detailPinBtn").textContent = item.pinned ? "고정 해제" : "고정";
+  $("detailArchiveBtn").textContent = item.archived ? "보관 해제" : "보관";
+
+  $("detailImage").innerHTML = item.image ? `<img src="${item.image}" alt="이미지">` : "이미지 없음";
+
+  renderDetailLinks(item.links || []);
+
+  openModal("detailModal");
+}
+
+function renderDetailLinks(links) {
+  const box = $("detailLinks");
+  box.innerHTML = "";
+
+  if (!links.length) {
+    box.innerHTML = `<span style="color: var(--muted); font-size: 13px;">연결된 메모가 없습니다.</span>`;
+    return;
+  }
+
+  links.forEach((link) => {
+    const item = findItem(link.category, link.id);
+    if (!item) return;
+
+    const button = document.createElement("button");
+    button.className = "link-chip";
+    button.textContent = `${item.title} · ${categories[link.category]}`;
+    button.addEventListener("click", () => openDetail(link.category, link.id));
+
+    box.appendChild(button);
+  });
+}
+
+function togglePin(category, id) {
+  const item = findItem(category, id);
+  if (!item) return;
+
+  item.pinned = !item.pinned;
+  item.updatedAt = now();
+
+  saveState();
+  render();
+}
+
+function toggleArchive(category, id) {
+  const item = findItem(category, id);
+  if (!item) return;
+
+  item.archived = !item.archived;
+  item.updatedAt = now();
+
+  saveState();
+  closeModal("detailModal");
+  render();
+}
+
+function deleteCard(category, id) {
+  const item = findItem(category, id);
+  if (!item) return;
+
+  if (!confirm(`'${item.title}' 메모를 삭제할까요?`)) return;
+
+  state[category] = state[category].filter((target) => target.id !== id);
+
+  dataCategories.forEach((cat) => {
+    state[cat].forEach((target) => {
+      target.links = target.links.filter((link) => !(link.category === category && link.id === id));
+    });
+  });
+
+  state.relationMaps.forEach((map) => {
+    const nodeIds = map.nodes
+      .filter((node) => node.sourceCategory === category && node.sourceId === id)
+      .map((node) => node.id);
+
+    map.nodes = map.nodes.filter((node) => !(node.sourceCategory === category && node.sourceId === id));
+    map.edges = map.edges.filter((edge) => !nodeIds.includes(edge.from) && !nodeIds.includes(edge.to));
+  });
+
+  saveState();
+  closeModal("detailModal");
+  render();
+}
+
+function openFolderModal(category = null, folderId = null) {
+  editingFolderId = folderId;
+  const targetCategory = category || (dataCategories.includes(currentCategory) ? currentCategory : "characters");
+
+  $("folderCategory").value = targetCategory;
+
+  if (folderId) {
+    const folder = state.folders[targetCategory].find((item) => item.id === folderId);
+    $("folderModalTitle").textContent = "폴더 수정";
+    $("folderName").value = folder ? folder.name : "";
+    $("deleteFolderBtn").style.display = "";
+  } else {
+    $("folderModalTitle").textContent = "폴더 추가";
+    $("folderName").value = "";
+    $("deleteFolderBtn").style.display = "none";
+  }
+
+  openModal("folderModal");
+}
+
+function saveFolder() {
+  const category = $("folderCategory").value;
+  const name = $("folderName").value.trim();
+
+  if (!name) {
+    showToast("폴더 이름을 적어주세요.");
+    return;
+  }
+
+  if (editingFolderId) {
+    const folder = state.folders[category].find((item) => item.id === editingFolderId);
+    if (folder) folder.name = name;
+  } else {
+    const folder = { id: uid(), name };
+    state.folders[category].push(folder);
+
+    if (currentCategory === category) {
+      currentFolderId = folder.id;
+    }
+  }
+
+  saveState();
+  closeModal("folderModal");
+  render();
+}
+
+function deleteFolder() {
+  const category = $("folderCategory").value;
+
+  if (!editingFolderId) return;
+
+  const folder = state.folders[category].find((item) => item.id === editingFolderId);
+
+  if (!folder) return;
+  if (!confirm(`'${folder.name}' 폴더를 삭제할까요? 메모는 삭제되지 않습니다.`)) return;
+
+  state.folders[category] = state.folders[category].filter((item) => item.id !== editingFolderId);
+
+  state[category].forEach((item) => {
+    if (item.folderId === editingFolderId) item.folderId = "";
+  });
+
+  currentFolderId = "";
+  saveState();
+  closeModal("folderModal");
+  render();
+}
+
+function renderTemplates() {
+  $("templateList").innerHTML = "";
+
+  Object.keys(templates).forEach((key) => {
+    const template = templates[key];
+
+    const button = document.createElement("button");
+    button.className = "template-card";
+    button.innerHTML = `<strong>${template.name}</strong><span>${template.tags}</span>`;
+
+    button.addEventListener("click", () => {
+      closeModal("templateModal");
+      openNewCard(template.category);
+      $("cardBody").value = template.body;
+      $("cardTags").value = template.tags;
+    });
+
+    $("templateList").appendChild(button);
+  });
+}
+
+function saveQuickMemo() {
+  const text = $("quickInput").value.trim();
+
+  if (!text) {
+    showToast("메모를 적어주세요.");
+    return;
+  }
+
+  state.notes.push({
+    id: uid(),
+    title: text.slice(0, 28),
+    summary: text,
+    body: text,
+    dateText: "",
+    folderId: "",
+    tags: ["빠른메모"],
+    links: [],
+    image: "",
+    pinned: false,
+    archived: false,
+    order: state.notes.length,
+    createdAt: now(),
+    updatedAt: now()
+  });
+
+  $("quickInput").value = "";
+  currentCategory = "notes";
+
+  saveState();
+  render();
+}
+
+
+function getActiveTimeline() {
+  let timeline = state.timelineMaps.find((item) => item.id === state.activeTimelineMapId);
+
+  if (!timeline) {
+    timeline = state.timelineMaps[0];
+    state.activeTimelineMapId = timeline.id;
+  }
+
+  return timeline;
+}
+
+function renderTimelineTabs() {
+  const box = $("timelineTabs");
+  box.innerHTML = "";
+
+  state.timelineMaps.forEach((timeline) => {
+    const button = document.createElement("button");
+    button.textContent = timeline.name;
+    button.className = timeline.id === state.activeTimelineMapId ? "active" : "";
+
+    button.addEventListener("click", () => {
+      state.activeTimelineMapId = timeline.id;
+      selectedTimelineId = null;
+      saveState();
+      render();
+    });
+
+    button.addEventListener("dblclick", () => openTimelineMapModal(timeline.id));
+
+    box.appendChild(button);
+  });
+
+  box.appendChild(actionButton("탭 추가", "primary", () => openTimelineMapModal()));
+  box.appendChild(actionButton("탭 이름", "", () => openTimelineMapModal(state.activeTimelineMapId)));
+  box.appendChild(actionButton("탭 삭제", "danger", deleteActiveTimelineMap));
+}
+
+function openTimelineMapModal(id = null) {
+  editingTimelineMapId = id;
+
+  if (id) {
+    const timeline = state.timelineMaps.find((item) => item.id === id);
+    $("timelineMapModalTitle").textContent = "타임라인 탭 수정";
+    $("timelineMapName").value = timeline ? timeline.name : "";
+  } else {
+    $("timelineMapModalTitle").textContent = "타임라인 탭 추가";
+    $("timelineMapName").value = "";
+  }
+
+  openModal("timelineMapModal");
+}
+
+function saveTimelineMap() {
+  const name = $("timelineMapName").value.trim();
+
+  if (!name) {
+    showToast("이름을 적어주세요.");
+    return;
+  }
+
+  if (editingTimelineMapId) {
+    const timeline = state.timelineMaps.find((item) => item.id === editingTimelineMapId);
+    if (timeline) timeline.name = name;
+  } else {
+    const id = uid();
+    state.timelineMaps.push({ id, name, points: [] });
+    state.activeTimelineMapId = id;
+  }
+
+  saveState();
+  closeModal("timelineMapModal");
+  render();
+}
+
+function deleteActiveTimelineMap() {
+  if (state.timelineMaps.length <= 1) {
+    showToast("타임라인 탭은 하나 이상 필요합니다.");
+    return;
+  }
+
+  const timeline = getActiveTimeline();
+
+  if (!confirm(`'${timeline.name}' 타임라인 탭을 삭제할까요?`)) return;
+
+  state.timelineMaps = state.timelineMaps.filter((item) => item.id !== timeline.id);
+  state.activeTimelineMapId = state.timelineMaps[0].id;
+  selectedTimelineId = null;
+
+  saveState();
+  render();
+}
+
+function renderTimeline() {
+  const board = $("timelineBoard");
+  const svg = $("timelineSvg");
+  const timeline = getActiveTimeline();
+
+  board.querySelectorAll(".timeline-dot, .timeline-card").forEach((el) => el.remove());
+  svg.innerHTML = "";
+  renderTimelineTabs();
+
+  $("emptyBox").style.display = "none";
+
+  const boardRect = board.getBoundingClientRect();
+  const width = boardRect.width || 1000;
+  const height = boardRect.height || 500;
+  const centerY = height / 2;
+
+  timeline.points.forEach((point) => {
+    normalizeTimelinePoint(point);
+
+    const line = createTimelineLine(point, width, centerY, height);
+    svg.appendChild(line);
+
+    const dot = document.createElement("div");
+    dot.className = "timeline-dot" + (selectedTimelineId === point.id ? " selected" : "");
+    dot.style.left = `${point.dotX}%`;
+    dot.style.top = "50%";
+    dot.title = "선 위에서 좌우로 움직이는 점";
+    dot.dataset.pointId = point.id;
+
+    dot.addEventListener("click", (event) => {
+      event.stopPropagation();
+      selectedTimelineId = point.id;
+      renderTimeline();
+    });
+
+    makeTimelineDotDraggable(dot, point);
+    board.appendChild(dot);
+
+    const card = document.createElement("div");
+    card.className = "timeline-card"
+      + (point.locked ? " locked" : "")
+      + (selectedTimelineId === point.id ? " selected" : "");
+    card.style.left = `${point.cardX}%`;
+    card.style.top = `${point.cardY}%`;
+    card.dataset.pointId = point.id;
+
+    card.innerHTML = `
+      <strong>${escapeHTML(point.title || "이름 없음")}</strong>
+      <span>${escapeHTML(point.desc || "설명 없음")}</span>
+      ${point.locked ? "<em>고정됨</em>" : ""}
+    `;
+
+    card.addEventListener("click", (event) => {
+      event.stopPropagation();
+      selectedTimelineId = point.id;
+      renderTimeline();
+    });
+
+    card.addEventListener("dblclick", (event) => {
+      event.stopPropagation();
+      openTimelineModal(point.id);
+    });
+
+    makeTimelineCardDraggable(card, point);
+    board.appendChild(card);
+  });
+}
+
+function normalizeTimelinePoint(point) {
+  if (point.dotX === undefined) point.dotX = point.x ?? 50;
+  if (point.cardX === undefined) point.cardX = point.x ?? point.dotX ?? 50;
+  if (point.cardY === undefined) point.cardY = point.y ?? 34;
+}
+
+function createTimelineLine(point, width, centerY, height) {
+  const dotX = width * (point.dotX / 100);
+  const cardX = width * (point.cardX / 100);
+  const cardY = height * (point.cardY / 100);
+
+  const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  line.setAttribute("x1", dotX);
+  line.setAttribute("y1", centerY);
+  line.setAttribute("x2", cardX);
+  line.setAttribute("y2", cardY);
+
+  return line;
+}
+
+function updateTimelineVisual(point, dotEl = null, cardEl = null) {
+  const board = $("timelineBoard");
+  const svg = $("timelineSvg");
+  const timeline = getActiveTimeline();
+  const rect = board.getBoundingClientRect();
+  const width = rect.width || 1000;
+  const height = rect.height || 500;
+  const centerY = height / 2;
+
+  svg.innerHTML = "";
+
+  timeline.points.forEach((target) => {
+    normalizeTimelinePoint(target);
+    svg.appendChild(createTimelineLine(target, width, centerY, height));
+  });
+
+  if (dotEl) {
+    dotEl.style.left = `${point.dotX}%`;
+    dotEl.style.top = "50%";
+  }
+
+  if (cardEl) {
+    cardEl.style.left = `${point.cardX}%`;
+    cardEl.style.top = `${point.cardY}%`;
+  }
+}
+
+function makeTimelineDotDraggable(dot, point) {
+  dot.addEventListener("pointerdown", (event) => {
+    event.stopPropagation();
+    selectedTimelineId = point.id;
+
+    if (point.locked) {
+      renderTimeline();
+      return;
+    }
+
+    let dragging = true;
+    dot.classList.add("dragging");
+    dot.setPointerCapture(event.pointerId);
+
+    const move = (moveEvent) => {
+      if (!dragging) return;
+
+      const rect = $("timelineBoard").getBoundingClientRect();
+      let x = ((moveEvent.clientX - rect.left) / rect.width) * 100;
+      x = Math.max(6, Math.min(94, x));
+
+      point.dotX = x;
+      updateTimelineVisual(point, dot, null);
+    };
+
+    const up = () => {
+      dragging = false;
+      dot.classList.remove("dragging");
+      dot.removeEventListener("pointermove", move);
+      dot.removeEventListener("pointerup", up);
+      saveState();
+      renderTimeline();
+    };
+
+    dot.addEventListener("pointermove", move);
+    dot.addEventListener("pointerup", up);
+  });
+}
+
+function makeTimelineCardDraggable(card, point) {
+  card.addEventListener("pointerdown", (event) => {
+    event.stopPropagation();
+
+    selectedTimelineId = point.id;
+
+    if (point.locked) {
+      renderTimeline();
+      return;
+    }
+
+    const rect = $("timelineBoard").getBoundingClientRect();
+    const cardRect = card.getBoundingClientRect();
+    const offsetX = event.clientX - cardRect.left - cardRect.width / 2;
+    const offsetY = event.clientY - cardRect.top - cardRect.height / 2;
+
+    let dragging = true;
+    card.classList.add("dragging");
+    card.setPointerCapture(event.pointerId);
+
+    const move = (moveEvent) => {
+      if (!dragging) return;
+
+      let x = ((moveEvent.clientX - rect.left - offsetX) / rect.width) * 100;
+      let y = ((moveEvent.clientY - rect.top - offsetY) / rect.height) * 100;
+
+      x = Math.max(8, Math.min(92, x));
+      y = Math.max(12, Math.min(88, y));
+
+      point.cardX = x;
+      point.cardY = y;
+
+      updateTimelineVisual(point, null, card);
+    };
+
+    const up = () => {
+      dragging = false;
+      card.classList.remove("dragging");
+      card.removeEventListener("pointermove", move);
+      card.removeEventListener("pointerup", up);
+      saveState();
+      renderTimeline();
+    };
+
+    card.addEventListener("pointermove", move);
+    card.addEventListener("pointerup", up);
+  });
+}
+
+function openTimelineModal(id = null, x = 50, y = 50) {
+  editingTimelineId = id;
+
+  if (id) {
+    const point = getActiveTimeline().points.find((item) => item.id === id);
+    if (!point) return;
+
+    $("timelineModalTitle").textContent = "타임라인 점 수정";
+    $("timelineTitle").value = point.title || "";
+    $("timelineDesc").value = point.desc || "";
+  } else {
+    $("timelineModalTitle").textContent = "타임라인 점 추가";
+    $("timelineTitle").value = "";
+    $("timelineDesc").value = "";
+    pendingDotX = x;
+    pendingTimelineX = x;
+    pendingTimelineY = y < 50 ? Math.max(12, y) : Math.min(88, y);
+  }
+
+  openModal("timelineModal");
+}
+
+function saveTimelinePoint() {
+  const title = $("timelineTitle").value.trim();
+  const desc = $("timelineDesc").value.trim();
+
+  if (!title) {
+    showToast("제목을 적어주세요.");
+    return;
+  }
+
+  if (editingTimelineId) {
+    const point = state.timelinePoints.find((item) => item.id === editingTimelineId);
+    if (point) {
+      point.title = title;
+      point.desc = desc;
+    }
+  } else {
+    getActiveTimeline().points.push({
+      id: uid(),
+      title,
+      desc,
+      dotX: pendingDotX,
+      cardX: pendingTimelineX,
+      cardY: pendingTimelineY,
+      locked: false
+    });
+  }
+
+  saveState();
+  closeModal("timelineModal");
+  render();
+}
+
+function getActiveMap() {
+  let map = state.relationMaps.find((item) => item.id === state.activeRelationMapId);
+
+  if (!map) {
+    map = state.relationMaps[0];
+    state.activeRelationMapId = map.id;
+  }
+
+  return map;
+}
+
+function renderRelations() {
+  renderRelationTabs();
+
+  const board = $("relationBoard");
+  const svg = $("relationSvg");
+
+  board.querySelectorAll(".relation-node, .edge-label").forEach((el) => el.remove());
+  svg.innerHTML = "";
+
+  const map = getActiveMap();
+
+  map.edges = map.edges.filter((edge) => {
+    return map.nodes.some((node) => node.id === edge.from)
+      && map.nodes.some((node) => node.id === edge.to);
+  });
+
+  map.edges.forEach((edge) => {
+    const from = map.nodes.find((node) => node.id === edge.from);
+    const to = map.nodes.find((node) => node.id === edge.to);
+
+    if (!from || !to) return;
+
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", from.x + 80);
+    line.setAttribute("y1", from.y + 38);
+    line.setAttribute("x2", to.x + 80);
+    line.setAttribute("y2", to.y + 38);
+    line.style.pointerEvents = "stroke";
+
+    if (selectedEdgeId === edge.id) {
+      line.classList.add("selected");
+    }
+
+    line.addEventListener("click", (event) => {
+      event.stopPropagation();
+      selectedEdgeId = edge.id;
+      selectedNodeId = null;
+      renderRelations();
+    });
+
+    svg.appendChild(line);
+
+    if (edge.label) {
+      const label = document.createElement("div");
+      label.className = "edge-label";
+      label.textContent = edge.label;
+      label.style.left = `${(from.x + to.x) / 2 + 80}px`;
+      label.style.top = `${(from.y + to.y) / 2 + 38}px`;
+      board.appendChild(label);
+    }
+  });
+
+  map.nodes.forEach((node) => {
+    const source = node.sourceId ? findItem(node.sourceCategory, node.sourceId) : null;
+
+    const el = document.createElement("div");
+    el.className = "relation-node"
+      + (node.sourceId ? " from-card" : "")
+      + (selectedNodeId === node.id ? " selected" : "");
+    el.style.left = `${node.x}px`;
+    el.style.top = `${node.y}px`;
+
+    el.innerHTML = `
+      <strong>${escapeHTML(source ? source.title : node.name || "이름 없음")}</strong>
+      <span>${escapeHTML(source ? source.summary || source.body || "" : node.desc || "")}</span>
+      <em>${escapeHTML(source ? categories[node.sourceCategory] : "직접 노드")}</em>
+    `;
+
+    el.addEventListener("click", (event) => {
+      event.stopPropagation();
+
+      if (connectMode) {
+        selectNodeForConnect(node.id);
+        return;
+      }
+
+      selectedNodeId = node.id;
+      selectedEdgeId = null;
+      renderRelations();
+    });
+
+    el.addEventListener("dblclick", (event) => {
+      event.stopPropagation();
+
+      if (node.sourceId) {
+        openDetail(node.sourceCategory, node.sourceId);
+      } else {
+        openNodeModal(node.id);
+      }
+    });
+
+    makeRelationNodeDraggable(el, node);
+
+    board.appendChild(el);
+  });
+}
+
+function renderRelationTabs() {
+  const box = $("relationTabs");
+  box.innerHTML = "";
+
+  state.relationMaps.forEach((map) => {
+    const button = document.createElement("button");
+    button.textContent = map.name;
+    button.className = map.id === state.activeRelationMapId ? "primary" : "";
+
+    button.addEventListener("click", () => {
+      state.activeRelationMapId = map.id;
+      selectedNodeId = null;
+      selectedEdgeId = null;
+      connectMode = false;
+      saveState();
+      render();
+    });
+
+    button.addEventListener("dblclick", () => openMapModal(map.id));
+
+    box.appendChild(button);
+  });
+
+  box.appendChild(actionButton("탭 추가", "primary", () => openMapModal()));
+  box.appendChild(actionButton("탭 이름", "", () => openMapModal(state.activeRelationMapId)));
+  box.appendChild(actionButton("탭 삭제", "danger", deleteActiveMap));
+}
+
+function makeRelationNodeDraggable(el, node) {
+  el.addEventListener("pointerdown", (event) => {
+    if (connectMode) return;
+
+    event.stopPropagation();
+
+    let dragging = true;
+    const rect = el.getBoundingClientRect();
+    const offsetX = event.clientX - rect.left;
+    const offsetY = event.clientY - rect.top;
+
+    el.setPointerCapture(event.pointerId);
+
+    const move = (moveEvent) => {
+      if (!dragging) return;
+
+      const board = $("relationBoard").getBoundingClientRect();
+      let x = moveEvent.clientX - board.left - offsetX;
+      let y = moveEvent.clientY - board.top - offsetY;
+
+      x = Math.max(10, Math.min(board.width - 170, x));
+      y = Math.max(10, Math.min(board.height - 90, y));
+
+      node.x = x;
+      node.y = y;
+
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      updateRelationLinesOnly();
+    };
+
+    const up = () => {
+      dragging = false;
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      saveState();
+      renderRelations();
+    };
+
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+  });
+}
+
+function updateRelationLinesOnly() {
+  renderRelations();
+}
+
+function openNodeModal(id = null) {
+  editingNodeId = id;
+
+  const map = getActiveMap();
+
+  if (id) {
+    const node = map.nodes.find((item) => item.id === id);
+    if (!node) return;
+
+    $("nodeModalTitle").textContent = "노드 수정";
+    $("nodeName").value = node.name || "";
+    $("nodeDesc").value = node.desc || "";
+  } else {
+    $("nodeModalTitle").textContent = "노드 추가";
+    $("nodeName").value = "";
+    $("nodeDesc").value = "";
+  }
+
+  openModal("nodeModal");
+}
+
+function saveNode() {
+  const name = $("nodeName").value.trim();
+  const desc = $("nodeDesc").value.trim();
+
+  if (!name) {
+    showToast("이름을 적어주세요.");
+    return;
+  }
+
+  const map = getActiveMap();
+
+  if (editingNodeId) {
+    const node = map.nodes.find((item) => item.id === editingNodeId);
+    if (node) {
+      node.name = name;
+      node.desc = desc;
+    }
+  } else {
+    map.nodes.push({
+      id: uid(),
+      name,
+      desc,
+      x: 240 + Math.random() * 240,
+      y: 150 + Math.random() * 200
+    });
+  }
+
+  saveState();
+  closeModal("nodeModal");
+  render();
+}
+
+function selectNodeForConnect(id) {
+  connectNodes.push(id);
+
+  if (connectNodes.length === 2) {
+    const [from, to] = connectNodes;
+
+    if (from !== to) {
+      const map = getActiveMap();
+      const exists = map.edges.some((edge) => {
+        return (edge.from === from && edge.to === to) || (edge.from === to && edge.to === from);
+      });
+
+      if (!exists) {
+        const edgeId = uid();
+        map.edges.push({ id: edgeId, from, to, label: "" });
+        selectedEdgeId = edgeId;
+        saveState();
+        openModal("edgeModal");
+      }
+    }
+
+    connectNodes = [];
+    connectMode = false;
+  }
+
+  renderRelations();
+}
+
+function openMapModal(id = null) {
+  editingMapId = id;
+
+  if (id) {
+    const map = state.relationMaps.find((item) => item.id === id);
+    $("mapName").value = map ? map.name : "";
+  } else {
+    $("mapName").value = "";
+  }
+
+  openModal("mapModal");
+}
+
+function saveMap() {
+  const name = $("mapName").value.trim();
+
+  if (!name) {
+    showToast("이름을 적어주세요.");
+    return;
+  }
+
+  if (editingMapId) {
+    const map = state.relationMaps.find((item) => item.id === editingMapId);
+    if (map) map.name = name;
+  } else {
+    const id = uid();
+    state.relationMaps.push({ id, name, nodes: [], edges: [] });
+    state.activeRelationMapId = id;
+  }
+
+  saveState();
+  closeModal("mapModal");
+  render();
+}
+
+function deleteActiveMap() {
+  if (state.relationMaps.length <= 1) {
+    showToast("관계도 탭은 하나 이상 필요합니다.");
+    return;
+  }
+
+  const map = getActiveMap();
+
+  if (!confirm(`'${map.name}' 관계도 탭을 삭제할까요?`)) return;
+
+  state.relationMaps = state.relationMaps.filter((item) => item.id !== map.id);
+  state.activeRelationMapId = state.relationMaps[0].id;
+
+  saveState();
+  render();
+}
+
+function openImportCards() {
+  $("importSearch").value = "";
+  $("importCategory").value = "all";
+  renderImportCards();
+  openModal("importCardModal");
+}
+
+function renderImportCards() {
+  const keyword = $("importSearch").value.trim().toLowerCase();
+  const categoryFilter = $("importCategory").value;
+  const map = getActiveMap();
+
+  let items = getItems().filter((item) => !item.archived);
+
+  if (categoryFilter !== "all") {
+    items = items.filter((item) => item.category === categoryFilter);
+  }
+
+  if (keyword) {
+    items = items.filter((item) => {
+      return [item.title, item.summary, item.body, categories[item.category]]
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword);
+    });
+  }
+
+  $("importList").innerHTML = "";
+
+  items.forEach((item) => {
+    const already = map.nodes.some((node) => node.sourceCategory === item.category && node.sourceId === item.id);
+
+    const button = document.createElement("button");
+    button.className = "import-card";
+    button.disabled = already;
+    button.innerHTML = `
+      <strong>${escapeHTML(item.title || "제목 없음")}</strong>
+      <span>${escapeHTML(categories[item.category])}${already ? " · 이미 있음" : ""}<br>${escapeHTML(item.summary || item.body || "")}</span>
+    `;
+
+    button.addEventListener("click", () => {
+      map.nodes.push({
+        id: uid(),
+        name: item.title || "제목 없음",
+        desc: item.summary || "",
+        sourceCategory: item.category,
+        sourceId: item.id,
+        x: 240 + Math.random() * 300,
+        y: 160 + Math.random() * 220
+      });
+
+      saveState();
+      closeModal("importCardModal");
+      render();
+    });
+
+    $("importList").appendChild(button);
+  });
+}
+
+function saveEdgeName() {
+  const map = getActiveMap();
+  const edge = map.edges.find((item) => item.id === selectedEdgeId);
+
+  if (!edge) {
+    showToast("선을 선택해주세요.");
+    return;
+  }
+
+  edge.label = $("edgeName").value.trim();
+
+  saveState();
+  closeModal("edgeModal");
+  renderRelations();
+}
+
+function deleteSelectedEdge() {
+  if (!selectedEdgeId) {
+    showToast("삭제할 선을 선택해주세요.");
+    return;
+  }
+
+  const map = getActiveMap();
+  map.edges = map.edges.filter((edge) => edge.id !== selectedEdgeId);
+  selectedEdgeId = null;
+
+  saveState();
+  renderRelations();
+}
+
+function deleteSelectedNode() {
+  if (!selectedNodeId) {
+    showToast("삭제할 노드를 선택해주세요.");
+    return;
+  }
+
+  const map = getActiveMap();
+  map.nodes = map.nodes.filter((node) => node.id !== selectedNodeId);
+  map.edges = map.edges.filter((edge) => edge.from !== selectedNodeId && edge.to !== selectedNodeId);
+  selectedNodeId = null;
+
+  saveState();
+  renderRelations();
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], {
+    type: "application/json"
+  });
+
+  downloadBlob(blob, "setting-drawer.json");
+}
+
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(file) {
+  const reader = new FileReader();
+
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      state = { ...structuredClone(emptyState), ...data };
+
+      if (data.timelinePoints && !data.timelineMaps) {
+        state.timelineMaps = [
+          {
+            id: "default-timeline",
+            name: "기본 타임라인",
+            points: data.timelinePoints
+          }
+        ];
+        state.activeTimelineMapId = "default-timeline";
+      }
+
+      if (!state.timelineMaps || state.timelineMaps.length === 0) {
+        state.timelineMaps = structuredClone(emptyState.timelineMaps);
+        state.activeTimelineMapId = "default-timeline";
+      }
+
+      dataCategories.forEach((category) => {
+        if (!state[category]) state[category] = [];
+        if (!state.folders[category]) state.folders[category] = [];
+      });
+
+      saveState();
+      currentCategory = "all";
+      currentFolderId = "";
+      currentTag = "";
+      render();
+    } catch {
+      showToast("파일을 읽을 수 없습니다.");
+    }
+  };
+
+  reader.readAsText(file);
+}
+
+function clearAll() {
+  if (!confirm("모든 메모와 관계도를 비울까요?")) return;
+
+  state = structuredClone(emptyState);
+  currentCategory = "all";
+  currentFolderId = "";
+  currentTag = "";
+
+  saveState();
+  render();
+}
+
+function initEvents() {
+  document.querySelectorAll("[data-close]").forEach((button) => {
+    button.addEventListener("click", () => closeModal(button.dataset.close));
+  });
+
+  document.querySelectorAll(".modal-bg").forEach((modal) => {
+    modal.addEventListener("click", (event) => {
+      if (event.target === modal) closeModal(modal.id);
+    });
+  });
+
+  $("newCardBtn").addEventListener("click", () => openNewCard());
+  $("saveNowBtn").addEventListener("click", () => {
+    saveState();
+    showToast("저장했습니다.");
+  });
+  $("templateBtn").addEventListener("click", () => openModal("templateModal"));
+  $("exportBtn").addEventListener("click", exportData);
+  $("importBtn").addEventListener("click", () => $("importFile").click());
+  $("clearBtn").addEventListener("click", clearAll);
+
+  $("importFile").addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (file) importData(file);
+    event.target.value = "";
+  });
+
+  $("quickSaveBtn").addEventListener("click", saveQuickMemo);
+  $("quickInput").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") saveQuickMemo();
+  });
+
+  $("searchInput").addEventListener("input", render);
+  $("sortSelect").addEventListener("change", render);
+  $("viewSelect").addEventListener("change", render);
+
+  $("cardCategory").addEventListener("change", () => {
+    fillFolderSelect($("cardCategory").value, "");
+  });
+
+  $("saveCardBtn").addEventListener("click", saveCard);
+
+  $("imageInput").addEventListener("change", (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      formImage = reader.result;
+      renderImagePreview();
+    };
+    reader.readAsDataURL(file);
+
+    event.target.value = "";
+  });
+
+  $("removeImageBtn").addEventListener("click", () => {
+    formImage = "";
+    renderImagePreview();
+  });
+
+  $("detailEditBtn").addEventListener("click", () => {
+    if (!detailTarget) return;
+    openEditCard(detailTarget.category, detailTarget.id);
+  });
+  $("detailDeleteBtn").addEventListener("click", () => {
+    if (!detailTarget) return;
+    deleteCard(detailTarget.category, detailTarget.id);
+  });
+  $("detailPinBtn").addEventListener("click", () => {
+    if (!detailTarget) return;
+    togglePin(detailTarget.category, detailTarget.id);
+    openDetail(detailTarget.category, detailTarget.id);
+  });
+  $("detailArchiveBtn").addEventListener("click", () => {
+    if (!detailTarget) return;
+    toggleArchive(detailTarget.category, detailTarget.id);
+  });
+
+  $("saveFolderBtn").addEventListener("click", saveFolder);
+  $("deleteFolderBtn").addEventListener("click", deleteFolder);
+
+  $("addTimelineBtn").addEventListener("click", () => openTimelineModal(null, 50, 50));
+  $("editTimelineBtn").addEventListener("click", () => {
+    if (!selectedTimelineId) {
+      showToast("수정할 점을 선택해주세요.");
+      return;
+    }
+    openTimelineModal(selectedTimelineId);
+  });
+  $("lockTimelineBtn").addEventListener("click", () => {
+    if (!selectedTimelineId) {
+      showToast("고정할 점을 선택해주세요.");
+      return;
+    }
+
+    const point = getActiveTimeline().points.find((item) => item.id === selectedTimelineId);
+    if (!point) return;
+
+    point.locked = !point.locked;
+    saveState();
+    renderTimeline();
+  });
+  $("deleteTimelineBtn").addEventListener("click", () => {
+    if (!selectedTimelineId) {
+      showToast("삭제할 점을 선택해주세요.");
+      return;
+    }
+
+    getActiveTimeline().points = getActiveTimeline().points.filter((item) => item.id !== selectedTimelineId);
+    selectedTimelineId = null;
+    saveState();
+    render();
+  });
+  $("saveTimelineBtn").addEventListener("click", saveTimelinePoint);
+
+  $("timelineBoard").addEventListener("click", (event) => {
+    if (event.target.classList.contains("timeline-center-line")) {
+      const rect = $("timelineBoard").getBoundingClientRect();
+      const x = Math.max(6, Math.min(94, ((event.clientX - rect.left) / rect.width) * 100));
+      const y = 34;
+
+      openTimelineModal(null, x, y);
+      return;
+    }
+
+    if (event.target === $("timelineBoard") || event.target === $("timelineSvg")) {
+      selectedTimelineId = null;
+      renderTimeline();
+    }
+  });
+
+  $("saveTimelineMapBtn").addEventListener("click", saveTimelineMap);
+
+  $("addRelationNodeBtn").addEventListener("click", () => openNodeModal());
+  $("saveNodeBtn").addEventListener("click", saveNode);
+  $("connectNodeBtn").addEventListener("click", () => {
+    connectMode = !connectMode;
+    connectNodes = [];
+    showToast(connectMode ? "연결할 노드 2개를 선택하세요." : "선 연결을 취소했습니다.");
+  });
+  $("importCardNodeBtn").addEventListener("click", openImportCards);
+  $("importSearch").addEventListener("input", renderImportCards);
+  $("importCategory").addEventListener("change", renderImportCards);
+
+  $("editEdgeBtn").addEventListener("click", () => {
+    if (!selectedEdgeId) {
+      showToast("이름을 붙일 선을 선택해주세요.");
+      return;
+    }
+
+    const edge = getActiveMap().edges.find((item) => item.id === selectedEdgeId);
+    $("edgeName").value = edge?.label || "";
+    openModal("edgeModal");
+  });
+  $("saveEdgeBtn").addEventListener("click", saveEdgeName);
+  $("deleteEdgeBtn").addEventListener("click", deleteSelectedEdge);
+  $("deleteNodeBtn").addEventListener("click", deleteSelectedNode);
+
+  $("saveMapBtn").addEventListener("click", saveMap);
+
+  $("relationBoard").addEventListener("click", () => {
+    selectedNodeId = null;
+    selectedEdgeId = null;
+    renderRelations();
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      [
+        "cardModal",
+        "detailModal",
+        "folderModal",
+        "templateModal",
+        "timelineMapModal",
+        "timelineModal",
+        "nodeModal",
+        "mapModal",
+        "edgeModal",
+        "importCardModal"
+      ].forEach(closeModal);
+    }
+  });
+}
+
+function init() {
+  fillCategorySelects();
+  renderTemplates();
+  updateSaveText();
+  initEvents();
+  render();
+}
+
+init();
