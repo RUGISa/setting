@@ -1045,3 +1045,12 @@ button.danger {
 .tools {
   margin-top: 14px;
 }
+
+/* 작성 버튼과 빈 화면 클릭 안내 */
+.empty {
+  cursor: pointer;
+}
+
+.empty:hover {
+  background: rgba(255, 255, 255, 0.46);
+}

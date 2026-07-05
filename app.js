@@ -1917,6 +1917,7 @@ function initEvents() {
   });
 
   $("newCardBtn").addEventListener("click", () => openNewCard());
+  $("writeCardBtn").addEventListener("click", () => openNewCard());
   $("saveNowBtn").addEventListener("click", () => {
     saveState();
     showToast("저장했습니다.");
@@ -1935,6 +1936,10 @@ function initEvents() {
   $("quickSaveBtn").addEventListener("click", saveQuickMemo);
   $("quickInput").addEventListener("keydown", (event) => {
     if (event.key === "Enter") saveQuickMemo();
+  });
+
+  $("emptyBox").addEventListener("click", () => {
+    if (currentCategory !== "timeline" && currentCategory !== "relations") openNewCard();
   });
 
   $("searchInput").addEventListener("input", render);
