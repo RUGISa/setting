@@ -155,7 +155,6 @@ const emptyState = {
   events: [],
   items: [],
   abilities: [],
-  notes: [],
   folders: structuredClone(emptyFolders),
   timelineMaps: [
     {
@@ -273,6 +272,7 @@ function loadState() {
 }
 
 function saveState() {
+  repairAllBidirectionalLinks();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   updateSaveText();
 }
@@ -681,6 +681,41 @@ function renderCards() {
   $("emptyBox").style.display = items.length === 0 ? "block" : "none";
 }
 
+function createCardRelationSummary(item) {
+  const linked = normalizeLinks(item.links || [])
+    .map((link) => {
+      const target = findItem(link.category, link.id);
+      return target ? { ...target, category: link.category } : null;
+    })
+    .filter(Boolean);
+
+  let targets = [];
+  let label = "";
+
+  if (item.category === "factions") {
+    targets = linked.filter((target) => target.category === "characters");
+    label = "포함";
+  } else if (item.category === "characters") {
+    const factions = linked.filter((target) => target.category === "factions");
+    const abilities = linked.filter((target) => target.category === "abilities");
+    targets = [...factions, ...abilities];
+    label = "연결";
+  } else if (item.category === "abilities") {
+    targets = linked.filter((target) => target.category === "characters");
+    label = "사용";
+  }
+
+  if (!targets.length) return "";
+
+  return `
+    <div class="card-relations">
+      <strong>${label}</strong>
+      ${targets.slice(0, 4).map((target) => `<span>${escapeHTML(target.title)}</span>`).join("")}
+      ${targets.length > 4 ? `<em>+${targets.length - 4}</em>` : ""}
+    </div>
+  `;
+}
+
 function createCard(item) {
   const card = document.createElement("article");
   card.className = "card" + (item.archived ? " archived" : "");
@@ -721,11 +756,13 @@ function createCard(item) {
   const image = item.image
     ? `<img src="${item.image}" alt="${escapeHTML(item.title)}">`
     : "이미지 없음";
+  const relationSummary = createCardRelationSummary(item);
 
   card.innerHTML = `
     <div class="card-image">${image}</div>
     <h3>${escapeHTML(item.title || "제목 없음")}</h3>
     <div class="card-summary">${escapeHTML(item.summary || item.body || "내용 없음")}</div>
+    ${relationSummary}
     <div class="tags">
       ${item.folderId ? `<span class="tag">${escapeHTML(getFolderName(item.category, item.folderId))}</span>` : ""}
       ${item.dateText ? `<span class="tag">${escapeHTML(item.dateText)}</span>` : ""}
@@ -858,10 +895,89 @@ function renderImagePreview() {
   $("imagePreview").innerHTML = formImage ? `<img src="${formImage}" alt="이미지">` : "이미지 없음";
 }
 
+function linkKey(link) {
+  return `${link.category}:${link.id}`;
+}
+
+function isSameLink(a, b) {
+  return a.category === b.category && a.id === b.id;
+}
+
+function normalizeLinks(links = []) {
+  const seen = new Set();
+  const result = [];
+
+  links.forEach((link) => {
+    if (!link || !link.category || !link.id) return;
+    if (!state[link.category]) return;
+    if (!findItem(link.category, link.id)) return;
+
+    const key = linkKey(link);
+    if (seen.has(key)) return;
+
+    seen.add(key);
+    result.push({ category: link.category, id: link.id });
+  });
+
+  return result;
+}
+
+function ensureLink(targetCategory, targetId, link) {
+  const target = findItem(targetCategory, targetId);
+  if (!target) return;
+
+  target.links = normalizeLinks(target.links || []);
+
+  if (!target.links.some((item) => isSameLink(item, link))) {
+    target.links.push({ category: link.category, id: link.id });
+    target.updatedAt = now();
+  }
+}
+
+function removeLink(targetCategory, targetId, link) {
+  const target = findItem(targetCategory, targetId);
+  if (!target || !target.links) return;
+
+  target.links = target.links.filter((item) => !isSameLink(item, link));
+  target.updatedAt = now();
+}
+
+function syncBidirectionalLinks(sourceCategory, sourceId, nextLinks, prevLinks = []) {
+  const sourceLink = { category: sourceCategory, id: sourceId };
+  const next = normalizeLinks(nextLinks);
+  const prev = normalizeLinks(prevLinks);
+
+  next.forEach((link) => ensureLink(link.category, link.id, sourceLink));
+
+  prev.forEach((oldLink) => {
+    const stillLinked = next.some((newLink) => isSameLink(newLink, oldLink));
+    if (!stillLinked) removeLink(oldLink.category, oldLink.id, sourceLink);
+  });
+
+  return next;
+}
+
+function repairAllBidirectionalLinks() {
+  dataCategories.forEach((category) => {
+    state[category].forEach((item) => {
+      item.links = normalizeLinks(item.links || []);
+    });
+  });
+
+  dataCategories.forEach((category) => {
+    state[category].forEach((item) => {
+      item.links.forEach((link) => {
+        ensureLink(link.category, link.id, { category, id: item.id });
+      });
+    });
+  });
+}
+
 function renderLinkPicker(editCategory = null, editId = null) {
   const box = $("linkPicker");
   box.innerHTML = "";
 
+  const currentCategoryValue = editCategory || $("cardCategory").value;
   const items = getItems().filter((item) => !(item.category === editCategory && item.id === editId));
 
   if (items.length === 0) {
@@ -869,26 +985,78 @@ function renderLinkPicker(editCategory = null, editId = null) {
     return;
   }
 
-  items.forEach((item) => {
-    const value = `${item.category}:${item.id}`;
-    const checked = selectedLinks.some((link) => link.category === item.category && link.id === item.id);
+  const guide = document.createElement("div");
+  guide.className = "link-guide";
 
-    const label = document.createElement("label");
-    label.className = "link-option";
-    label.innerHTML = `
-      <input type="checkbox" value="${value}" ${checked ? "checked" : ""}>
-      <span>${escapeHTML(item.title || "제목 없음")} · ${escapeHTML(categories[item.category])}</span>
-    `;
+  if (currentCategoryValue === "factions") {
+    guide.textContent = "조직에 포함될 캐릭터를 체크하면 캐릭터 카드에도 자동으로 소속 조직이 연결됩니다.";
+  } else if (currentCategoryValue === "characters") {
+    guide.textContent = "캐릭터와 조직, 능력을 연결하면 상대 카드에도 자동으로 연결됩니다.";
+  } else if (currentCategoryValue === "abilities") {
+    guide.textContent = "능력을 사용하는 캐릭터를 체크하면 캐릭터 카드에도 자동으로 능력이 연결됩니다.";
+  } else {
+    guide.textContent = "체크한 설정은 양방향으로 연결됩니다.";
+  }
 
-    box.appendChild(label);
+  box.appendChild(guide);
+
+  const preferredOrder = currentCategoryValue === "factions"
+    ? ["characters", "abilities", "places", "events", "items", "factions"]
+    : currentCategoryValue === "characters"
+      ? ["factions", "abilities", "characters", "places", "events", "items"]
+      : currentCategoryValue === "abilities"
+        ? ["characters", "factions", "abilities", "places", "events", "items"]
+        : dataCategories;
+
+  preferredOrder.forEach((category) => {
+    const groupItems = items.filter((item) => item.category === category);
+    if (groupItems.length === 0) return;
+
+    const group = document.createElement("div");
+    group.className = "link-group";
+
+    const title = document.createElement("div");
+    title.className = "link-group-title";
+
+    if (currentCategoryValue === "factions" && category === "characters") {
+      title.textContent = "포함 캐릭터";
+    } else if (currentCategoryValue === "characters" && category === "factions") {
+      title.textContent = "소속 조직";
+    } else if (currentCategoryValue === "characters" && category === "abilities") {
+      title.textContent = "보유 능력";
+    } else if (currentCategoryValue === "abilities" && category === "characters") {
+      title.textContent = "사용 캐릭터";
+    } else {
+      title.textContent = categories[category];
+    }
+
+    group.appendChild(title);
+
+    groupItems.forEach((item) => {
+      const value = `${item.category}:${item.id}`;
+      const checked = selectedLinks.some((link) => link.category === item.category && link.id === item.id);
+
+      const label = document.createElement("label");
+      label.className = "link-option";
+      label.innerHTML = `
+        <input type="checkbox" value="${value}" ${checked ? "checked" : ""}>
+        <span>${escapeHTML(item.title || "제목 없음")} · ${escapeHTML(categories[item.category])}</span>
+      `;
+
+      group.appendChild(label);
+    });
+
+    box.appendChild(group);
   });
 }
 
 function readLinks() {
-  return Array.from($("linkPicker").querySelectorAll("input:checked")).map((input) => {
+  const links = Array.from($("linkPicker").querySelectorAll("input:checked")).map((input) => {
     const [category, id] = input.value.split(":");
     return { category, id };
   });
+
+  return normalizeLinks(links);
 }
 
 function saveCard() {
@@ -916,16 +1084,25 @@ function saveCard() {
 
   if (editingCard) {
     const item = findItem(editingCard.category, editingCard.id);
+    const prevLinks = normalizeLinks(item.links || []);
+
     Object.assign(item, data);
+    item.links = syncBidirectionalLinks(editingCard.category, editingCard.id, data.links, prevLinks);
   } else {
+    const id = uid();
+
     state[category].push({
-      id: uid(),
+      id,
       ...data,
+      links: [],
       pinned: false,
       archived: false,
       order: state[category].length,
       createdAt: now()
     });
+
+    const item = findItem(category, id);
+    item.links = syncBidirectionalLinks(category, id, data.links, []);
 
     currentCategory = category;
     currentFolderId = data.folderId;
@@ -959,26 +1136,72 @@ function openDetail(category, id) {
   openModal("detailModal");
 }
 
-function renderDetailLinks(links) {
+function renderDetailLinks(item) {
   const box = $("detailLinks");
   box.innerHTML = "";
+
+  const links = normalizeLinks(item.links || []);
 
   if (!links.length) {
     box.innerHTML = `<span style="color: var(--muted); font-size: 13px;">연결된 설정이 없습니다.</span>`;
     return;
   }
 
-  links.forEach((link) => {
-    const item = findItem(link.category, link.id);
-    if (!item) return;
+  const linkedItems = links
+    .map((link) => {
+      const target = findItem(link.category, link.id);
+      return target ? { ...target, category: link.category } : null;
+    })
+    .filter(Boolean);
 
-    const button = document.createElement("button");
-    button.className = "link-chip";
-    button.textContent = `${item.title} · ${categories[link.category]}`;
-    button.addEventListener("click", () => openDetail(link.category, link.id));
+  function appendSection(title, items) {
+    if (!items.length) return;
 
-    box.appendChild(button);
-  });
+    const section = document.createElement("div");
+    section.className = "detail-link-section";
+
+    const h = document.createElement("h4");
+    h.textContent = title;
+    section.appendChild(h);
+
+    const row = document.createElement("div");
+    row.className = "detail-link-row";
+
+    items.forEach((target) => {
+      const button = document.createElement("button");
+      button.className = "link-chip";
+      button.textContent = `${target.title} · ${categories[target.category]}`;
+      button.addEventListener("click", () => openDetail(target.category, target.id));
+      row.appendChild(button);
+    });
+
+    section.appendChild(row);
+    box.appendChild(section);
+  }
+
+  const shown = new Set();
+
+  function mark(items) {
+    items.forEach((target) => shown.add(`${target.category}:${target.id}`));
+    return items;
+  }
+
+  if (detailTarget?.category === "factions") {
+    appendSection("포함 캐릭터", mark(linkedItems.filter((target) => target.category === "characters")));
+    appendSection("관련 능력", mark(linkedItems.filter((target) => target.category === "abilities")));
+  }
+
+  if (detailTarget?.category === "characters") {
+    appendSection("소속 조직", mark(linkedItems.filter((target) => target.category === "factions")));
+    appendSection("보유 능력", mark(linkedItems.filter((target) => target.category === "abilities")));
+    appendSection("연결 캐릭터", mark(linkedItems.filter((target) => target.category === "characters")));
+  }
+
+  if (detailTarget?.category === "abilities") {
+    appendSection("사용 캐릭터", mark(linkedItems.filter((target) => target.category === "characters")));
+  }
+
+  appendSection("기타 연결", linkedItems.filter((target) => !shown.has(`${target.category}:${target.id}`)));
 }
 
 function togglePin(category, id) {
@@ -2101,6 +2324,8 @@ function initEvents() {
 
   $("cardCategory").addEventListener("change", () => {
     fillFolderSelect($("cardCategory").value, "");
+    selectedLinks = readLinks();
+    renderLinkPicker(editingCard?.category || null, editingCard?.id || null);
   });
 
   $("saveCardBtn").addEventListener("click", saveCard);
