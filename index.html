@@ -36,14 +36,11 @@
           <button id="exportBtn">내보내기</button>
           <button id="importBtn">가져오기</button>
           <input class="hidden" type="file" id="importFile" accept="application/json" />
-          <button class="hidden" id="newCardBtn" type="button">새 메모</button>
+          <button class="hidden" id="newCardBtn" type="button">새 설정</button>
           <button class="hidden" id="templateBtn" type="button">양식</button>
           <button class="hidden" id="clearBtn" type="button">비우기</button>
         </div>
       </header>
-
-      <input class="hidden" id="quickInput" type="text" />
-      <button class="hidden" id="quickSaveBtn" type="button">메모로 저장</button>
       <p class="hidden" id="saveText">저장 대기 중</p>
 
       <section class="tools" id="listTools">
@@ -118,7 +115,7 @@
     <div class="modal">
       <div class="modal-head">
         <div>
-          <h2 id="cardModalTitle">새 메모</h2>
+          <h2 id="cardModalTitle">새 설정</h2>
           <p>나중에 다시 수정할 수 있습니다.</p>
         </div>
         <button data-close="cardModal">닫기</button>
@@ -165,7 +162,7 @@
         </label>
 
         <label>
-          연결된 메모
+          연결된 설정
           <div class="link-picker" id="linkPicker"></div>
         </label>
 
@@ -209,7 +206,7 @@
           <div class="detail-body" id="detailBody"></div>
 
           <div class="detail-links">
-            <h3>연결된 메모</h3>
+            <h3>연결된 설정</h3>
             <div id="detailLinks"></div>
           </div>
 
@@ -410,7 +407,7 @@
       <div class="modal-head">
         <div>
           <h2>카드 가져오기</h2>
-          <p>기존 메모를 관계도 노드로 가져옵니다.</p>
+          <p>기존 설정을 관계도 노드로 가져옵니다.</p>
         </div>
         <button data-close="importCardModal">닫기</button>
       </div>

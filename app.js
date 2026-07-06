@@ -10,7 +10,6 @@ const categories = {
   events: "사건",
   items: "아이템",
   abilities: "능력",
-  notes: "메모",
   timeline: "타임라인",
   relations: "관계도"
 };
@@ -21,8 +20,7 @@ const dataCategories = [
   "factions",
   "events",
   "items",
-  "abilities",
-  "notes"
+  "abilities"
 ];
 
 const templates = {
@@ -179,6 +177,7 @@ const emptyState = {
 };
 
 let state = loadState();
+let currentDrawerFileName = "";
 
 let currentCategory = "all";
 let currentFolderId = "";
@@ -278,13 +277,17 @@ function saveState() {
   updateSaveText();
 }
 
-function updateSaveText() {
+function updateSaveText(message = "") {
+  const text = $("saveText");
+  if (!text) return;
+
   const time = new Date().toLocaleTimeString("ko-KR", {
     hour: "2-digit",
     minute: "2-digit"
   });
 
-  $("saveText").textContent = `저장됨 · ${time}`;
+  const fileText = currentDrawerFileName ? ` · ${currentDrawerFileName}` : "";
+  text.textContent = message || `저장됨 · ${time}${fileText}`;
 }
 
 function showToast(message) {
@@ -294,6 +297,94 @@ function showToast(message) {
   setTimeout(() => {
     $("toast").classList.remove("show");
   }, 1400);
+}
+
+function isDesktopApp() {
+  return Boolean(window.settingDrawerFile);
+}
+
+async function saveDrawerFile(forceSaveAs = false) {
+  saveState();
+
+  if (!isDesktopApp()) {
+    exportData();
+    return;
+  }
+
+  const result = await window.settingDrawerFile.save(state, {
+    forceSaveAs,
+    suggestedName: "my-world.drawer"
+  });
+
+  if (result?.ok) {
+    currentDrawerFileName = result.fileName || "";
+    updateSaveText();
+    showToast(forceSaveAs ? "다른 이름으로 저장했습니다." : "파일로 저장했습니다.");
+  } else if (!result?.canceled) {
+    showToast("파일 저장에 실패했습니다.");
+  }
+}
+
+async function openDrawerFile() {
+  if (!isDesktopApp()) {
+    $("importFile").click();
+    return;
+  }
+
+  const result = await window.settingDrawerFile.open();
+
+  if (result?.ok) {
+    state = normalizeImportedState(result.data);
+    currentDrawerFileName = result.fileName || "";
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    currentCategory = "all";
+    currentFolderId = "";
+    currentTag = "";
+    render();
+    updateSaveText("파일을 열었습니다" + (currentDrawerFileName ? ` · ${currentDrawerFileName}` : ""));
+    showToast("파일을 열었습니다.");
+  } else if (!result?.canceled) {
+    showToast("파일을 열 수 없습니다.");
+  }
+}
+
+function normalizeImportedState(data) {
+  const merged = { ...structuredClone(emptyState), ...data };
+
+  if (data.timelinePoints && !data.timelineMaps) {
+    merged.timelineMaps = [
+      {
+        id: "default-timeline",
+        name: "기본 타임라인",
+        points: data.timelinePoints
+      }
+    ];
+    merged.activeTimelineMapId = "default-timeline";
+  }
+
+  if (!merged.timelineMaps || merged.timelineMaps.length === 0) {
+    merged.timelineMaps = structuredClone(emptyState.timelineMaps || []);
+  }
+
+  if (!merged.relationMaps || merged.relationMaps.length === 0) {
+    merged.relationMaps = structuredClone(emptyState.relationMaps);
+    merged.activeRelationMapId = "default-map";
+  }
+
+  if (!merged.folders) merged.folders = structuredClone(emptyFolders);
+
+  dataCategories.forEach((category) => {
+    if (!merged[category]) merged[category] = [];
+    if (!merged.folders[category]) merged.folders[category] = [];
+
+    merged[category].forEach((item, index) => {
+      if (item.folderId === undefined) item.folderId = "";
+      if (item.links === undefined) item.links = [];
+      if (item.order === undefined) item.order = index;
+    });
+  });
+
+  return merged;
 }
 
 function openModal(id) {
@@ -465,7 +556,7 @@ function renderTitle() {
 
   $("pageTitle").textContent = $("viewSelect").value === "archive" ? "보관함" : categories[currentCategory];
 
-  let text = `${getVisibleItems().length}개의 메모`;
+  let text = `${getVisibleItems().length}개의 설정`;
 
   if (dataCategories.includes(currentCategory) && currentFolderId) {
     text += ` · ${currentFolderId === "__none" ? "폴더 없음" : getFolderName(currentCategory, currentFolderId)}`;
@@ -721,7 +812,7 @@ function openNewCard(category = null) {
   formImage = "";
   selectedLinks = [];
 
-  $("cardModalTitle").textContent = "새 메모";
+  $("cardModalTitle").textContent = "새 설정";
   $("cardCategory").disabled = false;
   $("cardCategory").value = category || (dataCategories.includes(currentCategory) ? currentCategory : "characters");
 
@@ -774,7 +865,7 @@ function renderLinkPicker(editCategory = null, editId = null) {
   const items = getItems().filter((item) => !(item.category === editCategory && item.id === editId));
 
   if (items.length === 0) {
-    box.innerHTML = `<span style="color: var(--muted)">연결할 메모가 없습니다.</span>`;
+    box.innerHTML = `<span style="color: var(--muted)">연결할 설정이 없습니다.</span>`;
     return;
   }
 
@@ -873,7 +964,7 @@ function renderDetailLinks(links) {
   box.innerHTML = "";
 
   if (!links.length) {
-    box.innerHTML = `<span style="color: var(--muted); font-size: 13px;">연결된 메모가 없습니다.</span>`;
+    box.innerHTML = `<span style="color: var(--muted); font-size: 13px;">연결된 설정이 없습니다.</span>`;
     return;
   }
 
@@ -917,7 +1008,7 @@ function deleteCard(category, id) {
   const item = findItem(category, id);
   if (!item) return;
 
-  if (!confirm(`'${item.title}' 메모를 삭제할까요?`)) return;
+  if (!confirm(`'${item.title}' 설정을 삭제할까요?`)) return;
 
   state[category] = state[category].filter((target) => target.id !== id);
 
@@ -995,7 +1086,7 @@ function deleteFolder() {
   const folder = state.folders[category].find((item) => item.id === editingFolderId);
 
   if (!folder) return;
-  if (!confirm(`'${folder.name}' 폴더를 삭제할까요? 메모는 삭제되지 않습니다.`)) return;
+  if (!confirm(`'${folder.name}' 폴더를 삭제할까요? 설정은 삭제되지 않습니다.`)) return;
 
   state.folders[category] = state.folders[category].filter((item) => item.id !== editingFolderId);
 
@@ -1034,7 +1125,7 @@ function saveQuickMemo() {
   const text = $("quickInput").value.trim();
 
   if (!text) {
-    showToast("메모를 적어주세요.");
+    showToast("설정을 적어주세요.");
     return;
   }
 
@@ -1045,7 +1136,7 @@ function saveQuickMemo() {
     body: text,
     dateText: "",
     folderId: "",
-    tags: ["빠른메모"],
+    tags: ["빠른설정"],
     links: [],
     image: "",
     pinned: false,
@@ -1428,78 +1519,49 @@ function renderRelations() {
 
   const board = $("relationBoard");
   const svg = $("relationSvg");
+  const map = getActiveMap();
 
   board.querySelectorAll(".relation-node, .edge-label").forEach((el) => el.remove());
   svg.innerHTML = "";
-
-  const map = getActiveMap();
 
   map.edges = map.edges.filter((edge) => {
     return map.nodes.some((node) => node.id === edge.from)
       && map.nodes.some((node) => node.id === edge.to);
   });
 
-  map.edges.forEach((edge) => {
-    const from = map.nodes.find((node) => node.id === edge.from);
-    const to = map.nodes.find((node) => node.id === edge.to);
-
-    if (!from || !to) return;
-
-    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-    line.setAttribute("x1", from.x + 80);
-    line.setAttribute("y1", from.y + 38);
-    line.setAttribute("x2", to.x + 80);
-    line.setAttribute("y2", to.y + 38);
-    line.style.pointerEvents = "stroke";
-
-    if (selectedEdgeId === edge.id) {
-      line.classList.add("selected");
-    }
-
-    line.addEventListener("click", (event) => {
-      event.stopPropagation();
-      selectedEdgeId = edge.id;
-      selectedNodeId = null;
-      renderRelations();
-    });
-
-    svg.appendChild(line);
-
-    if (edge.label) {
-      const label = document.createElement("div");
-      label.className = "edge-label";
-      label.textContent = edge.label;
-      label.style.left = `${(from.x + to.x) / 2 + 80}px`;
-      label.style.top = `${(from.y + to.y) / 2 + 38}px`;
-      board.appendChild(label);
-    }
-  });
-
   map.nodes.forEach((node) => {
     const source = node.sourceId ? findItem(node.sourceCategory, node.sourceId) : null;
+    const title = source ? source.title : node.name || "이름 없음";
+    const desc = source ? source.summary || source.body || "" : node.desc || "";
+    const type = source ? categories[node.sourceCategory] : "직접 노드";
+
+    const selected = selectedNodeId === node.id;
+    const picked = connectNodes.includes(node.id);
 
     const el = document.createElement("div");
     el.className = "relation-node"
       + (node.sourceId ? " from-card" : "")
-      + (selectedNodeId === node.id ? " selected" : "");
+      + (selected ? " selected" : "")
+      + (picked ? " connect-selected" : "");
+    el.dataset.nodeId = node.id;
     el.style.left = `${node.x}px`;
     el.style.top = `${node.y}px`;
 
     el.innerHTML = `
-      <strong>${escapeHTML(source ? source.title : node.name || "이름 없음")}</strong>
-      <span>${escapeHTML(source ? source.summary || source.body || "" : node.desc || "")}</span>
-      <em>${escapeHTML(source ? categories[node.sourceCategory] : "직접 노드")}</em>
+      <strong>${escapeHTML(title || "이름 없음")}</strong>
+      <span>${escapeHTML(desc || "설명 없음")}</span>
+      <em>${escapeHTML(type)}</em>
     `;
 
     el.addEventListener("click", (event) => {
       event.stopPropagation();
 
-      if (connectMode) {
-        selectNodeForConnect(node.id);
+      if (event.shiftKey) {
+        toggleRelationPick(node.id);
         return;
       }
 
-      selectedNodeId = node.id;
+      selectedNodeId = selectedNodeId === node.id ? null : node.id;
       selectedEdgeId = null;
       renderRelations();
     });
@@ -1515,9 +1577,35 @@ function renderRelations() {
     });
 
     makeRelationNodeDraggable(el, node);
-
     board.appendChild(el);
   });
+
+  requestAnimationFrame(updateRelationLinesOnly);
+}
+
+function toggleRelationPick(id) {
+  selectedEdgeId = null;
+  selectedNodeId = id;
+
+  if (connectNodes.includes(id)) {
+    connectNodes = connectNodes.filter((nodeId) => nodeId !== id);
+  } else {
+    if (connectNodes.length >= 2) {
+      connectNodes = [];
+    }
+
+    connectNodes.push(id);
+  }
+
+  if (connectNodes.length === 1) {
+    showToast("연결할 두 번째 노드를 Shift + 클릭하세요.");
+  }
+
+  if (connectNodes.length === 2) {
+    showToast("선 연결을 누르면 관계 이름을 정할 수 있습니다.");
+  }
+
+  renderRelations();
 }
 
 function renderRelationTabs() {
@@ -1550,39 +1638,51 @@ function renderRelationTabs() {
 
 function makeRelationNodeDraggable(el, node) {
   el.addEventListener("pointerdown", (event) => {
-    if (connectMode) return;
+    if (event.shiftKey) return;
 
     event.stopPropagation();
+
+    selectedNodeId = node.id;
+    selectedEdgeId = null;
 
     let dragging = true;
     const rect = el.getBoundingClientRect();
     const offsetX = event.clientX - rect.left;
     const offsetY = event.clientY - rect.top;
 
+    el.classList.add("dragging");
     el.setPointerCapture(event.pointerId);
 
     const move = (moveEvent) => {
       if (!dragging) return;
 
-      const board = $("relationBoard").getBoundingClientRect();
-      let x = moveEvent.clientX - board.left - offsetX;
-      let y = moveEvent.clientY - board.top - offsetY;
+      const boardRect = $("relationBoard").getBoundingClientRect();
+      let x = moveEvent.clientX - boardRect.left - offsetX;
+      let y = moveEvent.clientY - boardRect.top - offsetY;
 
-      x = Math.max(10, Math.min(board.width - 170, x));
-      y = Math.max(10, Math.min(board.height - 90, y));
+      x = Math.max(10, Math.min(boardRect.width - el.offsetWidth - 10, x));
+      y = Math.max(10, Math.min(boardRect.height - el.offsetHeight - 10, y));
 
       node.x = x;
       node.y = y;
 
       el.style.left = `${x}px`;
       el.style.top = `${y}px`;
+
       updateRelationLinesOnly();
     };
 
-    const up = () => {
+    const up = (upEvent) => {
       dragging = false;
+
+      try {
+        el.releasePointerCapture(upEvent.pointerId);
+      } catch {}
+
+      el.classList.remove("dragging");
       el.removeEventListener("pointermove", move);
       el.removeEventListener("pointerup", up);
+
       saveState();
       renderRelations();
     };
@@ -1593,7 +1693,68 @@ function makeRelationNodeDraggable(el, node) {
 }
 
 function updateRelationLinesOnly() {
-  renderRelations();
+  const board = $("relationBoard");
+  const svg = $("relationSvg");
+  const map = getActiveMap();
+
+  svg.innerHTML = "";
+  board.querySelectorAll(".edge-label").forEach((label) => label.remove());
+
+  const boardRect = board.getBoundingClientRect();
+
+  function getNodeCenter(id) {
+    const el = board.querySelector(`.relation-node[data-node-id="${id}"]`);
+    const node = map.nodes.find((item) => item.id === id);
+
+    if (!el || !node) {
+      return {
+        x: (node?.x || 0) + 80,
+        y: (node?.y || 0) + 28
+      };
+    }
+
+    const rect = el.getBoundingClientRect();
+
+    return {
+      x: rect.left - boardRect.left + rect.width / 2,
+      y: rect.top - boardRect.top + rect.height / 2
+    };
+  }
+
+  map.edges.forEach((edge) => {
+    const from = getNodeCenter(edge.from);
+    const to = getNodeCenter(edge.to);
+
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", from.x);
+    line.setAttribute("y1", from.y);
+    line.setAttribute("x2", to.x);
+    line.setAttribute("y2", to.y);
+    line.style.pointerEvents = "stroke";
+
+    if (selectedEdgeId === edge.id) {
+      line.classList.add("selected");
+    }
+
+    line.addEventListener("click", (event) => {
+      event.stopPropagation();
+      selectedEdgeId = edge.id;
+      selectedNodeId = null;
+      connectNodes = [];
+      renderRelations();
+    });
+
+    svg.appendChild(line);
+
+    if (edge.label) {
+      const label = document.createElement("div");
+      label.className = "edge-label";
+      label.textContent = edge.label;
+      label.style.left = `${(from.x + to.x) / 2}px`;
+      label.style.top = `${(from.y + to.y) / 2}px`;
+      board.appendChild(label);
+    }
+  });
 }
 
 function openNodeModal(id = null) {
@@ -1650,31 +1811,51 @@ function saveNode() {
 }
 
 function selectNodeForConnect(id) {
-  connectNodes.push(id);
+  toggleRelationPick(id);
+}
 
-  if (connectNodes.length === 2) {
-    const [from, to] = connectNodes;
-
-    if (from !== to) {
-      const map = getActiveMap();
-      const exists = map.edges.some((edge) => {
-        return (edge.from === from && edge.to === to) || (edge.from === to && edge.to === from);
-      });
-
-      if (!exists) {
-        const edgeId = uid();
-        map.edges.push({ id: edgeId, from, to, label: "" });
-        selectedEdgeId = edgeId;
-        saveState();
-        openModal("edgeModal");
-      }
-    }
-
-    connectNodes = [];
-    connectMode = false;
+function connectPickedNodes() {
+  if (connectNodes.length !== 2) {
+    showToast("노드 2개를 Shift + 클릭으로 먼저 선택해주세요.");
+    return;
   }
 
+  const [from, to] = connectNodes;
+
+  if (from === to) {
+    showToast("서로 다른 노드 2개를 선택해주세요.");
+    return;
+  }
+
+  const map = getActiveMap();
+  const exists = map.edges.some((edge) => {
+    return (edge.from === from && edge.to === to) || (edge.from === to && edge.to === from);
+  });
+
+  if (exists) {
+    showToast("이미 연결된 노드입니다.");
+    connectNodes = [];
+    renderRelations();
+    return;
+  }
+
+  const edgeId = uid();
+  map.edges.push({
+    id: edgeId,
+    from,
+    to,
+    label: ""
+  });
+
+  selectedEdgeId = edgeId;
+  selectedNodeId = null;
+  connectNodes = [];
+  connectMode = false;
+
+  saveState();
+  $("edgeName").value = "";
   renderRelations();
+  openModal("edgeModal");
 }
 
 function openMapModal(id = null) {
@@ -1857,34 +2038,14 @@ function importData(file) {
   reader.onload = () => {
     try {
       const data = JSON.parse(reader.result);
-      state = { ...structuredClone(emptyState), ...data };
-
-      if (data.timelinePoints && !data.timelineMaps) {
-        state.timelineMaps = [
-          {
-            id: "default-timeline",
-            name: "기본 타임라인",
-            points: data.timelinePoints
-          }
-        ];
-        state.activeTimelineMapId = "default-timeline";
-      }
-
-      if (!state.timelineMaps || state.timelineMaps.length === 0) {
-        state.timelineMaps = structuredClone(emptyState.timelineMaps);
-        state.activeTimelineMapId = "default-timeline";
-      }
-
-      dataCategories.forEach((category) => {
-        if (!state[category]) state[category] = [];
-        if (!state.folders[category]) state.folders[category] = [];
-      });
+      state = normalizeImportedState(data);
 
       saveState();
       currentCategory = "all";
       currentFolderId = "";
       currentTag = "";
       render();
+      showToast("가져왔습니다.");
     } catch {
       showToast("파일을 읽을 수 없습니다.");
     }
@@ -1894,7 +2055,7 @@ function importData(file) {
 }
 
 function clearAll() {
-  if (!confirm("모든 메모와 관계도를 비울까요?")) return;
+  if (!confirm("모든 설정과 관계도를 비울까요?")) return;
 
   state = structuredClone(emptyState);
   currentCategory = "all";
@@ -1918,24 +2079,16 @@ function initEvents() {
 
   $("newCardBtn").addEventListener("click", () => openNewCard());
   $("writeCardBtn").addEventListener("click", () => openNewCard());
-  $("saveNowBtn").addEventListener("click", () => {
-    saveState();
-    showToast("저장했습니다.");
-  });
+  $("saveNowBtn").addEventListener("click", () => saveDrawerFile(false));
   $("templateBtn").addEventListener("click", () => openModal("templateModal"));
-  $("exportBtn").addEventListener("click", exportData);
-  $("importBtn").addEventListener("click", () => $("importFile").click());
+  $("exportBtn").addEventListener("click", () => saveDrawerFile(true));
+  $("importBtn").addEventListener("click", openDrawerFile);
   $("clearBtn").addEventListener("click", clearAll);
 
   $("importFile").addEventListener("change", (event) => {
     const file = event.target.files[0];
     if (file) importData(file);
     event.target.value = "";
-  });
-
-  $("quickSaveBtn").addEventListener("click", saveQuickMemo);
-  $("quickInput").addEventListener("keydown", (event) => {
-    if (event.key === "Enter") saveQuickMemo();
   });
 
   $("emptyBox").addEventListener("click", () => {
@@ -2046,18 +2199,19 @@ function initEvents() {
 
   $("addRelationNodeBtn").addEventListener("click", () => openNodeModal());
   $("saveNodeBtn").addEventListener("click", saveNode);
-  $("connectNodeBtn").addEventListener("click", () => {
-    connectMode = !connectMode;
-    connectNodes = [];
-    showToast(connectMode ? "연결할 노드 2개를 선택하세요." : "선 연결을 취소했습니다.");
-  });
+  $("connectNodeBtn").addEventListener("click", connectPickedNodes);
   $("importCardNodeBtn").addEventListener("click", openImportCards);
   $("importSearch").addEventListener("input", renderImportCards);
   $("importCategory").addEventListener("change", renderImportCards);
 
   $("editEdgeBtn").addEventListener("click", () => {
+    if (connectNodes.length === 2) {
+      connectPickedNodes();
+      return;
+    }
+
     if (!selectedEdgeId) {
-      showToast("이름을 붙일 선을 선택해주세요.");
+      showToast("이름을 붙일 선을 선택하거나, 노드 2개를 Shift + 클릭해주세요.");
       return;
     }
 
@@ -2074,8 +2228,16 @@ function initEvents() {
   $("relationBoard").addEventListener("click", () => {
     selectedNodeId = null;
     selectedEdgeId = null;
+    connectNodes = [];
+    connectMode = false;
     renderRelations();
   });
+
+  if (isDesktopApp()) {
+    window.settingDrawerFile.onMenuSave(() => saveDrawerFile(false));
+    window.settingDrawerFile.onMenuSaveAs(() => saveDrawerFile(true));
+    window.settingDrawerFile.onMenuOpen(() => openDrawerFile());
+  }
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
