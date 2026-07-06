@@ -1054,3 +1054,97 @@ button.danger {
 .empty:hover {
   background: rgba(255, 255, 255, 0.46);
 }
+
+/* 관계도 드래그 안정화 */
+.relation-board svg {
+  pointer-events: none;
+  z-index: 1;
+}
+
+.relation-board line {
+  pointer-events: stroke;
+}
+
+.relation-node {
+  z-index: 3;
+  touch-action: none;
+}
+
+.edge-label {
+  z-index: 2;
+}
+
+.relation-node.selected {
+  z-index: 4;
+}
+
+/* 관계도 Shift+클릭 연결 선택 표시 */
+.relation-node.connect-selected {
+  outline: 2px solid rgba(155, 73, 61, 0.45);
+  outline-offset: 4px;
+  box-shadow:
+    0 10px 24px rgba(57, 39, 22, 0.12),
+    0 0 0 6px rgba(155, 73, 61, 0.08);
+}
+
+/* 관계도 싹 정리: 제목만 표시, 클릭 시 설명 표시 */
+.relation-node {
+  width: 168px;
+  min-height: 50px;
+  padding: 13px 14px;
+  border-radius: 15px;
+  touch-action: none;
+  transition: box-shadow 0.12s ease, outline 0.12s ease, transform 0.08s ease;
+}
+
+.relation-node strong {
+  margin-bottom: 0 !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.relation-node span,
+.relation-node em {
+  display: none !important;
+  margin-top: 7px;
+}
+
+.relation-node.selected span,
+.relation-node.selected em {
+  display: block !important;
+}
+
+.relation-node.selected {
+  outline: 2px solid rgba(108, 75, 46, 0.42);
+  outline-offset: 4px;
+  z-index: 6;
+}
+
+.relation-node.connect-selected {
+  outline: 2px solid rgba(155, 73, 61, 0.55);
+  outline-offset: 5px;
+  box-shadow:
+    0 10px 24px rgba(57, 39, 22, 0.12),
+    0 0 0 7px rgba(155, 73, 61, 0.08);
+  z-index: 7;
+}
+
+.relation-node.dragging {
+  z-index: 9;
+  cursor: grabbing;
+  box-shadow: 0 18px 34px rgba(57, 39, 22, 0.18);
+}
+
+.relation-board svg {
+  pointer-events: none;
+  z-index: 1;
+}
+
+.relation-board line {
+  pointer-events: stroke;
+}
+
+.edge-label {
+  z-index: 2;
+}
