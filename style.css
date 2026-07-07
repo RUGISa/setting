@@ -985,126 +985,318 @@ button,input,select,textarea{font:inherit}button{min-height:38px;padding:0 15px;
 }
 
 
-/* 확대/축소 시 지도 잘림 방지 */
+/* 지도 도구 개선: 카테고리형 하단바 + 낮은 지도 보드 */
+.map-tools {
+  margin-bottom: 10px;
+}
+
 .map-board {
-  position: relative;
-  overflow: auto !important;
-  padding-bottom: 0 !important;
-  height: 720px;
+  height: 580px !important;
 }
 
 .map-canvas {
-  position: relative;
-  display: block;
-  min-width: 100%;
-  min-height: 720px;
+  height: 580px !important;
+  min-height: 580px !important;
 }
 
 #mapImage {
-  position: absolute;
-  inset: 0;
-  width: 100% !important;
-  height: 100% !important;
   min-height: 0 !important;
-  object-fit: contain !important;
-  object-position: center center;
-}
-
-#mapSvg {
-  position: absolute;
-  inset: 0;
-  width: 100% !important;
-  height: 100% !important;
 }
 
 .map-bottom-bar {
-  position: sticky !important;
-  left: 16px;
-  bottom: 14px;
-  z-index: 80;
-  width: calc(100% - 32px);
-  margin: 0 16px 14px;
+  margin-top: 10px !important;
 }
 
-/* 하단바 때문에 지도가 아래로 밀려 잘리는 현상 방지 */
-.map-board > .map-bottom-bar {
-  pointer-events: auto;
+.tool-panel.hidden {
+  display: none !important;
 }
 
-.map-board > .map-canvas {
-  margin-top: 0 !important;
+#regionColorInput {
+  width: 44px;
+  height: 38px;
+  min-height: 38px;
+  padding: 3px;
+  border-radius: 12px;
 }
 
-/* 확대 후 빈 곳을 드래그해 이동하기 쉽게 */
-.map-board {
-  cursor: grab;
+#regionHexInput {
+  width: 96px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
-.map-board.panning {
-  cursor: grabbing;
+#regionLinkSelect {
+  min-height: 38px;
+  width: 220px;
+  border-radius: 12px;
+}
+
+.map-quick-pin .map-region {
+  pointer-events: none !important;
+}
+
+.polygon-card {
+  position: absolute;
+  z-index: 6;
+  width: 250px;
+  padding: 13px;
+  border: 1px solid rgba(92, 62, 32, .15);
+  border-radius: 18px;
+  background: rgba(255, 252, 247, .96);
+  box-shadow: 0 16px 38px rgba(70, 48, 26, .16);
+}
+
+.polygon-card small {
+  display: inline-block;
+  margin-bottom: 7px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(216, 182, 116, .28);
+  color: #7b4c20;
+  font-size: 11px;
+}
+
+.polygon-card strong {
+  display: block;
+  font-family: Georgia, "Noto Serif KR", serif;
+  font-size: 18px;
+}
+
+.polygon-card p {
+  margin: 8px 0 10px;
+  color: var(--muted);
+  line-height: 1.5;
+  font-size: 13px;
+}
+
+.map-pin-card .mini-row,
+.polygon-card .mini-row {
+  flex-wrap: wrap;
 }
 
 @media (max-width: 980px) {
   .map-board {
-    height: 680px;
+    height: 520px !important;
   }
 
   .map-canvas {
-    min-height: 680px;
+    height: 520px !important;
+    min-height: 520px !important;
   }
 }
 
 
-/* =========================================================
-   지도 툴바를 캔버스 밖으로 분리
-   ========================================================= */
-.map-board {
-  position: relative;
-  height: 720px;
-  overflow: auto !important;
-  padding-bottom: 0 !important;
+/* 배경 이미지 추가 버튼 안정화 */
+.file-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--text);
+  cursor: pointer;
+  user-select: none;
 }
 
+.visually-hidden-file {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+
+/* crash 방지용 지도 기본 구조 */
 .map-canvas {
   position: relative;
-  display: block;
-  width: 100%;
-  min-width: 100%;
-  height: 720px;
-  min-height: 720px;
-  transform-origin: 0 0;
-}
-
-#mapImage {
-  position: absolute;
-  inset: 0;
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 0 !important;
-  object-fit: contain !important;
-  object-position: center center;
 }
 
 #mapSvg {
   position: absolute;
   inset: 0;
-  width: 100% !important;
-  height: 100% !important;
+  width: 100%;
+  height: 100%;
 }
 
-/* 하단 툴바는 지도 캔버스 밖의 별도 바 */
+#mapImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+
+/* 최종 오류 방지: 지도 구조 기본값 */
+.map-board {
+  position: relative;
+  overflow: auto;
+}
+
+.map-canvas {
+  position: relative;
+  min-height: 520px;
+}
+
+#mapImage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+#mapSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+#mapImage.hidden {
+  display: none !important;
+}
+
+
+/* 관계도 / 타임라인 개선 */
+.relation-board {
+  cursor: grab;
+  min-height: 680px;
+}
+
+.relation-board.panning {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.relation-bottom-bar,
+.timeline-bottom-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid rgba(92, 62, 32, .16);
+  border-radius: 18px;
+  background: rgba(255, 252, 247, .92);
+  box-shadow: 0 10px 25px rgba(70,48,26,.09);
+}
+
+.relation-tool-group {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.relation-tool-group strong {
+  font-size: 12px;
+  color: var(--muted);
+  margin-right: 2px;
+}
+
+#relEdgeColorInput {
+  width: 42px;
+  height: 38px;
+  min-height: 38px;
+  padding: 3px;
+  border-radius: 12px;
+}
+
+#relEdgeDirectionSelect {
+  width: 76px;
+  min-height: 38px;
+  border-radius: 12px;
+}
+
+.relation-node.organization {
+  z-index: 1;
+}
+
+.relation-node:not(.organization) {
+  z-index: 5;
+}
+
+.relation-board path.selected {
+  stroke-width: 5 !important;
+  filter: drop-shadow(0 0 3px rgba(162,77,67,.55));
+}
+
+.edge-label.selected {
+  outline: 2px solid rgba(162,77,67,.35);
+  outline-offset: 3px;
+}
+
+.edge-control-point {
+  position: absolute;
+  z-index: 12;
+  width: 14px;
+  height: 14px;
+  min-height: 14px;
+  padding: 0;
+  border-radius: 50%;
+  background: #9e4c42;
+  border: 2px solid #fff;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 4px 12px rgba(40,24,12,.25);
+}
+
+.timeline-board {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.timeline-year-line {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  border-left: 1px dashed rgba(110, 80, 45, .25);
+  transform: translateX(-50%);
+}
+
+.timeline-year-label {
+  position: absolute;
+  top: 12px;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255,252,247,.95);
+  border: 1px solid rgba(92,62,32,.12);
+  color: #6d5038;
+  font-size: 12px;
+}
+
+.timeline-card small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+
+/* 지도 하단바 복구 + 지도 확대 한도 상향용 보정 */
 .map-bottom-bar {
   position: static !important;
-  left: auto !important;
-  bottom: auto !important;
-  z-index: 20;
-  width: 100% !important;
-  display: grid;
+  display: grid !important;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
-  padding: 10px;
+  width: 100% !important;
   margin: 10px 0 0 !important;
+  padding: 10px;
   border: 1px solid rgba(92, 62, 32, .16);
   border-radius: 20px;
   background: rgba(255, 252, 247, .92);
@@ -1112,41 +1304,49 @@ button,input,select,textarea{font:inherit}button{min-height:38px;padding:0 15px;
   backdrop-filter: blur(12px);
 }
 
-.map-board > .map-bottom-bar {
-  display: none !important;
-}
-
-.tool-strip,
-.zoom-strip {
+.map-bottom-bar .tool-strip,
+.map-bottom-bar .zoom-strip {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   align-items: center;
 }
 
-.zoom-strip {
+.map-bottom-bar .zoom-strip {
   justify-content: flex-end;
 }
 
-.map-board {
-  cursor: grab;
-}
-
-.map-board.panning {
-  cursor: grabbing;
+.map-bottom-bar .hidden {
+  display: none !important;
 }
 
 @media (max-width: 980px) {
-  .map-board {
-    height: 680px;
-  }
-
-  .map-canvas {
-    height: 680px;
-    min-height: 680px;
-  }
-
   .map-bottom-bar {
     grid-template-columns: 1fr;
   }
+}
+
+
+/* 실제 이미지 확대 보정: 캔버스 크기를 JS가 픽셀 단위로 키우고, 이미지는 그 캔버스를 꽉 채웁니다. */
+.map-board {
+  overflow: auto !important;
+}
+
+.map-canvas {
+  position: relative !important;
+  transform: none !important;
+  transform-origin: 0 0 !important;
+}
+
+#mapImage,
+#mapSvg {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+#mapImage {
+  object-fit: contain !important;
+  object-position: center center !important;
 }

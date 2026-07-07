@@ -63,29 +63,61 @@
       </section>
 
       <section class="timeline-view hidden" id="timelineView">
-        <div class="sub-tools">
+        <div class="sub-tools timeline-top-tools">
           <button class="primary" id="addTimelineBtn" type="button">사건 추가</button>
+          <button id="importTimelineBtn" type="button">사건 불러오기</button>
           <button id="editTimelineBtn" type="button">수정</button>
           <button id="deleteTimelineBtn" type="button">삭제</button>
         </div>
         <div class="timeline-board" id="timelineBoard">
           <div class="timeline-line"></div>
         </div>
+        <div class="timeline-bottom-bar">
+          <button id="timelineZoomOutBtn" type="button">-</button>
+          <button id="timelineZoomResetBtn" type="button">100%</button>
+          <button id="timelineZoomInBtn" type="button">+</button>
+        </div>
       </section>
 
       <section class="relation-view hidden" id="relationView">
-        <div class="sub-tools">
-          <button class="primary" id="addNodeBtn" type="button">노드</button>
-          <button id="importNodeBtn" type="button">카드 가져오기</button>
-          <button id="connectBtn" type="button">연결</button>
-          <button id="edgeNameBtn" type="button">선 이름</button>
-          <button id="deleteEdgeBtn" type="button">선 삭제</button>
-          <button id="deleteNodeBtn" type="button">노드 삭제</button>
-          <button id="organizeBtn" type="button">조직 정렬</button>
+        <div class="sub-tools relation-top-tools">
+          <button class="primary" id="addNodeBtn" type="button">카드 생성</button>
+          <button id="importNodeBtn" type="button">카드 불러오기</button>
         </div>
-        <p class="hint">아카이브형 관계도입니다. 카드를 가져오고, 노드 2개를 선택한 뒤 연결하세요. 조직은 큰 영역 박스로 표시됩니다.</p>
+        <p class="hint">아카이브형 관계도입니다. 카드를 가져오고, 카드 2개를 선택한 뒤 선 생성을 누르세요. 조직은 큰 영역 박스로 표시됩니다.</p>
         <div class="relation-board" id="relationBoard">
           <svg id="relationSvg"></svg>
+        </div>
+        <div class="relation-bottom-bar">
+          <div class="relation-tool-group">
+            <strong>카드</strong>
+            <button id="relCardCreateBtn" type="button">카드 생성</button>
+            <button id="relCardImportBtn" type="button">카드 불러오기</button>
+            <button id="relCardDeleteBtn" type="button">카드 삭제</button>
+          </div>
+          <div class="relation-tool-group">
+            <strong>연결</strong>
+            <button id="relEdgeCreateBtn" type="button">선 생성</button>
+            <button id="relEdgeEditBtn" type="button">선 수정</button>
+            <button id="relEdgeDeleteBtn" type="button">선 삭제</button>
+            <input id="relEdgeColorInput" type="color" value="#6d5038" title="선 색상" />
+            <select id="relEdgeDirectionSelect" title="화살표 방향">
+              <option value="forward">→</option>
+              <option value="back">←</option>
+              <option value="both">↔</option>
+              <option value="none">선만</option>
+            </select>
+          </div>
+          <div class="relation-tool-group">
+            <strong>조직</strong>
+            <button id="relOrgCreateBtn" type="button">조직 생성</button>
+            <button id="relOrgDeleteBtn" type="button">조직 삭제</button>
+          </div>
+          <div class="relation-tool-group zoom">
+            <button id="relationZoomOutBtn" type="button">-</button>
+            <button id="relationZoomResetBtn" type="button">100%</button>
+            <button id="relationZoomInBtn" type="button">+</button>
+          </div>
         </div>
       </section>
 
@@ -100,40 +132,54 @@
         </div>
 
         <div class="sub-tools map-tools">
-          <button class="primary" id="mapImageBtn" type="button">지도 이미지</button>
-          <input id="regionColorInput" type="color" value="#d8b674" title="영역 색상" />
-          <input id="regionHexInput" type="text" value="#d8b674" maxlength="7" title="HEX 색상" />
-          <select id="regionLinkSelect" title="상속할 지역 카드"></select>
-          <input class="hidden" id="mapImageInput" type="file" accept="image/*" />
+          <label class="primary file-action" id="mapImageBtn" for="mapImageInput">배경 이미지 추가</label>
+          <input class="visually-hidden-file" id="mapImageInput" type="file" accept="image/*" />
         </div>
         <p class="hint" id="mapHint">기존 지도 이미지를 넣고, 점을 찍어 영역과 국경을 나눌 수 있습니다.</p>
         <div class="map-board" id="mapBoard">
           <div class="map-canvas" id="mapCanvas">
             <div class="map-empty" id="mapEmpty">
               <strong>지도 이미지가 없습니다.</strong>
-              <span>지도 이미지 버튼을 눌러 기존 지도 사진을 넣어주세요.</span>
+              <span>배경 이미지 추가 버튼을 눌러 기존 지도 사진을 넣어주세요.</span>
             </div>
             <img id="mapImage" class="hidden" alt="세계지도" />
             <svg id="mapSvg" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
           </div>
         </div>
+      
+        <div class="map-bottom-bar">
+          <div class="tool-strip tool-panel" id="toolHomePanel">
+            <button id="toolPinBtn" type="button">핀</button>
+            <button id="toolRegionBtn" type="button">영역</button>
+          </div>
 
-          <div class="map-bottom-bar">
-            <div class="tool-strip">
-              <button id="quickPinBtn" type="button">핀 찍기</button>
-              <button id="startPolygonBtn" type="button">영역 그리기</button>
-              <button id="editLineBtn" type="button">선 수정</button>
-              <button id="addPointBtn" type="button">점 추가</button>
-              <button id="deletePointBtn" type="button">점 삭제</button>
-              <button id="moveRegionBtn" type="button">영역 이동</button>
-              <button id="deleteLineBtn" type="button">영역 삭제</button>
-            </div>
-            <div class="zoom-strip">
-              <button id="zoomInBtn" type="button">+</button>
-              <button id="zoomOutBtn" type="button">-</button>
-              <button id="zoomResetBtn" type="button">100%</button>
-            </div>
-          </div>      </section>
+          <div class="tool-strip tool-panel hidden" id="pinToolPanel">
+            <button class="toolBackBtn" type="button">뒤로가기</button>
+            <button id="quickPinBtn" type="button">핀 추가</button>
+            <button id="editMapPinBtn" type="button">핀 수정</button>
+            <button id="deleteMapPinBtn" type="button">핀 삭제</button>
+          </div>
+
+          <div class="tool-strip tool-panel hidden" id="regionToolPanel">
+            <button class="toolBackBtn" type="button">뒤로가기</button>
+            <input id="regionColorInput" type="color" value="#d8b674" title="영역 색상" />
+            <input id="regionHexInput" type="text" value="#d8b674" maxlength="7" title="HEX 색상" />
+            <select id="regionLinkSelect" title="영역에 배정할 지역 카드"></select>
+            <button id="startPolygonBtn" type="button">영역 그리기</button>
+            <button id="editLineBtn" type="button">영역 수정</button>
+            <button id="addPointBtn" type="button">점 추가</button>
+            <button id="moveRegionBtn" type="button">영역 이동</button>
+            <button id="assignRegionBtn" type="button">영역 배정</button>
+            <button id="deleteLineBtn" type="button">영역 삭제</button>
+          </div>
+
+          <div class="zoom-strip">
+            <button id="zoomInBtn" type="button">+</button>
+            <button id="zoomOutBtn" type="button">-</button>
+            <button id="zoomResetBtn" type="button">100%</button>
+          </div>
+        </div>
+</section>
     </main>
   </div>
 
@@ -245,6 +291,9 @@
         <label>제목
           <input id="timelineTitle" type="text" />
         </label>
+        <label>연도 / 시점
+          <input id="timelineYear" type="text" placeholder="예: 1024, 1막, 과거" />
+        </label>
         <label>설명
           <textarea id="timelineDesc"></textarea>
         </label>
@@ -259,8 +308,8 @@
     <section class="modal small">
       <header class="modal-head">
         <div>
-          <h2>노드</h2>
-          <p>관계도에 직접 놓는 노드입니다.</p>
+          <h2>카드</h2>
+          <p>관계도에 직접 놓는 카드입니다.</p>
         </div>
         <button data-close="nodeModal" type="button">닫기</button>
       </header>
@@ -283,7 +332,7 @@
       <header class="modal-head">
         <div>
           <h2>카드 가져오기</h2>
-          <p>작성한 카드를 관계도 노드로 가져옵니다.</p>
+          <p>작성한 카드를 관계도 카드로 가져옵니다.</p>
         </div>
         <button data-close="importNodeModal" type="button">닫기</button>
       </header>
@@ -310,6 +359,17 @@
       <div class="form">
         <label>관계 이름
           <input id="edgeName" type="text" placeholder="예: 의존, 적대, 가족" />
+        </label>
+        <label>선 색상
+          <input id="edgeColor" type="color" value="#6d5038" />
+        </label>
+        <label>방향
+          <select id="edgeDirection">
+            <option value="forward">첫 번째 카드 → 두 번째 카드</option>
+            <option value="back">첫 번째 카드 ← 두 번째 카드</option>
+            <option value="both">양방향</option>
+            <option value="none">화살표 없음</option>
+          </select>
         </label>
       </div>
       <div class="modal-actions">
