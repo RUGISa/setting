@@ -64,7 +64,7 @@
 
       <section class="timeline-view hidden" id="timelineView">
         <div class="sub-tools">
-          <button class="primary" id="addTimelineBtn" type="button">점 추가</button>
+          <button class="primary" id="addTimelineBtn" type="button">사건 추가</button>
           <button id="editTimelineBtn" type="button">수정</button>
           <button id="deleteTimelineBtn" type="button">삭제</button>
         </div>
@@ -83,9 +83,53 @@
           <button id="deleteNodeBtn" type="button">노드 삭제</button>
           <button id="organizeBtn" type="button">조직 정렬</button>
         </div>
-        <p class="hint">노드 2개를 차례로 선택한 뒤 연결을 누르세요. 노드는 드래그할 수 있습니다.</p>
+        <p class="hint">아카이브형 관계도입니다. 카드를 가져오고, 노드 2개를 선택한 뒤 연결하세요. 조직은 큰 영역 박스로 표시됩니다.</p>
         <div class="relation-board" id="relationBoard">
           <svg id="relationSvg"></svg>
+        </div>
+      </section>
+
+      <section class="map-view hidden" id="mapView">
+        <div class="map-tabs-row">
+          <div class="map-tabs" id="mapTabs"></div>
+          <div class="map-tab-actions">
+            <button id="addMapBtn" type="button">지도 추가</button>
+            <button id="renameMapBtn" type="button">지도 이름</button>
+            <button class="danger" id="deleteMapBtn" type="button">지도 삭제</button>
+          </div>
+        </div>
+
+        <div class="sub-tools map-tools">
+          <button class="primary" id="mapImageBtn" type="button">지도 이미지</button>
+          <button id="zoomOutBtn" type="button">축소</button>
+          <button id="zoomResetBtn" type="button">100%</button>
+          <button id="zoomInBtn" type="button">확대</button>
+          <button id="addMapPinBtn" type="button">핀 추가</button>
+          <button id="editMapPinBtn" type="button">핀 수정</button>
+          <button id="deleteMapPinBtn" type="button">핀 삭제</button>
+          <select id="lineColorSelect" title="영역 색상">
+            <option value="gold">금색</option>
+            <option value="blue">파랑</option>
+            <option value="green">초록</option>
+            <option value="red">빨강</option>
+            <option value="purple">보라</option>
+            <option value="gray">회색</option>
+          </select>
+          <button id="startPolygonBtn" type="button">선 그리기</button>
+          <button id="editLineBtn" type="button">선 수정</button>
+          <button id="deleteLineBtn" type="button">선 삭제</button>
+          <input class="hidden" id="mapImageInput" type="file" accept="image/*" />
+        </div>
+        <p class="hint" id="mapHint">기존 지도 이미지를 넣고, 점을 찍어 영역과 국경을 나눌 수 있습니다.</p>
+        <div class="map-board" id="mapBoard">
+          <div class="map-canvas" id="mapCanvas">
+            <div class="map-empty" id="mapEmpty">
+              <strong>지도 이미지가 없습니다.</strong>
+              <span>지도 이미지 버튼을 눌러 기존 지도 사진을 넣어주세요.</span>
+            </div>
+            <img id="mapImage" class="hidden" alt="세계지도" />
+            <svg id="mapSvg" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+          </div>
         </div>
       </section>
     </main>
@@ -271,6 +315,37 @@
       </div>
     </section>
   </div>
+
+
+  <div class="modal-bg" id="mapPinModal">
+    <section class="modal small">
+      <header class="modal-head">
+        <div>
+          <h2>지도 핀</h2>
+          <p>지도 위 장소와 설정 문서를 연결합니다.</p>
+        </div>
+        <button data-close="mapPinModal" type="button">닫기</button>
+      </header>
+      <div class="form">
+        <label>핀 이름<input id="mapPinTitle" type="text" placeholder="예: 파나카 왕국" /></label>
+        <label>종류
+          <select id="mapPinType">
+            <option value="kingdom">왕국</option>
+            <option value="city">도시</option>
+            <option value="ruin">유적</option>
+            <option value="landmark">장소</option>
+            <option value="danger">위험 지역</option>
+          </select>
+        </label>
+        <label>연결할 설정<select id="mapPinLink"></select></label>
+        <label>설명<textarea id="mapPinDesc" placeholder="지도에 표시할 짧은 설명"></textarea></label>
+      </div>
+      <div class="modal-actions">
+        <button class="primary" id="saveMapPinBtn" type="button">저장</button>
+      </div>
+    </section>
+  </div>
+
 
   <div class="toast" id="toast">저장했습니다.</div>
   <script src="app.js"></script>

@@ -9,7 +9,8 @@ const categories = {
   items: "아이템",
   abilities: "능력",
   timeline: "타임라인",
-  relations: "관계도"
+  relations: "관계도",
+  map: "지도"
 };
 
 const categoryDesc = {
@@ -21,7 +22,8 @@ const categoryDesc = {
   items: "아이템과 물건을 정리합니다.",
   abilities: "능력, 마법, 기술을 정리합니다.",
   timeline: "사건의 흐름을 정리합니다.",
-  relations: "인물과 세력의 관계를 그립니다."
+  relations: "인물과 세력의 관계를 그립니다.",
+  map: "기존 지도 이미지 위에 왕국, 도시, 유적을 표시하고 설정 문서와 연결합니다."
 };
 
 const dataCategories = ["characters", "places", "factions", "events", "items", "abilities"];
@@ -47,7 +49,8 @@ const emptyState = {
   relation: {
     nodes: [],
     edges: []
-  }
+  },
+  map: { image: "", pins: [] }
 };
 
 let state = loadState();
@@ -65,6 +68,16 @@ let selectedNodeId = null;
 let selectedEdgeId = null;
 let connectNodes = [];
 let editingNodeId = null;
+let selectedMapPinId = null;
+let editingMapPinId = null;
+let pendingMapPinPosition = null;
+let selectedPolygonId = null;
+let editingPolygonId = null;
+let drawingPolygon = false;
+let polygonDraft = [];
+let mapZoom = 1;
+let currentMapId = "";
+let editingLineMode = false;
 
 function $(id) {
   return document.getElementById(id);
@@ -118,6 +131,54 @@ function normalizeState(data) {
   if (!merged.relation) merged.relation = { nodes: [], edges: [] };
   if (!Array.isArray(merged.relation.nodes)) merged.relation.nodes = [];
   if (!Array.isArray(merged.relation.edges)) merged.relation.edges = [];
+  if (!merged.maps && merged.map) {
+    merged.maps = [{
+      id: merged.map.id || uid(),
+      name: merged.map.name || "기본 지도",
+      image: merged.map.image || "",
+      pins: Array.isArray(merged.map.pins) ? merged.map.pins : [],
+      polygons: Array.isArray(merged.map.polygons) ? merged.map.polygons : []
+    }];
+    merged.currentMapId = merged.maps[0].id;
+  }
+
+  if (!Array.isArray(merged.maps) || merged.maps.length === 0) {
+    merged.maps = [{ id: uid(), name: "기본 지도", image: "", pins: [], polygons: [] }];
+  }
+
+  merged.maps.forEach((map, index) => {
+    map.id ??= uid();
+    map.name ??= index === 0 ? "기본 지도" : `지도 ${index + 1}`;
+    map.image ??= "";
+    if (!Array.isArray(map.pins)) map.pins = [];
+    if (!Array.isArray(map.polygons)) map.polygons = [];
+
+    map.pins.forEach((pin) => {
+      pin.x ??= 50;
+      pin.y ??= 50;
+      pin.type ??= "landmark";
+      pin.title ??= "이름 없는 핀";
+      pin.desc ??= "";
+      pin.link ??= "";
+    });
+
+    map.polygons.forEach((poly) => {
+      poly.points ??= [];
+      poly.title ??= "영역";
+      poly.type ??= "region";
+      poly.color ??= "gold";
+      poly.desc ??= "";
+      poly.link ??= "";
+      poly.closed ??= true;
+    });
+  });
+
+  if (!merged.currentMapId || !merged.maps.some((map) => map.id === merged.currentMapId)) {
+    merged.currentMapId = merged.maps[0].id;
+  }
+
+  merged.map = merged.maps.find((map) => map.id === merged.currentMapId) || merged.maps[0];
+
   return merged;
 }
 
@@ -240,6 +301,7 @@ function render() {
 
   if (currentCategory === "timeline") renderTimeline();
   else if (currentCategory === "relations") renderRelations();
+  else if (currentCategory === "map") renderMap();
   else renderCards();
 }
 
@@ -255,7 +317,9 @@ function renderNav() {
         ? state[key].length
         : key === "timeline"
           ? state.timeline.length
-          : state.relation.nodes.length;
+          : key === "relations"
+            ? state.relation.nodes.length
+            : getActiveMap().pins.length + (getActiveMap().polygons?.length || 0);
     button.innerHTML = `<span>${label}</span><span>${count}</span>`;
     button.addEventListener("click", () => {
       currentCategory = key;
@@ -278,12 +342,13 @@ function renderTitle() {
 }
 
 function renderMainMode() {
-  const listMode = currentCategory !== "timeline" && currentCategory !== "relations";
+  const listMode = currentCategory !== "timeline" && currentCategory !== "relations" && currentCategory !== "map";
   $("listTools").classList.toggle("hidden", !listMode);
   $("cardGrid").classList.toggle("hidden", !listMode);
   $("emptyBox").classList.toggle("hidden", !listMode);
   $("timelineView").classList.toggle("hidden", currentCategory !== "timeline");
   $("relationView").classList.toggle("hidden", currentCategory !== "relations");
+  $("mapView").classList.toggle("hidden", currentCategory !== "map");
 }
 
 function createPill(text, active, onClick) {
@@ -667,14 +732,14 @@ function deleteFolder() {
 
 function renderTimeline() {
   const board = $("timelineBoard");
-  board.querySelectorAll(".timeline-dot,.timeline-card").forEach((el) => el.remove());
+  board.querySelectorAll(".timeline-dot,.timeline-card,.timeline-year,.timeline-empty").forEach((el) => el.remove());
   state.timeline.forEach((point) => {
     point.dotX ??= 50;
     point.cardX ??= point.dotX;
     point.cardY ??= 35;
 
     const dot = document.createElement("div");
-    dot.className = "timeline-dot";
+    dot.className = `timeline-dot ${selectedTimelineId === point.id ? "selected" : ""}`;
     dot.style.left = `${point.dotX}%`;
     dot.style.top = "50%";
     dot.addEventListener("click", (event) => {
@@ -757,39 +822,98 @@ function saveTimeline() {
 function renderRelations() {
   const board = $("relationBoard");
   const svg = $("relationSvg");
-  board.querySelectorAll(".relation-node,.edge-label").forEach((el) => el.remove());
-  svg.innerHTML = "";
+  board.querySelectorAll(".relation-node,.edge-label,.relation-legend,.relation-empty").forEach((el) => el.remove());
+  svg.innerHTML = `
+    <defs>
+      <marker id="arrow-brown" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+        <path d="M0,0 L9,4.5 L0,9 Z" fill="rgba(92,64,36,.55)"></path>
+      </marker>
+      <marker id="arrow-red" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+        <path d="M0,0 L9,4.5 L0,9 Z" fill="rgba(162,77,67,.72)"></path>
+      </marker>
+    </defs>
+  `;
 
-  state.relation.edges = state.relation.edges.filter((edge) => state.relation.nodes.some((n) => n.id === edge.from) && state.relation.nodes.some((n) => n.id === edge.to));
-
-  state.relation.edges.forEach((edge) => drawEdge(edge));
-
-  state.relation.nodes.forEach((node) => {
-    const source = node.sourceId ? findItem(node.sourceCategory, node.sourceId) : null;
-    const title = source?.title || node.name || "이름 없음";
-    const desc = source?.summary || source?.body || node.desc || "";
-    const el = document.createElement("div");
-    const isOrg = node.sourceCategory === "factions";
-    el.className = `relation-node ${selectedNodeId === node.id ? "selected" : ""} ${connectNodes.includes(node.id) ? "pick" : ""} ${isOrg ? "organization" : ""}`;
-    el.dataset.id = node.id;
-    el.style.left = `${node.x ?? 80}px`;
-    el.style.top = `${node.y ?? 80}px`;
-    el.innerHTML = isOrg
-      ? `<div class="org-title">${escapeHTML(title)}</div><span>${escapeHTML(desc)}</span><em>조직</em>`
-      : `<strong>${escapeHTML(title)}</strong><span>${escapeHTML(desc)}</span><em>${source ? categories[node.sourceCategory] : "직접 노드"}</em>`;
-    el.addEventListener("click", (event) => {
-      event.stopPropagation();
-      handleNodeClick(node.id);
-    });
-    el.addEventListener("dblclick", (event) => {
-      event.stopPropagation();
-      source ? openDetail(node.sourceCategory, node.sourceId) : openNodeModal(node.id);
-    });
-    dragNode(el, node);
-    board.appendChild(el);
+  state.relation.edges = state.relation.edges.filter((edge) => {
+    return state.relation.nodes.some((n) => n.id === edge.from)
+      && state.relation.nodes.some((n) => n.id === edge.to);
   });
+
+  const legend = document.createElement("div");
+  legend.className = "relation-legend";
+  legend.innerHTML = `
+    <span><b class="legend-character"></b>캐릭터</span>
+    <span><b class="legend-faction"></b>조직</span>
+    <span><b class="legend-place"></b>지역</span>
+    <span><b class="legend-ability"></b>능력</span>
+    <span><b class="legend-event"></b>사건</span>
+  `;
+  board.appendChild(legend);
+
+  if (!state.relation.nodes.length) {
+    const empty = document.createElement("div");
+    empty.className = "relation-empty";
+    empty.innerHTML = `<strong>관계도가 비어 있습니다.</strong><span>카드 가져오기를 눌러 캐릭터와 조직을 배치해보세요.</span>`;
+    board.appendChild(empty);
+  }
+
+  state.relation.nodes
+    .slice()
+    .sort((a, b) => Number(a.sourceCategory === "factions") - Number(b.sourceCategory === "factions"))
+    .forEach((node) => {
+      const source = node.sourceId ? findItem(node.sourceCategory, node.sourceId) : null;
+      const title = source?.title || node.name || "이름 없음";
+      const desc = source?.summary || source?.body || node.desc || "";
+      const category = source ? node.sourceCategory : "custom";
+      const isOrg = node.sourceCategory === "factions";
+
+      if (isOrg) {
+        node.x ??= 80;
+        node.y ??= 70;
+      }
+
+      const el = document.createElement("div");
+      el.className = [
+        "relation-node",
+        `node-${category}`,
+        selectedNodeId === node.id ? "selected" : "",
+        connectNodes.includes(node.id) ? "pick" : "",
+        isOrg ? "organization" : ""
+      ].join(" ").trim();
+
+      el.dataset.id = node.id;
+      el.style.left = `${node.x ?? 100}px`;
+      el.style.top = `${node.y ?? 120}px`;
+
+      el.innerHTML = isOrg
+        ? `
+          <div class="org-title">${escapeHTML(title)}</div>
+          <span>${escapeHTML(desc || "조직 영역")}</span>
+          <em>${categories[category] || "조직"}</em>
+        `
+        : `
+          <i>${escapeHTML(categories[category] || "직접")}</i>
+          <strong>${escapeHTML(title)}</strong>
+          <span>${escapeHTML(desc || "설명 없음")}</span>
+          <em>${source ? categories[category] : "직접 노드"}</em>
+        `;
+
+      el.addEventListener("click", (event) => {
+        event.stopPropagation();
+        handleNodeClick(node.id);
+      });
+      el.addEventListener("dblclick", (event) => {
+        event.stopPropagation();
+        source ? openDetail(node.sourceCategory, node.sourceId) : openNodeModal(node.id);
+      });
+
+      dragNode(el, node);
+      board.appendChild(el);
+    });
+
   requestAnimationFrame(() => {
-    svg.innerHTML = "";
+    svg.querySelectorAll("path:not(defs path)").forEach((path) => path.remove());
+    board.querySelectorAll(".edge-label").forEach((label) => label.remove());
     state.relation.edges.forEach((edge) => drawEdge(edge));
   });
 }
@@ -806,10 +930,33 @@ function nodeCenter(id) {
 function drawEdge(edge) {
   const from = nodeCenter(edge.from);
   const to = nodeCenter(edge.to);
+  const fromNode = state.relation.nodes.find((node) => node.id === edge.from);
+  const toNode = state.relation.nodes.find((node) => node.id === edge.to);
+
+  const horizontal = Math.abs(to.x - from.x) > Math.abs(to.y - from.y);
+  const midX = edge.midX ?? ((from.x + to.x) / 2);
   const midY = edge.midY ?? ((from.y + to.y) / 2);
+
+  const pathData = horizontal
+    ? `M ${from.x} ${from.y} L ${midX} ${from.y} L ${midX} ${to.y} L ${to.x} ${to.y}`
+    : `M ${from.x} ${from.y} L ${from.x} ${midY} L ${to.x} ${midY} L ${to.x} ${to.y}`;
+
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  path.setAttribute("d", `M ${from.x} ${from.y} L ${from.x} ${midY} L ${to.x} ${midY} L ${to.x} ${to.y}`);
-  if (selectedEdgeId === edge.id) path.classList.add("selected");
+  path.setAttribute("d", pathData);
+  path.setAttribute("marker-end", edge.label?.includes("적") || edge.label?.includes("원수") ? "url(#arrow-red)" : "url(#arrow-brown)");
+
+  if (edge.label?.includes("적") || edge.label?.includes("원수")) {
+    path.classList.add("hostile");
+  }
+
+  if (selectedEdgeId === edge.id) {
+    path.classList.add("selected");
+  }
+
+  if (fromNode?.sourceCategory === "factions" || toNode?.sourceCategory === "factions") {
+    path.classList.add("from-org");
+  }
+
   path.addEventListener("click", (event) => {
     event.stopPropagation();
     selectedEdgeId = edge.id;
@@ -817,13 +964,15 @@ function drawEdge(edge) {
     connectNodes = [];
     renderRelations();
   });
+
   $("relationSvg").appendChild(path);
+
   if (edge.label) {
     const label = document.createElement("div");
-    label.className = "edge-label";
+    label.className = edge.label.includes("적") || edge.label.includes("원수") ? "edge-label hostile" : "edge-label";
     label.textContent = edge.label;
-    label.style.left = `${(from.x + to.x) / 2}px`;
-    label.style.top = `${midY}px`;
+    label.style.left = `${horizontal ? midX : (from.x + to.x) / 2}px`;
+    label.style.top = `${horizontal ? (from.y + to.y) / 2 : midY}px`;
     $("relationBoard").appendChild(label);
   }
 }
@@ -995,6 +1144,491 @@ function organizeMembers() {
   renderRelations();
 }
 
+
+
+function getActiveMap() {
+  if (!Array.isArray(state.maps) || state.maps.length === 0) {
+    state.maps = [{ id: uid(), name: "기본 지도", image: "", pins: [], polygons: [] }];
+  }
+
+  if (!currentMapId) currentMapId = state.currentMapId || state.maps[0].id;
+
+  let map = state.maps.find((item) => item.id === currentMapId);
+  if (!map) {
+    map = state.maps[0];
+    currentMapId = map.id;
+  }
+
+  state.currentMapId = currentMapId;
+  state.map = map;
+  return map;
+}
+
+function renderMapTabs() {
+  const tabs = $("mapTabs");
+  if (!tabs) return;
+  const active = getActiveMap();
+  tabs.innerHTML = "";
+
+  state.maps.forEach((map) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = map.id === active.id ? "active" : "";
+    button.textContent = map.name;
+    button.addEventListener("click", () => {
+      currentMapId = map.id;
+      state.currentMapId = map.id;
+      selectedMapPinId = null;
+      selectedPolygonId = null;
+      drawingPolygon = false;
+      polygonDraft = [];
+      editingLineMode = false;
+      saveState();
+      renderMap();
+    });
+    tabs.appendChild(button);
+  });
+}
+
+function addMap() {
+  const name = prompt("새 지도 이름을 입력해주세요.", `지도 ${state.maps.length + 1}`);
+  if (!name) return;
+  const map = { id: uid(), name: name.trim(), image: "", pins: [], polygons: [] };
+  state.maps.push(map);
+  currentMapId = map.id;
+  state.currentMapId = map.id;
+  selectedMapPinId = null;
+  selectedPolygonId = null;
+  saveState();
+  renderMap();
+}
+
+function renameMap() {
+  const map = getActiveMap();
+  const name = prompt("지도 이름을 입력해주세요.", map.name);
+  if (!name) return;
+  map.name = name.trim();
+  saveState();
+  renderMap();
+}
+
+function deleteMap() {
+  if (state.maps.length <= 1) {
+    showToast("지도는 최소 1개가 필요합니다.");
+    return;
+  }
+
+  const map = getActiveMap();
+  if (!confirm(`'${map.name}' 지도를 삭제할까요?`)) return;
+
+  state.maps = state.maps.filter((item) => item.id !== map.id);
+  currentMapId = state.maps[0].id;
+  state.currentMapId = currentMapId;
+  selectedMapPinId = null;
+  selectedPolygonId = null;
+  saveState();
+  renderMap();
+}
+
+function renderMap() {
+  const map = getActiveMap();
+  renderMapTabs();
+
+  const image = $("mapImage");
+  const empty = $("mapEmpty");
+  const canvas = $("mapCanvas");
+  const svg = $("mapSvg");
+
+  canvas.querySelectorAll(".map-pin,.map-pin-card,.polygon-card,.polygon-point").forEach((el) => el.remove());
+  svg.innerHTML = "";
+
+  canvas.style.transform = "none";
+  canvas.style.width = `${mapZoom * 100}%`;
+  canvas.style.height = `${mapZoom * 720}px`;
+  $("zoomResetBtn").textContent = `${Math.round(mapZoom * 100)}%`;
+
+  if (map.image) {
+    image.src = map.image;
+    image.classList.remove("hidden");
+    empty.classList.add("hidden");
+  } else {
+    image.removeAttribute("src");
+    image.classList.add("hidden");
+    empty.classList.remove("hidden");
+  }
+
+  map.polygons.forEach((poly) => drawPolygon(poly));
+
+  if (drawingPolygon && polygonDraft.length) {
+    drawDraftPolygon();
+  }
+
+  map.pins.forEach((pin) => {
+    const el = document.createElement("button");
+    el.className = `map-pin pin-${pin.type} ${selectedMapPinId === pin.id ? "selected" : ""}`;
+    el.type = "button";
+    el.style.left = `${pin.x}%`;
+    el.style.top = `${pin.y}%`;
+    el.title = pin.title;
+    el.innerHTML = `<span></span>`;
+
+    el.addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (drawingPolygon) return;
+      selectedMapPinId = pin.id;
+      selectedPolygonId = null;
+      renderMap();
+    });
+
+    el.addEventListener("dblclick", (event) => {
+      event.stopPropagation();
+      if (drawingPolygon) return;
+      openLinkedMapPin(pin);
+    });
+
+    dragMapPin(el, pin);
+    canvas.appendChild(el);
+
+    if (selectedMapPinId === pin.id && !drawingPolygon) {
+      const card = document.createElement("div");
+      card.className = "map-pin-card";
+      card.style.left = `${Math.min(82, Math.max(6, pin.x + 2))}%`;
+      card.style.top = `${Math.min(82, Math.max(6, pin.y + 2))}%`;
+
+      const linked = parseMapLink(pin.link);
+      const linkedItem = linked ? findItem(linked.category, linked.id) : null;
+
+      card.innerHTML = `
+        <small>${mapPinTypeName(pin.type)}</small>
+        <strong>${escapeHTML(pin.title)}</strong>
+        <p>${escapeHTML(pin.desc || linkedItem?.summary || "설명 없음")}</p>
+        ${linkedItem ? `<button type="button" data-open-linked>연결 문서 열기</button>` : ""}
+      `;
+
+      const openButton = card.querySelector("[data-open-linked]");
+      if (openButton) openButton.addEventListener("click", () => openDetail(linked.category, linked.id));
+      canvas.appendChild(card);
+    }
+  });
+
+  updateMapHint();
+}
+
+
+function drawPolygon(poly) {
+  if (!poly.points || poly.points.length < 2) return;
+
+  const svg = $("mapSvg");
+  const shape = document.createElementNS("http://www.w3.org/2000/svg", poly.closed === false ? "polyline" : "polygon");
+  shape.setAttribute("points", poly.points.map((p) => `${p.x},${p.y}`).join(" "));
+  shape.setAttribute("class", `map-region region-${poly.color || "gold"} ${selectedPolygonId === poly.id ? "selected" : ""}`);
+
+  shape.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (drawingPolygon) return;
+    selectedPolygonId = poly.id;
+    selectedMapPinId = null;
+    renderMap();
+  });
+
+  svg.appendChild(shape);
+
+  if (selectedPolygonId === poly.id && editingLineMode) {
+    poly.points.forEach((point, index) => {
+      const handle = document.createElement("button");
+      handle.className = "polygon-point edit-point";
+      handle.type = "button";
+      handle.style.left = `${point.x}%`;
+      handle.style.top = `${point.y}%`;
+      handle.title = "점을 드래그해서 선 수정";
+      dragPolygonPoint(handle, poly, index);
+      $("mapCanvas").appendChild(handle);
+    });
+  }
+}
+
+function drawDraftPolygon() {
+  const svg = $("mapSvg");
+  const tag = polygonDraft.length >= 3 ? "polygon" : "polyline";
+  const draft = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  draft.setAttribute("points", polygonDraft.map((p) => `${p.x},${p.y}`).join(" "));
+  draft.setAttribute("class", `map-region draft region-${$("lineColorSelect")?.value || "gold"}`);
+  svg.appendChild(draft);
+
+  polygonDraft.forEach((point) => {
+    const handle = document.createElement("button");
+    handle.className = "polygon-point draft-point";
+    handle.type = "button";
+    handle.style.left = `${point.x}%`;
+    handle.style.top = `${point.y}%`;
+    $("mapCanvas").appendChild(handle);
+  });
+}
+
+function polygonCenter(points) {
+  if (!points.length) return { x: 50, y: 50 };
+  return {
+    x: points.reduce((sum, p) => sum + p.x, 0) / points.length,
+    y: points.reduce((sum, p) => sum + p.y, 0) / points.length
+  };
+}
+
+function polygonTypeName(type) {
+  return { country: "국가", border: "국경", region: "지역", sea: "바다", danger: "위험 지대" }[type] || "영역";
+}
+
+function toggleLineDrawing() {
+  if (!drawingPolygon) {
+    drawingPolygon = true;
+    polygonDraft = [];
+    selectedPolygonId = null;
+    selectedMapPinId = null;
+    editingLineMode = false;
+    updateMapHint();
+    renderMap();
+    return;
+  }
+
+  completeLineDrawing();
+}
+
+function completeLineDrawing() {
+  if (!drawingPolygon) return;
+
+  if (polygonDraft.length < 3) {
+    showToast("영역을 만들려면 점을 3개 이상 찍어주세요.");
+    return;
+  }
+
+  const map = getActiveMap();
+  const region = {
+    id: uid(),
+    title: `영역 ${map.polygons.length + 1}`,
+    type: "region",
+    color: $("lineColorSelect")?.value || "gold",
+    desc: "",
+    link: "",
+    closed: true,
+    points: polygonDraft.map((p) => ({ x: p.x, y: p.y }))
+  };
+
+  map.polygons.push(region);
+  selectedPolygonId = region.id;
+  drawingPolygon = false;
+  polygonDraft = [];
+  editingLineMode = false;
+  saveState();
+  updateMapHint();
+  renderMap();
+}
+
+function deletePolygon() {
+  if (!selectedPolygonId) return showToast("삭제할 영역을 선택해주세요.");
+  const map = getActiveMap();
+  map.polygons = map.polygons.filter((poly) => poly.id !== selectedPolygonId);
+  selectedPolygonId = null;
+  editingLineMode = false;
+  saveState();
+  renderMap();
+}
+
+function toggleLineEdit() {
+  if (!selectedPolygonId) {
+    showToast("수정할 영역을 먼저 선택해주세요.");
+    return;
+  }
+
+  editingLineMode = !editingLineMode;
+  updateMapHint();
+  renderMap();
+}
+
+function addPolygonPointFromEvent(event) {
+  const rect = $("mapCanvas").getBoundingClientRect();
+  const x = Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100));
+  const y = Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100));
+  polygonDraft.push({ x, y });
+  renderMap();
+}
+
+function undoPolygonPoint() {
+  if (!drawingPolygon || polygonDraft.length === 0) return;
+  polygonDraft.pop();
+  renderMap();
+}
+
+function dragPolygonPoint(el, poly, index) {
+  el.addEventListener("pointerdown", (event) => {
+    event.stopPropagation();
+    const rect = $("mapCanvas").getBoundingClientRect();
+    el.setPointerCapture(event.pointerId);
+
+    const move = (e) => {
+      poly.points[index].x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+      poly.points[index].y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+      renderMap();
+    };
+
+    const up = () => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      saveState();
+    };
+
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+  });
+}
+
+function updateMapHint() {
+  if (!$("mapHint")) return;
+
+  const button = $("startPolygonBtn");
+  const editButton = $("editLineBtn");
+  if (button) button.textContent = drawingPolygon ? "영역 완료" : "영역 그리기";
+  if (editButton) editButton.textContent = editingLineMode ? "수정 끝" : "선 수정";
+
+  if (drawingPolygon) {
+    $("mapHint").textContent = `영역 그리기 중: 점을 찍고 Enter 또는 영역 완료를 누르세요. Ctrl+Z로 방금 찍은 점을 취소할 수 있습니다. 현재 ${polygonDraft.length}개`;
+  } else if (editingLineMode) {
+    $("mapHint").textContent = "선 수정 중: 꼭짓점을 드래그해서 국경 모양을 수정하세요. 수정 끝을 누르면 점이 숨겨집니다.";
+  } else {
+    $("mapHint").textContent = "여러 지도를 전환할 수 있고, 점을 이어 닫힌 영역을 만들면 반투명 색으로 채워집니다. 영역을 클릭한 뒤 선 수정을 누르면 점을 옮길 수 있습니다.";
+  }
+}
+
+function zoomMap(delta) {
+  mapZoom = Math.max(0.5, Math.min(3, Math.round((mapZoom + delta) * 10) / 10));
+  renderMap();
+}
+
+function resetMapZoom() {
+  mapZoom = 1;
+  renderMap();
+}
+
+function mapPinTypeName(type) {
+  return { kingdom: "왕국", city: "도시", ruin: "유적", landmark: "장소", danger: "위험 지역" }[type] || "장소";
+}
+
+function parseMapLink(value) {
+  if (!value) return null;
+  const [category, id] = value.split(":");
+  if (!category || !id) return null;
+  return { category, id };
+}
+
+function fillMapPinLinkSelect(selected = "") {
+  const select = $("mapPinLink");
+  select.innerHTML = `<option value="">연결 없음</option>`;
+  ["places", "factions", "events", "characters", "items", "abilities"].forEach((category) => {
+    const group = document.createElement("optgroup");
+    group.label = categories[category];
+    state[category].forEach((item) => {
+      const option = new Option(item.title, `${category}:${item.id}`);
+      option.selected = option.value === selected;
+      group.appendChild(option);
+    });
+    if (group.children.length) select.appendChild(group);
+  });
+}
+
+function openMapPinModal(id = null, position = null) {
+  editingMapPinId = id;
+  const pin = id ? getActiveMap().pins.find((item) => item.id === id) : null;
+  pendingMapPinPosition = position;
+  $("mapPinTitle").value = pin?.title || "";
+  $("mapPinType").value = pin?.type || "landmark";
+  $("mapPinDesc").value = pin?.desc || "";
+  fillMapPinLinkSelect(pin?.link || "");
+  openModal("mapPinModal");
+}
+
+function saveMapPin() {
+  const title = $("mapPinTitle").value.trim();
+  if (!title) return showToast("핀 이름을 적어주세요.");
+  const data = { title, type: $("mapPinType").value, desc: $("mapPinDesc").value.trim(), link: $("mapPinLink").value };
+  if (editingMapPinId) {
+    const pin = getActiveMap().pins.find((item) => item.id === editingMapPinId);
+    if (pin) Object.assign(pin, data);
+  } else {
+    const pos = pendingMapPinPosition || { x: 50, y: 50 };
+    const pin = { id: uid(), ...data, x: pos.x, y: pos.y };
+    getActiveMap().pins.push(pin);
+    selectedMapPinId = pin.id;
+  }
+  pendingMapPinPosition = null;
+  saveState();
+  closeModal("mapPinModal");
+  renderMap();
+}
+
+function deleteMapPin() {
+  if (!selectedMapPinId) return showToast("삭제할 핀을 선택해주세요.");
+  getActiveMap().pins = getActiveMap().pins.filter((pin) => pin.id !== selectedMapPinId);
+  selectedMapPinId = null;
+  saveState();
+  renderMap();
+}
+
+function editMapPin() {
+  if (!selectedMapPinId) return showToast("수정할 핀을 선택해주세요.");
+  openMapPinModal(selectedMapPinId);
+}
+
+function openLinkedMapPin(pin) {
+  const linked = parseMapLink(pin.link);
+  if (!linked) return openMapPinModal(pin.id);
+  openDetail(linked.category, linked.id);
+}
+
+function dragMapPin(el, pin) {
+  el.addEventListener("pointerdown", (event) => {
+    event.stopPropagation();
+    const board = $("mapCanvas");
+    const rect = board.getBoundingClientRect();
+    let moved = false;
+    el.setPointerCapture(event.pointerId);
+    const move = (e) => {
+      moved = true;
+      pin.x = Math.max(1, Math.min(99, ((e.clientX - rect.left) / rect.width) * 100));
+      pin.y = Math.max(1, Math.min(99, ((e.clientY - rect.top) / rect.height) * 100));
+      el.style.left = `${pin.x}%`;
+      el.style.top = `${pin.y}%`;
+    };
+    const up = () => {
+      el.removeEventListener("pointermove", move);
+      el.removeEventListener("pointerup", up);
+      if (moved) {
+        selectedMapPinId = pin.id;
+        saveState();
+        renderMap();
+      }
+    };
+    el.addEventListener("pointermove", move);
+    el.addEventListener("pointerup", up);
+  });
+}
+
+function setMapImage(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    getActiveMap().image = reader.result;
+    saveState();
+    renderMap();
+  };
+  reader.readAsDataURL(file);
+}
+
+function addMapPinFromBoard(event) {
+  const board = $("mapCanvas");
+  const rect = board.getBoundingClientRect();
+  const x = Math.max(1, Math.min(99, ((event.clientX - rect.left) / rect.width) * 100));
+  const y = Math.max(1, Math.min(99, ((event.clientY - rect.top) / rect.height) * 100));
+  openMapPinModal(null, { x, y });
+}
+
 function exportData() {
   saveState();
   const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
@@ -1119,6 +1753,43 @@ function initEvents() {
   $("deleteEdgeBtn").addEventListener("click", deleteSelectedEdge);
   $("deleteNodeBtn").addEventListener("click", deleteSelectedNode);
   $("organizeBtn").addEventListener("click", organizeMembers);
+  $("addMapBtn").addEventListener("click", addMap);
+  $("renameMapBtn").addEventListener("click", renameMap);
+  $("deleteMapBtn").addEventListener("click", deleteMap);
+  $("mapImageBtn").addEventListener("click", () => $("mapImageInput").click());
+  $("mapImageInput").addEventListener("change", (event) => {
+    setMapImage(event.target.files[0]);
+    event.target.value = "";
+  });
+  $("addMapPinBtn").addEventListener("click", () => openMapPinModal());
+  $("editMapPinBtn").addEventListener("click", editMapPin);
+  $("deleteMapPinBtn").addEventListener("click", deleteMapPin);
+  $("saveMapPinBtn").addEventListener("click", saveMapPin);
+  $("zoomInBtn").addEventListener("click", () => zoomMap(0.2));
+  $("zoomOutBtn").addEventListener("click", () => zoomMap(-0.2));
+  $("zoomResetBtn").addEventListener("click", resetMapZoom);
+  $("startPolygonBtn").addEventListener("click", toggleLineDrawing);
+  $("editLineBtn").addEventListener("click", toggleLineEdit);
+  $("deleteLineBtn").addEventListener("click", deletePolygon);
+  $("mapBoard").addEventListener("click", (event) => {
+    const baseTarget = event.target === $("mapBoard") || event.target === $("mapCanvas") || event.target === $("mapImage") || event.target === $("mapEmpty") || event.target === $("mapSvg");
+    if (!baseTarget) return;
+
+    if (drawingPolygon) {
+      addPolygonPointFromEvent(event);
+      return;
+    }
+
+    selectedMapPinId = null;
+    selectedPolygonId = null;
+    editingLineMode = false;
+    renderMap();
+  });
+  $("mapBoard").addEventListener("dblclick", (event) => {
+    const baseTarget = event.target === $("mapBoard") || event.target === $("mapCanvas") || event.target === $("mapImage") || event.target === $("mapEmpty") || event.target === $("mapSvg");
+    if (baseTarget && !drawingPolygon) addMapPinFromBoard(event);
+  });
+
   $("relationBoard").addEventListener("click", (event) => {
     if (event.target === $("relationBoard") || event.target === $("relationSvg")) {
       selectedNodeId = null;
@@ -1129,9 +1800,40 @@ function initEvents() {
   });
 
   document.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z" && drawingPolygon) {
+      event.preventDefault();
+      undoPolygonPoint();
+      return;
+    }
+
+    if (event.key === "Enter" && drawingPolygon) {
+      event.preventDefault();
+      completeLineDrawing();
+      return;
+    }
+
+    if (event.key === "Escape" && drawingPolygon) {
+      drawingPolygon = false;
+      polygonDraft = [];
+      updateMapHint();
+      renderMap();
+      return;
+    }
+
+    if (event.key === "Escape" && editingLineMode) {
+      editingLineMode = false;
+      updateMapHint();
+      renderMap();
+      return;
+    }
+
     if (event.key === "Escape") {
       document.body.classList.remove("menu-open");
       document.querySelectorAll(".modal-bg.show").forEach((modal) => closeModal(modal.id));
+    }
+
+    if ((event.key === "Delete" || event.key === "Backspace") && currentCategory === "map" && selectedPolygonId) {
+      deletePolygon();
     }
   });
 }
