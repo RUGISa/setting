@@ -780,3 +780,373 @@ button,input,select,textarea{font:inherit}button{min-height:38px;padding:0 15px;
     grid-template-columns: 1fr;
   }
 }
+
+
+/* 지도 도구 UI 재배치 */
+.map-tools {
+  align-items: center;
+}
+
+#regionColorInput {
+  width: 44px;
+  height: 38px;
+  min-height: 38px;
+  padding: 3px;
+  border-radius: 12px;
+}
+
+#regionHexInput {
+  width: 92px;
+  height: 38px;
+  min-height: 38px;
+  padding: 0 10px;
+  border-radius: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+#regionLinkSelect {
+  min-height: 38px;
+  width: 210px;
+  border-radius: 12px;
+}
+
+.map-board {
+  position: relative;
+  padding-bottom: 72px;
+}
+
+.map-bottom-bar {
+  position: sticky;
+  left: 16px;
+  bottom: 14px;
+  z-index: 40;
+  width: calc(100% - 32px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  margin: 0 16px 14px;
+  border: 1px solid rgba(92, 62, 32, .16);
+  border-radius: 20px;
+  background: rgba(255, 252, 247, .92);
+  box-shadow: 0 14px 34px rgba(70, 48, 26, .16);
+  backdrop-filter: blur(12px);
+}
+
+.tool-strip,
+.zoom-strip {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.tool-strip {
+  min-height: 46px;
+}
+
+.zoom-strip {
+  justify-content: flex-end;
+}
+
+.zoom-strip button {
+  min-width: 46px;
+}
+
+#zoomResetBtn {
+  min-width: 70px;
+}
+
+.map-region {
+  cursor: pointer;
+  pointer-events: auto;
+  stroke-width: .7;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,.58));
+}
+
+.map-region.selected {
+  stroke: rgba(255,255,255,.98) !important;
+  stroke-width: 1.2;
+  filter: drop-shadow(0 0 2px rgba(0,0,0,.75));
+}
+
+.map-region.draft {
+  stroke-dasharray: 1.4 1.2;
+  opacity: .74;
+}
+
+.map-drawing .map-region:not(.draft) {
+  pointer-events: none !important;
+}
+
+.map-moving-region .map-region.selected {
+  cursor: move;
+}
+
+.map-border-line {
+  fill: inherit !important;
+}
+
+.polygon-point.edit-point {
+  display: block !important;
+  background: #9e4c42;
+  cursor: grab;
+}
+
+.polygon-point.edit-point.selected {
+  background: #2f6fbe;
+  box-shadow: 0 0 0 6px rgba(47,111,190,.18), 0 3px 10px rgba(40,24,12,.25);
+}
+
+.polygon-point.draft-point {
+  display: block !important;
+}
+
+@media (max-width: 980px) {
+  .map-bottom-bar {
+    grid-template-columns: 1fr;
+  }
+
+  #regionLinkSelect {
+    width: 100%;
+  }
+}
+
+
+/* 지도 탭 조작 안정화 표시 */
+.map-tabs button {
+  cursor: pointer;
+  user-select: none;
+}
+
+.map-tabs button.active {
+  box-shadow: 0 0 0 2px rgba(216, 182, 116, .28);
+}
+
+.map-tab-actions button {
+  cursor: pointer;
+}
+
+
+/* 지도 이동/휠 확대축소 */
+.map-board {
+  cursor: grab;
+  overscroll-behavior: contain;
+}
+
+.map-board.panning {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.map-board.panning * {
+  cursor: grabbing !important;
+}
+
+.map-bottom-bar,
+.map-bottom-bar * {
+  cursor: auto;
+}
+
+.map-region,
+.map-pin,
+.polygon-point {
+  cursor: pointer;
+}
+
+.map-moving-region .map-region.selected {
+  cursor: move;
+}
+
+.map-canvas {
+  transform-origin: 0 0;
+}
+
+
+/* 즉시 핀/영역 반응 */
+.map-drawing #startPolygonBtn,
+.map-board:not(.map-drawing) #quickPinBtn.active {
+  background: var(--accent);
+}
+
+.map-drawing .map-region:not(.draft) {
+  pointer-events: none !important;
+}
+
+.map-quick-pin {
+  cursor: crosshair;
+}
+.map-quick-pin * {
+  cursor: crosshair;
+}
+
+
+/* 확대/축소 시 지도 잘림 방지 */
+.map-board {
+  position: relative;
+  overflow: auto !important;
+  padding-bottom: 0 !important;
+  height: 720px;
+}
+
+.map-canvas {
+  position: relative;
+  display: block;
+  min-width: 100%;
+  min-height: 720px;
+}
+
+#mapImage {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  object-fit: contain !important;
+  object-position: center center;
+}
+
+#mapSvg {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.map-bottom-bar {
+  position: sticky !important;
+  left: 16px;
+  bottom: 14px;
+  z-index: 80;
+  width: calc(100% - 32px);
+  margin: 0 16px 14px;
+}
+
+/* 하단바 때문에 지도가 아래로 밀려 잘리는 현상 방지 */
+.map-board > .map-bottom-bar {
+  pointer-events: auto;
+}
+
+.map-board > .map-canvas {
+  margin-top: 0 !important;
+}
+
+/* 확대 후 빈 곳을 드래그해 이동하기 쉽게 */
+.map-board {
+  cursor: grab;
+}
+
+.map-board.panning {
+  cursor: grabbing;
+}
+
+@media (max-width: 980px) {
+  .map-board {
+    height: 680px;
+  }
+
+  .map-canvas {
+    min-height: 680px;
+  }
+}
+
+
+/* =========================================================
+   지도 툴바를 캔버스 밖으로 분리
+   ========================================================= */
+.map-board {
+  position: relative;
+  height: 720px;
+  overflow: auto !important;
+  padding-bottom: 0 !important;
+}
+
+.map-canvas {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-width: 100%;
+  height: 720px;
+  min-height: 720px;
+  transform-origin: 0 0;
+}
+
+#mapImage {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  object-fit: contain !important;
+  object-position: center center;
+}
+
+#mapSvg {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* 하단 툴바는 지도 캔버스 밖의 별도 바 */
+.map-bottom-bar {
+  position: static !important;
+  left: auto !important;
+  bottom: auto !important;
+  z-index: 20;
+  width: 100% !important;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  margin: 10px 0 0 !important;
+  border: 1px solid rgba(92, 62, 32, .16);
+  border-radius: 20px;
+  background: rgba(255, 252, 247, .92);
+  box-shadow: 0 14px 34px rgba(70, 48, 26, .10);
+  backdrop-filter: blur(12px);
+}
+
+.map-board > .map-bottom-bar {
+  display: none !important;
+}
+
+.tool-strip,
+.zoom-strip {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.zoom-strip {
+  justify-content: flex-end;
+}
+
+.map-board {
+  cursor: grab;
+}
+
+.map-board.panning {
+  cursor: grabbing;
+}
+
+@media (max-width: 980px) {
+  .map-board {
+    height: 680px;
+  }
+
+  .map-canvas {
+    height: 680px;
+    min-height: 680px;
+  }
+
+  .map-bottom-bar {
+    grid-template-columns: 1fr;
+  }
+}

@@ -78,9 +78,21 @@ let polygonDraft = [];
 let mapZoom = 1;
 let currentMapId = "";
 let editingLineMode = false;
+let addPointMode = false;
+let moveRegionMode = false;
+let quickPinMode = false;
+let isMapPanning = false;
+let mapPanStart = null;
+let selectedVertexIndex = -1;
 
 function $(id) {
   return document.getElementById(id);
+}
+
+function on(id, eventName, handler) {
+  const el = $(id);
+  if (!el) return;
+  el.addEventListener(eventName, handler);
 }
 
 function uid() {
@@ -167,6 +179,7 @@ function normalizeState(data) {
       poly.title ??= "영역";
       poly.type ??= "region";
       poly.color ??= "gold";
+      poly.hex ??= polygonColorToHex(poly.color);
       poly.desc ??= "";
       poly.link ??= "";
       poly.closed ??= true;
@@ -319,7 +332,7 @@ function renderNav() {
           ? state.timeline.length
           : key === "relations"
             ? state.relation.nodes.length
-            : getActiveMap().pins.length + (getActiveMap().polygons?.length || 0);
+            : (state.maps?.length || 1);
     button.innerHTML = `<span>${label}</span><span>${count}</span>`;
     button.addEventListener("click", () => {
       currentCategory = key;
@@ -1146,27 +1159,45 @@ function organizeMembers() {
 
 
 
-function getActiveMap() {
+function ensureMaps() {
   if (!Array.isArray(state.maps) || state.maps.length === 0) {
-    state.maps = [{ id: uid(), name: "기본 지도", image: "", pins: [], polygons: [] }];
+    const legacy = state.map || {};
+    state.maps = [{
+      id: legacy.id || uid(),
+      name: legacy.name || "기본 지도",
+      image: legacy.image || "",
+      pins: Array.isArray(legacy.pins) ? legacy.pins : [],
+      polygons: Array.isArray(legacy.polygons) ? legacy.polygons : []
+    }];
   }
 
-  if (!currentMapId) currentMapId = state.currentMapId || state.maps[0].id;
+  state.maps.forEach((map, index) => {
+    map.id ||= uid();
+    map.name ||= index === 0 ? "기본 지도" : `지도 ${index + 1}`;
+    map.image ||= "";
+    if (!Array.isArray(map.pins)) map.pins = [];
+    if (!Array.isArray(map.polygons)) map.polygons = [];
+  });
 
-  let map = state.maps.find((item) => item.id === currentMapId);
-  if (!map) {
-    map = state.maps[0];
-    currentMapId = map.id;
+  if (!currentMapId) currentMapId = state.currentMapId || state.maps[0].id;
+  if (!state.maps.some((map) => map.id === currentMapId)) {
+    currentMapId = state.maps[0].id;
   }
 
   state.currentMapId = currentMapId;
-  state.map = map;
-  return map;
+  state.map = state.maps.find((map) => map.id === currentMapId) || state.maps[0];
+  return state.maps;
+}
+
+function getActiveMap() {
+  ensureMaps();
+  return state.map;
 }
 
 function renderMapTabs() {
   const tabs = $("mapTabs");
   if (!tabs) return;
+
   const active = getActiveMap();
   tabs.innerHTML = "";
 
@@ -1175,44 +1206,72 @@ function renderMapTabs() {
     button.type = "button";
     button.className = map.id === active.id ? "active" : "";
     button.textContent = map.name;
-    button.addEventListener("click", () => {
+    button.title = "이 지도로 이동";
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+
       currentMapId = map.id;
       state.currentMapId = map.id;
+      state.map = map;
+
       selectedMapPinId = null;
       selectedPolygonId = null;
+      selectedVertexIndex = -1;
       drawingPolygon = false;
       polygonDraft = [];
       editingLineMode = false;
+      addPointMode = false;
+      moveRegionMode = false;
+    quickPinMode = false;
+      quickPinMode = false;
+
       saveState();
-      renderMap();
+      render();
     });
     tabs.appendChild(button);
   });
 }
 
 function addMap() {
-  const name = prompt("새 지도 이름을 입력해주세요.", `지도 ${state.maps.length + 1}`);
+  const defaultName = `지도 ${state.maps.length + 1}`;
+  const name = prompt("새 지도 이름을 입력해주세요.", defaultName);
   if (!name) return;
-  const map = { id: uid(), name: name.trim(), image: "", pins: [], polygons: [] };
+
+  const map = {
+    id: uid(),
+    name: name.trim() || defaultName,
+    image: "",
+    pins: [],
+    polygons: []
+  };
+
   state.maps.push(map);
   currentMapId = map.id;
   state.currentMapId = map.id;
+  state.map = map;
+
   selectedMapPinId = null;
   selectedPolygonId = null;
+  selectedVertexIndex = -1;
+
   saveState();
-  renderMap();
+  render();
 }
 
 function renameMap() {
   const map = getActiveMap();
   const name = prompt("지도 이름을 입력해주세요.", map.name);
   if (!name) return;
-  map.name = name.trim();
+
+  map.name = name.trim() || map.name;
   saveState();
-  renderMap();
+  render();
 }
 
 function deleteMap() {
+  ensureMaps();
+
   if (state.maps.length <= 1) {
     showToast("지도는 최소 1개가 필요합니다.");
     return;
@@ -1221,18 +1280,35 @@ function deleteMap() {
   const map = getActiveMap();
   if (!confirm(`'${map.name}' 지도를 삭제할까요?`)) return;
 
+  const deletedIndex = state.maps.findIndex((item) => item.id === map.id);
   state.maps = state.maps.filter((item) => item.id !== map.id);
-  currentMapId = state.maps[0].id;
-  state.currentMapId = currentMapId;
+
+  const nextIndex = Math.max(0, Math.min(deletedIndex, state.maps.length - 1));
+  const nextMap = state.maps[nextIndex];
+
+  currentMapId = nextMap.id;
+  state.currentMapId = nextMap.id;
+  state.map = nextMap;
+
   selectedMapPinId = null;
   selectedPolygonId = null;
+  selectedVertexIndex = -1;
+  drawingPolygon = false;
+  polygonDraft = [];
+  editingLineMode = false;
+  addPointMode = false;
+  moveRegionMode = false;
+  quickPinMode = false;
+
   saveState();
-  renderMap();
+  render();
 }
 
 function renderMap() {
   const map = getActiveMap();
   renderMapTabs();
+
+  fillRegionLinkSelect();
 
   const image = $("mapImage");
   const empty = $("mapEmpty");
@@ -1241,11 +1317,17 @@ function renderMap() {
 
   canvas.querySelectorAll(".map-pin,.map-pin-card,.polygon-card,.polygon-point").forEach((el) => el.remove());
   svg.innerHTML = "";
+  $("mapBoard").classList.toggle("map-drawing", drawingPolygon);
+  $("mapBoard").classList.toggle("map-moving-region", moveRegionMode);
+  $("mapBoard").classList.toggle("map-quick-pin", quickPinMode);
+
+  canvas.style.transform = "none";
 
   canvas.style.transform = "none";
   canvas.style.width = `${mapZoom * 100}%`;
   canvas.style.height = `${mapZoom * 720}px`;
-  $("zoomResetBtn").textContent = `${Math.round(mapZoom * 100)}%`;
+  const zoomLabel = $("zoomResetBtn");
+  if (zoomLabel) zoomLabel.textContent = `${Math.round(mapZoom * 100)}%`;
 
   if (map.image) {
     image.src = map.image;
@@ -1321,14 +1403,28 @@ function drawPolygon(poly) {
   const svg = $("mapSvg");
   const shape = document.createElementNS("http://www.w3.org/2000/svg", poly.closed === false ? "polyline" : "polygon");
   shape.setAttribute("points", poly.points.map((p) => `${p.x},${p.y}`).join(" "));
-  shape.setAttribute("class", `map-region region-${poly.color || "gold"} ${selectedPolygonId === poly.id ? "selected" : ""}`);
+  shape.setAttribute("class", `map-region ${selectedPolygonId === poly.id ? "selected" : ""}`);
+  applyPolygonColor(shape, poly);
 
   shape.addEventListener("click", (event) => {
     event.stopPropagation();
     if (drawingPolygon) return;
     selectedPolygonId = poly.id;
     selectedMapPinId = null;
+    selectedVertexIndex = -1;
+
+    if (addPointMode) {
+      addPointToSelectedPolygon(event);
+      return;
+    }
+
     renderMap();
+  });
+
+  shape.addEventListener("pointerdown", (event) => {
+    if (!moveRegionMode || selectedPolygonId !== poly.id || drawingPolygon) return;
+    event.stopPropagation();
+    dragWholePolygon(event, poly);
   });
 
   svg.appendChild(shape);
@@ -1336,11 +1432,16 @@ function drawPolygon(poly) {
   if (selectedPolygonId === poly.id && editingLineMode) {
     poly.points.forEach((point, index) => {
       const handle = document.createElement("button");
-      handle.className = "polygon-point edit-point";
+      handle.className = `polygon-point edit-point ${selectedVertexIndex === index ? "selected" : ""}`;
       handle.type = "button";
       handle.style.left = `${point.x}%`;
       handle.style.top = `${point.y}%`;
       handle.title = "점을 드래그해서 선 수정";
+      handle.addEventListener("click", (event) => {
+        event.stopPropagation();
+        selectedVertexIndex = index;
+        renderMap();
+      });
       dragPolygonPoint(handle, poly, index);
       $("mapCanvas").appendChild(handle);
     });
@@ -1352,7 +1453,9 @@ function drawDraftPolygon() {
   const tag = polygonDraft.length >= 3 ? "polygon" : "polyline";
   const draft = document.createElementNS("http://www.w3.org/2000/svg", tag);
   draft.setAttribute("points", polygonDraft.map((p) => `${p.x},${p.y}`).join(" "));
-  draft.setAttribute("class", `map-region draft region-${$("lineColorSelect")?.value || "gold"}`);
+  draft.setAttribute("class", "map-region draft");
+  draft.style.fill = hexToRgba(normalizeHexColor($("regionHexInput")?.value || "#d8b674"), 0.26);
+  draft.style.stroke = "#ffffff";
   svg.appendChild(draft);
 
   polygonDraft.forEach((point) => {
@@ -1377,13 +1480,67 @@ function polygonTypeName(type) {
   return { country: "국가", border: "국경", region: "지역", sea: "바다", danger: "위험 지대" }[type] || "영역";
 }
 
+function normalizeHexColor(value) {
+  const raw = String(value || "").trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(raw)) return raw.toLowerCase();
+  if (/^[0-9a-fA-F]{6}$/.test(raw)) return `#${raw.toLowerCase()}`;
+  return "#d8b674";
+}
+
+function hexToRgba(hex, alpha = 0.28) {
+  const safe = normalizeHexColor(hex).slice(1);
+  const r = parseInt(safe.slice(0, 2), 16);
+  const g = parseInt(safe.slice(2, 4), 16);
+  const b = parseInt(safe.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function polygonColorToHex(color) {
+  return {
+    gold: "#d8b674",
+    blue: "#5a84c8",
+    green: "#5a9b70",
+    red: "#c86b5a",
+    purple: "#9d76c9",
+    gray: "#8a725c",
+    custom: "#d8b674"
+  }[color] || normalizeHexColor(color || "#d8b674");
+}
+
+function applyPolygonColor(shape, poly) {
+  const hex = normalizeHexColor(poly.hex || polygonColorToHex(poly.color));
+  shape.style.fill = hexToRgba(hex, 0.28);
+  shape.style.stroke = "#ffffff";
+}
+
+function syncRegionColorInputs(hex) {
+  const color = normalizeHexColor(hex);
+  if ($("regionColorInput")) $("regionColorInput").value = color;
+  if ($("regionHexInput")) $("regionHexInput").value = color;
+}
+
+function fillRegionLinkSelect() {
+  const select = $("regionLinkSelect");
+  if (!select) return;
+  const previous = select.value;
+  select.innerHTML = `<option value="">지역 카드 상속 없음</option>`;
+  state.places.forEach((item) => {
+    const option = new Option(`지역 · ${item.title}`, `places:${item.id}`);
+    select.appendChild(option);
+  });
+  if ([...select.options].some((option) => option.value === previous)) select.value = previous;
+}
+
 function toggleLineDrawing() {
   if (!drawingPolygon) {
     drawingPolygon = true;
     polygonDraft = [];
     selectedPolygonId = null;
     selectedMapPinId = null;
+    selectedVertexIndex = -1;
     editingLineMode = false;
+    addPointMode = false;
+    moveRegionMode = false;
     updateMapHint();
     renderMap();
     return;
@@ -1401,13 +1558,19 @@ function completeLineDrawing() {
   }
 
   const map = getActiveMap();
+  const inheritedLink = $("regionLinkSelect")?.value || "";
+  const inherited = parseMapLink(inheritedLink);
+  const inheritedItem = inherited ? findItem(inherited.category, inherited.id) : null;
+  const hex = normalizeHexColor($("regionHexInput")?.value || $("regionColorInput")?.value || "#d8b674");
+
   const region = {
     id: uid(),
-    title: `영역 ${map.polygons.length + 1}`,
+    title: inheritedItem?.title || `영역 ${map.polygons.length + 1}`,
     type: "region",
-    color: $("lineColorSelect")?.value || "gold",
-    desc: "",
-    link: "",
+    color: "custom",
+    hex,
+    desc: inheritedItem?.summary || "",
+    link: inheritedLink,
     closed: true,
     points: polygonDraft.map((p) => ({ x: p.x, y: p.y }))
   };
@@ -1417,6 +1580,8 @@ function completeLineDrawing() {
   drawingPolygon = false;
   polygonDraft = [];
   editingLineMode = false;
+  addPointMode = false;
+  moveRegionMode = false;
   saveState();
   updateMapHint();
   renderMap();
@@ -1427,7 +1592,10 @@ function deletePolygon() {
   const map = getActiveMap();
   map.polygons = map.polygons.filter((poly) => poly.id !== selectedPolygonId);
   selectedPolygonId = null;
+  selectedVertexIndex = -1;
   editingLineMode = false;
+  addPointMode = false;
+  moveRegionMode = false;
   saveState();
   renderMap();
 }
@@ -1439,6 +1607,40 @@ function toggleLineEdit() {
   }
 
   editingLineMode = !editingLineMode;
+  addPointMode = false;
+  moveRegionMode = false;
+  selectedVertexIndex = -1;
+  updateMapHint();
+  renderMap();
+}
+
+function toggleAddPointMode() {
+  if (!selectedPolygonId) return showToast("점을 추가할 영역을 먼저 선택해주세요.");
+  addPointMode = !addPointMode;
+  editingLineMode = true;
+  moveRegionMode = false;
+  updateMapHint();
+  renderMap();
+}
+
+function deleteSelectedPoint() {
+  if (!selectedPolygonId) return showToast("영역을 먼저 선택해주세요.");
+  const poly = getActiveMap().polygons.find((item) => item.id === selectedPolygonId);
+  if (!poly) return;
+  if (selectedVertexIndex < 0) return showToast("삭제할 점을 선택해주세요.");
+  if (poly.points.length <= 3) return showToast("영역은 점 3개 이상이 필요합니다.");
+  poly.points.splice(selectedVertexIndex, 1);
+  selectedVertexIndex = -1;
+  saveState();
+  renderMap();
+}
+
+function toggleMoveRegionMode() {
+  if (!selectedPolygonId) return showToast("이동할 영역을 먼저 선택해주세요.");
+  moveRegionMode = !moveRegionMode;
+  editingLineMode = false;
+  addPointMode = false;
+  selectedVertexIndex = -1;
   updateMapHint();
   renderMap();
 }
@@ -1448,7 +1650,46 @@ function addPolygonPointFromEvent(event) {
   const x = Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100));
   const y = Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100));
   polygonDraft.push({ x, y });
+  updateMapHint();
   renderMap();
+}
+
+function addPointToSelectedPolygon(event) {
+  const poly = getActiveMap().polygons.find((item) => item.id === selectedPolygonId);
+  if (!poly) return;
+  const rect = $("mapCanvas").getBoundingClientRect();
+  const point = {
+    x: Math.max(0, Math.min(100, ((event.clientX - rect.left) / rect.width) * 100)),
+    y: Math.max(0, Math.min(100, ((event.clientY - rect.top) / rect.height) * 100))
+  };
+  const index = findNearestSegmentIndex(poly.points, point);
+  poly.points.splice(index + 1, 0, point);
+  selectedVertexIndex = index + 1;
+  saveState();
+  renderMap();
+}
+
+function findNearestSegmentIndex(points, point) {
+  let bestIndex = 0;
+  let bestDistance = Infinity;
+  for (let i = 0; i < points.length; i += 1) {
+    const a = points[i];
+    const b = points[(i + 1) % points.length];
+    const d = pointToSegmentDistance(point, a, b);
+    if (d < bestDistance) {
+      bestDistance = d;
+      bestIndex = i;
+    }
+  }
+  return bestIndex;
+}
+
+function pointToSegmentDistance(p, a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  if (dx === 0 && dy === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy)));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
 }
 
 function undoPolygonPoint() {
@@ -1460,19 +1701,23 @@ function undoPolygonPoint() {
 function dragPolygonPoint(el, poly, index) {
   el.addEventListener("pointerdown", (event) => {
     event.stopPropagation();
+    selectedVertexIndex = index;
     const rect = $("mapCanvas").getBoundingClientRect();
     el.setPointerCapture(event.pointerId);
 
     const move = (e) => {
       poly.points[index].x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
       poly.points[index].y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
-      renderMap();
+      updatePolygonVisual(poly);
+      el.style.left = `${poly.points[index].x}%`;
+      el.style.top = `${poly.points[index].y}%`;
     };
 
     const up = () => {
       el.removeEventListener("pointermove", move);
       el.removeEventListener("pointerup", up);
       saveState();
+      renderMap();
     };
 
     el.addEventListener("pointermove", move);
@@ -1480,31 +1725,170 @@ function dragPolygonPoint(el, poly, index) {
   });
 }
 
+function updatePolygonVisual(poly) {
+  const shape = $("mapSvg").querySelector(`.map-region.selected`);
+  if (shape) shape.setAttribute("points", poly.points.map((p) => `${p.x},${p.y}`).join(" "));
+}
+
+function dragWholePolygon(event, poly) {
+  const rect = $("mapCanvas").getBoundingClientRect();
+  const startX = ((event.clientX - rect.left) / rect.width) * 100;
+  const startY = ((event.clientY - rect.top) / rect.height) * 100;
+  const original = poly.points.map((p) => ({ x: p.x, y: p.y }));
+  const svg = $("mapSvg");
+  svg.setPointerCapture?.(event.pointerId);
+
+  const move = (e) => {
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const dx = x - startX;
+    const dy = y - startY;
+    poly.points = original.map((p) => ({
+      x: Math.max(0, Math.min(100, p.x + dx)),
+      y: Math.max(0, Math.min(100, p.y + dy))
+    }));
+    updatePolygonVisual(poly);
+  };
+
+  const up = () => {
+    svg.removeEventListener("pointermove", move);
+    svg.removeEventListener("pointerup", up);
+    saveState();
+    renderMap();
+  };
+
+  svg.addEventListener("pointermove", move);
+  svg.addEventListener("pointerup", up);
+}
+
 function updateMapHint() {
   if (!$("mapHint")) return;
 
-  const button = $("startPolygonBtn");
+  const drawButton = $("startPolygonBtn");
   const editButton = $("editLineBtn");
-  if (button) button.textContent = drawingPolygon ? "영역 완료" : "영역 그리기";
-  if (editButton) editButton.textContent = editingLineMode ? "수정 끝" : "선 수정";
+  const addButton = $("addPointBtn");
+  const moveButton = $("moveRegionBtn");
+  const pinButton = $("quickPinBtn");
 
-  if (drawingPolygon) {
+  if (drawButton) drawButton.textContent = drawingPolygon ? "영역 완료" : "영역 그리기";
+  if (editButton) editButton.textContent = editingLineMode ? "수정 끝" : "선 수정";
+  if (addButton) addButton.textContent = addPointMode ? "점 추가 중" : "점 추가";
+  if (moveButton) moveButton.textContent = moveRegionMode ? "이동 끝" : "영역 이동";
+  if (pinButton) pinButton.textContent = quickPinMode ? "핀 찍는 중" : "핀 찍기";
+
+  if (quickPinMode) {
+    $("mapHint").textContent = "핀 찍기 중: 지도 위를 한 번 클릭하면 바로 핀이 생성됩니다. 지역 카드 상속을 선택하면 핀이 해당 카드와 바로 연결됩니다.";
+  } else if (drawingPolygon) {
     $("mapHint").textContent = `영역 그리기 중: 점을 찍고 Enter 또는 영역 완료를 누르세요. Ctrl+Z로 방금 찍은 점을 취소할 수 있습니다. 현재 ${polygonDraft.length}개`;
+  } else if (addPointMode) {
+    $("mapHint").textContent = "점 추가 중: 선택한 영역의 선 위나 내부를 클릭하면 가장 가까운 선분 사이에 점이 추가됩니다.";
   } else if (editingLineMode) {
-    $("mapHint").textContent = "선 수정 중: 꼭짓점을 드래그해서 국경 모양을 수정하세요. 수정 끝을 누르면 점이 숨겨집니다.";
+    $("mapHint").textContent = "선 수정 중: 꼭짓점을 드래그해서 국경 모양을 수정하세요. 점을 선택한 뒤 점 삭제도 가능합니다.";
+  } else if (moveRegionMode) {
+    $("mapHint").textContent = "영역 이동 중: 선택한 영역 안을 드래그하면 영역 전체가 이동합니다.";
   } else {
-    $("mapHint").textContent = "여러 지도를 전환할 수 있고, 점을 이어 닫힌 영역을 만들면 반투명 색으로 채워집니다. 영역을 클릭한 뒤 선 수정을 누르면 점을 옮길 수 있습니다.";
+    $("mapHint").textContent = "HEX 색상과 지역 카드 상속을 선택한 뒤 영역을 그릴 수 있습니다. 확대/축소는 지도 안쪽 하단 바에서 조작합니다.";
   }
 }
 
-function zoomMap(delta) {
-  mapZoom = Math.max(0.5, Math.min(3, Math.round((mapZoom + delta) * 10) / 10));
+function zoomMap(delta, anchorEvent = null) {
+  const board = $("mapBoard");
+  const oldZoom = mapZoom;
+  const nextZoom = Math.max(0.5, Math.min(3, Math.round((mapZoom + delta) * 10) / 10));
+  if (nextZoom === oldZoom) return;
+
+  let anchorX = board ? board.clientWidth / 2 : 0;
+  let anchorY = board ? board.clientHeight / 2 : 0;
+
+  if (anchorEvent && board) {
+    const rect = board.getBoundingClientRect();
+    anchorX = anchorEvent.clientX - rect.left;
+    anchorY = anchorEvent.clientY - rect.top;
+  }
+
+  const beforeX = board ? (board.scrollLeft + anchorX) / oldZoom : 0;
+  const beforeY = board ? (board.scrollTop + anchorY) / oldZoom : 0;
+
+  mapZoom = nextZoom;
   renderMap();
+
+  requestAnimationFrame(() => {
+    if (!board) return;
+    board.scrollLeft = beforeX * mapZoom - anchorX;
+    board.scrollTop = beforeY * mapZoom - anchorY;
+  });
 }
 
 function resetMapZoom() {
   mapZoom = 1;
   renderMap();
+  requestAnimationFrame(() => {
+    const board = $("mapBoard");
+    if (!board) return;
+    board.scrollLeft = 0;
+    board.scrollTop = 0;
+  });
+}
+
+function startMapPan(event) {
+  if (drawingPolygon || editingLineMode || addPointMode || moveRegionMode) return;
+  if (event.button !== 0 && event.button !== 1) return;
+
+  const board = $("mapBoard");
+  if (!board) return;
+
+  const isBaseTarget = event.target === board
+    || event.target === $("mapCanvas")
+    || event.target === $("mapImage")
+    || event.target === $("mapEmpty")
+    || event.target === $("mapSvg");
+
+  if (!isBaseTarget) return;
+
+  event.preventDefault();
+  isMapPanning = true;
+  mapPanStart = {
+    x: event.clientX,
+    y: event.clientY,
+    left: board.scrollLeft,
+    top: board.scrollTop
+  };
+  board.classList.add("panning");
+  board.setPointerCapture?.(event.pointerId);
+}
+
+function moveMapPan(event) {
+  if (!isMapPanning || !mapPanStart) return;
+  const board = $("mapBoard");
+  if (!board) return;
+
+  board.scrollLeft = mapPanStart.left - (event.clientX - mapPanStart.x);
+  board.scrollTop = mapPanStart.top - (event.clientY - mapPanStart.y);
+}
+
+function endMapPan(event) {
+  if (!isMapPanning) return;
+  const board = $("mapBoard");
+  isMapPanning = false;
+  mapPanStart = null;
+  if (board) {
+    board.classList.remove("panning");
+    board.releasePointerCapture?.(event.pointerId);
+  }
+}
+
+function handleMapWheel(event) {
+  const board = $("mapBoard");
+  if (!board) return;
+
+  if (event.ctrlKey || event.shiftKey || event.altKey) {
+    event.preventDefault();
+    zoomMap(event.deltaY < 0 ? 0.2 : -0.2, event);
+    return;
+  }
+
+  event.preventDefault();
+  zoomMap(event.deltaY < 0 ? 0.1 : -0.1, event);
 }
 
 function mapPinTypeName(type) {
@@ -1531,6 +1915,40 @@ function fillMapPinLinkSelect(selected = "") {
     });
     if (group.children.length) select.appendChild(group);
   });
+}
+
+
+function createInstantPinAt(x, y) {
+  const linkValue = $("regionLinkSelect")?.value || "";
+  const linked = parseMapLink(linkValue);
+  const linkedItem = linked ? findItem(linked.category, linked.id) : null;
+
+  const pin = {
+    id: uid(),
+    title: linkedItem?.title || `핀 ${getActiveMap().pins.length + 1}`,
+    type: linked?.category === "factions" ? "kingdom" : linked?.category === "places" ? "city" : "landmark",
+    desc: linkedItem?.summary || "",
+    link: linkValue,
+    x,
+    y
+  };
+
+  getActiveMap().pins.push(pin);
+  selectedMapPinId = pin.id;
+  selectedPolygonId = null;
+  saveState();
+  renderMap();
+}
+
+function toggleQuickPinMode() {
+  quickPinMode = !quickPinMode;
+  drawingPolygon = false;
+  polygonDraft = [];
+  editingLineMode = false;
+  addPointMode = false;
+  moveRegionMode = false;
+  updateMapHint();
+  renderMap();
 }
 
 function openMapPinModal(id = null, position = null) {
@@ -1626,7 +2044,7 @@ function addMapPinFromBoard(event) {
   const rect = board.getBoundingClientRect();
   const x = Math.max(1, Math.min(99, ((event.clientX - rect.left) / rect.width) * 100));
   const y = Math.max(1, Math.min(99, ((event.clientY - rect.top) / rect.height) * 100));
-  openMapPinModal(null, { x, y });
+  createInstantPinAt(x, y);
 }
 
 function exportData() {
@@ -1753,42 +2171,76 @@ function initEvents() {
   $("deleteEdgeBtn").addEventListener("click", deleteSelectedEdge);
   $("deleteNodeBtn").addEventListener("click", deleteSelectedNode);
   $("organizeBtn").addEventListener("click", organizeMembers);
-  $("addMapBtn").addEventListener("click", addMap);
-  $("renameMapBtn").addEventListener("click", renameMap);
-  $("deleteMapBtn").addEventListener("click", deleteMap);
-  $("mapImageBtn").addEventListener("click", () => $("mapImageInput").click());
-  $("mapImageInput").addEventListener("change", (event) => {
+  on("addMapBtn", "click", addMap);
+  on("renameMapBtn", "click", renameMap);
+  on("deleteMapBtn", "click", deleteMap);
+  on("mapImageBtn", "click", () => $("mapImageInput").click());
+  on("mapImageInput", "change", (event) => {
     setMapImage(event.target.files[0]);
     event.target.value = "";
   });
-  $("addMapPinBtn").addEventListener("click", () => openMapPinModal());
-  $("editMapPinBtn").addEventListener("click", editMapPin);
-  $("deleteMapPinBtn").addEventListener("click", deleteMapPin);
-  $("saveMapPinBtn").addEventListener("click", saveMapPin);
-  $("zoomInBtn").addEventListener("click", () => zoomMap(0.2));
-  $("zoomOutBtn").addEventListener("click", () => zoomMap(-0.2));
-  $("zoomResetBtn").addEventListener("click", resetMapZoom);
-  $("startPolygonBtn").addEventListener("click", toggleLineDrawing);
-  $("editLineBtn").addEventListener("click", toggleLineEdit);
-  $("deleteLineBtn").addEventListener("click", deletePolygon);
-  $("mapBoard").addEventListener("click", (event) => {
+  on("addMapPinBtn", "click", () => openMapPinModal());
+  on("editMapPinBtn", "click", editMapPin);
+  on("deleteMapPinBtn", "click", deleteMapPin);
+  on("saveMapPinBtn", "click", saveMapPin);
+  on("zoomInBtn", "click", () => zoomMap(0.2));
+  on("zoomOutBtn", "click", () => zoomMap(-0.2));
+  on("zoomResetBtn", "click", resetMapZoom);
+  on("regionColorInput", "input", (event) => {
+    syncRegionColorInputs(event.target.value);
+  });
+  on("regionHexInput", "change", (event) => {
+    syncRegionColorInputs(event.target.value);
+  });
+  on("quickPinBtn", "click", toggleQuickPinMode);
+  on("startPolygonBtn", "click", toggleLineDrawing);
+  on("editLineBtn", "click", toggleLineEdit);
+  on("addPointBtn", "click", toggleAddPointMode);
+  on("deletePointBtn", "click", deleteSelectedPoint);
+  on("moveRegionBtn", "click", toggleMoveRegionMode);
+  on("deleteLineBtn", "click", deletePolygon);
+  on("mapBoard", "click", (event) => {
     const baseTarget = event.target === $("mapBoard") || event.target === $("mapCanvas") || event.target === $("mapImage") || event.target === $("mapEmpty") || event.target === $("mapSvg");
+    if (isMapPanning) return;
     if (!baseTarget) return;
+
+    if (quickPinMode) {
+      const rect = $("mapCanvas").getBoundingClientRect();
+      const x = Math.max(1, Math.min(99, ((event.clientX - rect.left) / rect.width) * 100));
+      const y = Math.max(1, Math.min(99, ((event.clientY - rect.top) / rect.height) * 100));
+      createInstantPinAt(x, y);
+      return;
+    }
 
     if (drawingPolygon) {
       addPolygonPointFromEvent(event);
       return;
     }
 
+    if (addPointMode && selectedPolygonId) {
+      addPointToSelectedPolygon(event);
+      return;
+    }
+
     selectedMapPinId = null;
     selectedPolygonId = null;
+    selectedVertexIndex = -1;
     editingLineMode = false;
+    addPointMode = false;
+    moveRegionMode = false;
     renderMap();
   });
-  $("mapBoard").addEventListener("dblclick", (event) => {
+  on("mapBoard", "dblclick", (event) => {
     const baseTarget = event.target === $("mapBoard") || event.target === $("mapCanvas") || event.target === $("mapImage") || event.target === $("mapEmpty") || event.target === $("mapSvg");
     if (baseTarget && !drawingPolygon) addMapPinFromBoard(event);
   });
+
+  on("mapBoard", "pointerdown", startMapPan);
+  on("mapBoard", "pointermove", moveMapPan);
+  on("mapBoard", "pointerup", endMapPan);
+  on("mapBoard", "pointercancel", endMapPan);
+  on("mapBoard", "mouseleave", endMapPan);
+  on("mapBoard", "wheel", handleMapWheel);
 
   $("relationBoard").addEventListener("click", (event) => {
     if (event.target === $("relationBoard") || event.target === $("relationSvg")) {
@@ -1827,18 +2279,28 @@ function initEvents() {
       return;
     }
 
+    if (event.key === "Escape" && quickPinMode) {
+      quickPinMode = false;
+      updateMapHint();
+      renderMap();
+      return;
+    }
+
     if (event.key === "Escape") {
       document.body.classList.remove("menu-open");
       document.querySelectorAll(".modal-bg.show").forEach((modal) => closeModal(modal.id));
     }
 
     if ((event.key === "Delete" || event.key === "Backspace") && currentCategory === "map" && selectedPolygonId) {
-      deletePolygon();
+      if (editingLineMode && selectedVertexIndex >= 0) deleteSelectedPoint();
+      else deletePolygon();
     }
   });
 }
 
 function init() {
+  ensureMaps();
+  currentMapId = state.currentMapId || state.maps[0].id;
   fillCategorySelects();
   initEvents();
   render();

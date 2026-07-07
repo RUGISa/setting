@@ -101,23 +101,9 @@
 
         <div class="sub-tools map-tools">
           <button class="primary" id="mapImageBtn" type="button">지도 이미지</button>
-          <button id="zoomOutBtn" type="button">축소</button>
-          <button id="zoomResetBtn" type="button">100%</button>
-          <button id="zoomInBtn" type="button">확대</button>
-          <button id="addMapPinBtn" type="button">핀 추가</button>
-          <button id="editMapPinBtn" type="button">핀 수정</button>
-          <button id="deleteMapPinBtn" type="button">핀 삭제</button>
-          <select id="lineColorSelect" title="영역 색상">
-            <option value="gold">금색</option>
-            <option value="blue">파랑</option>
-            <option value="green">초록</option>
-            <option value="red">빨강</option>
-            <option value="purple">보라</option>
-            <option value="gray">회색</option>
-          </select>
-          <button id="startPolygonBtn" type="button">선 그리기</button>
-          <button id="editLineBtn" type="button">선 수정</button>
-          <button id="deleteLineBtn" type="button">선 삭제</button>
+          <input id="regionColorInput" type="color" value="#d8b674" title="영역 색상" />
+          <input id="regionHexInput" type="text" value="#d8b674" maxlength="7" title="HEX 색상" />
+          <select id="regionLinkSelect" title="상속할 지역 카드"></select>
           <input class="hidden" id="mapImageInput" type="file" accept="image/*" />
         </div>
         <p class="hint" id="mapHint">기존 지도 이미지를 넣고, 점을 찍어 영역과 국경을 나눌 수 있습니다.</p>
@@ -131,7 +117,23 @@
             <svg id="mapSvg" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
           </div>
         </div>
-      </section>
+
+          <div class="map-bottom-bar">
+            <div class="tool-strip">
+              <button id="quickPinBtn" type="button">핀 찍기</button>
+              <button id="startPolygonBtn" type="button">영역 그리기</button>
+              <button id="editLineBtn" type="button">선 수정</button>
+              <button id="addPointBtn" type="button">점 추가</button>
+              <button id="deletePointBtn" type="button">점 삭제</button>
+              <button id="moveRegionBtn" type="button">영역 이동</button>
+              <button id="deleteLineBtn" type="button">영역 삭제</button>
+            </div>
+            <div class="zoom-strip">
+              <button id="zoomInBtn" type="button">+</button>
+              <button id="zoomOutBtn" type="button">-</button>
+              <button id="zoomResetBtn" type="button">100%</button>
+            </div>
+          </div>      </section>
     </main>
   </div>
 
