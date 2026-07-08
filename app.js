@@ -2757,8 +2757,16 @@ function initEvents() {
   on("assignRegionBtn", "click", assignRegionToSelected);
   on("deleteLineBtn", "click", deletePolygon);
   on("mapBoard", "click", (event) => {
-    const baseTarget = event.target === $("mapBoard") || event.target === $("mapCanvas") || event.target === $("mapImage") || event.target === $("mapEmpty") || event.target === $("mapSvg");
     if (isMapPanning) return;
+
+    if (drawingPolygon && $("mapCanvas")?.contains(event.target)) {
+      event.preventDefault();
+      event.stopPropagation();
+      addPolygonPointFromEvent(event);
+      return;
+    }
+
+    const baseTarget = event.target === $("mapBoard") || event.target === $("mapCanvas") || event.target === $("mapImage") || event.target === $("mapEmpty") || event.target === $("mapSvg");
     if (!baseTarget) return;
 
     if (quickPinMode) {

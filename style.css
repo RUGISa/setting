@@ -1437,3 +1437,16 @@ button,input,select,textarea{font:inherit}button{min-height:38px;padding:0 15px;
   line-height: 1.5;
   font-size: 13px;
 }
+
+
+/* 영역 그리기 중: 이미 칠해진 영역 위에서도 점 추가 가능 */
+.map-drawing #mapSvg {
+  pointer-events: none !important;
+}
+
+.map-drawing .map-region,
+.map-drawing .map-region *,
+.map-drawing .map-polygon,
+.map-drawing .map-polygon * {
+  pointer-events: none !important;
+}
