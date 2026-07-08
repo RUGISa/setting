@@ -1350,3 +1350,49 @@ button,input,select,textarea{font:inherit}button{min-height:38px;padding:0 15px;
   object-fit: contain !important;
   object-position: center center !important;
 }
+
+
+/* 요청 수정: 맵/관계도/타임라인 인터페이스 높이 축소 */
+.map-board {
+  height: 520px !important;
+}
+
+.map-canvas {
+  min-height: 520px !important;
+}
+
+.timeline-board {
+  height: 520px !important;
+}
+
+.relation-board {
+  height: 560px !important;
+  min-height: 560px !important;
+}
+
+/* 영역 선택 카드가 핀 카드처럼 보이게 */
+.polygon-card.map-pin-card {
+  z-index: 7;
+}
+
+/* 조직 이동 가능 복구 */
+.relation-node.organization {
+  pointer-events: auto;
+  cursor: grab;
+}
+
+@media (max-width: 980px) {
+  .map-board,
+  .timeline-board {
+    height: 460px !important;
+  }
+
+  .map-canvas {
+    min-height: 460px !important;
+  }
+
+  .relation-board {
+    height: 500px !important;
+    min-height: 500px !important;
+  }
+}

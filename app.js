@@ -856,9 +856,8 @@ function renderTimeline() {
       renderTimeline();
     });
     makeDrag(card, (x, y) => {
-      point.dotX = Math.max(4, Math.min(96, x / timelineZoom));
-      point.cardX = point.dotX;
       point.cardY = Math.max(8, Math.min(86, y));
+      point.cardX = point.dotX;
       card.style.left = `${point.cardX * timelineZoom}%`;
       card.style.top = `${point.cardY}%`;
     });
@@ -1184,10 +1183,6 @@ function handleNodeClick(id) {
 function dragNode(el, node) {
   el.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) return;
-    if (node.sourceCategory === "factions" && !event.altKey) {
-      // 조직 영역이 위에 있는 카드를 방해하지 않도록, 조직은 Alt+드래그로 이동합니다.
-      return;
-    }
 
     const startX = event.clientX;
     const startY = event.clientY;
@@ -1763,7 +1758,7 @@ function renderPolygonCard(poly) {
   const linkedItem = linked ? findItem(linked.category, linked.id) : null;
 
   const card = document.createElement("div");
-  card.className = "polygon-card";
+  card.className = "polygon-card map-pin-card";
   card.style.left = `${Math.min(82, Math.max(6, center.x + 2))}%`;
   card.style.top = `${Math.min(82, Math.max(6, center.y + 2))}%`;
   card.innerHTML = `
@@ -1780,10 +1775,13 @@ function renderPolygonCard(poly) {
   if (openButton && linked) openButton.addEventListener("click", () => openDetail(linked.category, linked.id));
 
   const assignButton = card.querySelector("[data-assign-region]");
-  if (assignButton) assignButton.addEventListener("click", assignRegionToSelected);
+  if (assignButton && typeof assignRegionToSelected === "function") {
+    assignButton.addEventListener("click", assignRegionToSelected);
+  }
 
   $("mapCanvas").appendChild(card);
 }
+
 
 function drawDraftPolygon() {
   const svg = $("mapSvg");
