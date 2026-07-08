@@ -1396,3 +1396,44 @@ button,input,select,textarea{font:inherit}button{min-height:38px;padding:0 15px;
     min-height: 500px !important;
   }
 }
+
+
+/* 영역 그리기 중에는 기존 영역 내부에도 점을 찍을 수 있게 함 */
+.map-drawing .map-region:not(.draft) {
+  pointer-events: none !important;
+}
+
+/* 영역 클릭 시 핀 카드처럼 보이는 정보 카드 */
+.polygon-card.map-pin-card {
+  position: absolute;
+  z-index: 8;
+  width: 250px;
+  padding: 13px;
+  border: 1px solid rgba(92, 62, 32, .15);
+  border-radius: 18px;
+  background: rgba(255, 252, 247, .96);
+  box-shadow: 0 16px 38px rgba(70, 48, 26, .16);
+}
+
+.polygon-card.map-pin-card small {
+  display: inline-block;
+  margin-bottom: 7px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(216, 182, 116, .28);
+  color: #7b4c20;
+  font-size: 11px;
+}
+
+.polygon-card.map-pin-card strong {
+  display: block;
+  font-family: Georgia, "Noto Serif KR", serif;
+  font-size: 18px;
+}
+
+.polygon-card.map-pin-card p {
+  margin: 8px 0 10px;
+  color: var(--muted);
+  line-height: 1.5;
+  font-size: 13px;
+}
