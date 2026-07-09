@@ -1450,3 +1450,295 @@ button,input,select,textarea{font:inherit}button{min-height:38px;padding:0 15px;
 .map-drawing .map-polygon * {
   pointer-events: none !important;
 }
+
+
+/* 지도 하단 공백 제거: 캔버스 높이는 JS가 이미지 비율로 계산 */
+.map-board {
+  height: auto !important;
+  max-height: 560px;
+  overflow: auto !important;
+}
+
+.map-canvas {
+  min-height: 0 !important;
+  height: auto;
+}
+
+#mapImage {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: fill !important;
+  object-position: center center;
+}
+
+#mapSvg {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+@media (max-width: 980px) {
+  .map-board {
+    max-height: 500px;
+  }
+}
+
+
+/* 지도 캔버스를 배경 이미지 실제 비율에 맞춤 */
+.map-board {
+  overflow: auto !important;
+  max-height: none !important;
+  padding-bottom: 0 !important;
+}
+
+.map-canvas {
+  position: relative !important;
+  min-height: 0 !important;
+  height: auto;
+  overflow: hidden;
+}
+
+#mapImage {
+  position: absolute !important;
+  inset: 0;
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: fill !important;
+  object-position: center center !important;
+}
+
+#mapSvg {
+  position: absolute !important;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* 이전 버전에서 남긴 고정 높이를 무효화 */
+@media (max-width: 980px) {
+  .map-board {
+    max-height: none !important;
+  }
+}
+
+
+/* 지도 공백 최종 수정: 캔버스 높이를 배경 이미지 자체가 결정 */
+.map-board {
+  height: auto !important;
+  max-height: none !important;
+  overflow: auto !important;
+  padding-bottom: 0 !important;
+}
+
+.map-canvas {
+  position: relative !important;
+  display: block !important;
+  min-height: 0 !important;
+  height: auto !important;
+  overflow: hidden !important;
+}
+
+#mapImage {
+  position: relative !important;
+  inset: auto !important;
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+  min-height: 0 !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+}
+
+#mapImage.hidden {
+  display: none !important;
+}
+
+#mapSvg {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: auto;
+}
+
+.map-empty {
+  min-height: 360px;
+}
+
+/* 이전 고정 높이 규칙 전부 무효화 */
+@media (max-width: 980px) {
+  .map-board,
+  .map-canvas {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+}
+
+
+/* 지도 보드 빈 구역 제거: 보드/캔버스 높이는 이미지 높이와 동일 */
+.map-board {
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: auto !important;
+  padding: 0 !important;
+  background: transparent !important;
+}
+
+.map-canvas {
+  position: relative !important;
+  display: block !important;
+  min-height: 0 !important;
+  height: auto;
+  overflow: hidden !important;
+  background: transparent !important;
+}
+
+#mapImage {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  object-fit: fill !important;
+  object-position: center center !important;
+}
+
+#mapImage.hidden {
+  display: none !important;
+}
+
+#mapSvg {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* 이미지가 없을 때만 빈 안내 높이 사용 */
+.map-empty:not(.hidden) {
+  min-height: 360px;
+}
+
+/* 이전 버전의 고정 높이 규칙 무효화 */
+@media (max-width: 980px) {
+  .map-board,
+  .map-canvas {
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+  }
+}
+
+
+/* 지도 표시 복구: 이미지가 없어도 보드가 사라지지 않게 하고, 이미지가 있으면 이미지 높이에 맞춤 */
+.map-board {
+  overflow: auto !important;
+  max-height: none !important;
+  padding: 0 !important;
+}
+
+.map-canvas {
+  position: relative !important;
+  display: block !important;
+  overflow: hidden !important;
+}
+
+.map-canvas.no-map-image {
+  height: 420px !important;
+  min-height: 420px !important;
+  background:
+    linear-gradient(rgba(125, 90, 52, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 90, 52, 0.045) 1px, transparent 1px),
+    rgba(255, 250, 241, 0.82);
+  background-size: 24px 24px;
+}
+
+.map-canvas.has-map-image {
+  min-height: 0 !important;
+  background: transparent !important;
+}
+
+#mapImage {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  object-fit: fill !important;
+  object-position: center center !important;
+}
+
+#mapImage.hidden {
+  display: none !important;
+}
+
+#mapSvg {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.map-empty {
+  position: absolute !important;
+  inset: 0 !important;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  z-index: 1;
+}
+
+.map-empty.hidden {
+  display: none !important;
+}
+
+
+/* 지도 세로 과확대 방지: 이미지 비율 유지 + 최소 공백 */
+.map-board {
+  overflow: auto !important;
+  max-height: none !important;
+  padding: 0 !important;
+  background:
+    linear-gradient(rgba(125, 90, 52, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 90, 52, 0.045) 1px, transparent 1px),
+    rgba(255, 250, 241, 0.82);
+  background-size: 24px 24px;
+}
+
+.map-canvas {
+  position: relative !important;
+  display: block !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  background: transparent !important;
+}
+
+.map-canvas.has-map-image {
+  background: transparent !important;
+}
+
+#mapImage {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  object-fit: fill !important;
+  object-position: center center !important;
+}
+
+#mapImage.hidden {
+  display: none !important;
+}
+
+#mapSvg {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}

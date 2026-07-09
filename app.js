@@ -1560,6 +1560,164 @@ function deleteMap() {
   render();
 }
 
+
+function getMapCanvasHeight(map, baseWidth) {
+  const fallback = 420;
+  const aspect = map?.imageAspect || 0;
+
+  if (aspect && Number.isFinite(aspect)) {
+    return Math.max(260, Math.round(baseWidth * aspect));
+  }
+
+  return fallback;
+}
+
+function rememberMapImageAspect(map, imageEl) {
+  if (!map || !imageEl || !imageEl.naturalWidth || !imageEl.naturalHeight) return;
+  map.imageAspect = imageEl.naturalHeight / imageEl.naturalWidth;
+  saveState();
+}
+
+
+function fitMapCanvasToImage() {
+  const board = $("mapBoard");
+  const canvas = $("mapCanvas");
+  const image = $("mapImage");
+
+  if (!board || !canvas || !image || image.classList.contains("hidden")) return;
+
+  const width = board.clientWidth || canvas.clientWidth || image.clientWidth || 1000;
+  const naturalW = image.naturalWidth || 0;
+  const naturalH = image.naturalHeight || 0;
+
+  if (!naturalW || !naturalH) return;
+
+  const height = Math.max(1, Math.round((width * naturalH / naturalW) * mapZoom));
+  const zoomedWidth = Math.max(width, Math.round(width * mapZoom));
+
+  canvas.style.width = `${zoomedWidth}px`;
+  canvas.style.height = `${height}px`;
+  board.style.height = `${height}px`;
+
+  image.style.width = "100%";
+  image.style.height = "100%";
+}
+
+
+function fitMapToVisibleImage() {
+  const board = $("mapBoard");
+  const canvas = $("mapCanvas");
+  const image = $("mapImage");
+  const svg = $("mapSvg");
+
+  if (!board || !canvas || !image || image.classList.contains("hidden")) {
+    showEmptyMapCanvas();
+    return;
+  }
+
+  if (!image.naturalWidth || !image.naturalHeight) {
+    showEmptyMapCanvas();
+    return;
+  }
+
+  canvas.classList.add("has-map-image");
+  canvas.classList.remove("no-map-image");
+
+  const availableWidth = board.clientWidth || canvas.clientWidth || 1000;
+  const naturalRatio = image.naturalWidth / image.naturalHeight;
+
+  // 100% 상태에서 지도 인터페이스가 세로로 너무 길어지지 않도록 최대 높이를 제한.
+  // 대신 이미지 비율은 유지하고, 남는 공간은 좌우/상하 균형 있게 둔다.
+  const maxDisplayHeight = 520;
+  const minDisplayHeight = 260;
+
+  let displayWidth = availableWidth;
+  let displayHeight = Math.round(displayWidth / naturalRatio);
+
+  if (displayHeight > maxDisplayHeight) {
+    displayHeight = maxDisplayHeight;
+    displayWidth = Math.round(displayHeight * naturalRatio);
+  }
+
+  displayHeight = Math.max(minDisplayHeight, displayHeight);
+
+  const zoomedWidth = Math.max(1, Math.round(displayWidth * mapZoom));
+  const zoomedHeight = Math.max(1, Math.round(displayHeight * mapZoom));
+
+  board.style.height = `${zoomedHeight}px`;
+  board.style.minHeight = "0px";
+
+  canvas.style.width = `${zoomedWidth}px`;
+  canvas.style.height = `${zoomedHeight}px`;
+  canvas.style.minHeight = "0px";
+  canvas.style.marginLeft = zoomedWidth < availableWidth ? `${Math.round((availableWidth - zoomedWidth) / 2)}px` : "0px";
+  canvas.style.marginRight = zoomedWidth < availableWidth ? `${Math.round((availableWidth - zoomedWidth) / 2)}px` : "0px";
+
+  image.style.width = "100%";
+  image.style.height = "100%";
+
+  if (svg) {
+    svg.style.width = "100%";
+    svg.style.height = "100%";
+  }
+}
+
+
+function showEmptyMapCanvas() {
+  const board = $("mapBoard");
+  const canvas = $("mapCanvas");
+  if (!board || !canvas) return;
+
+  canvas.classList.remove("has-map-image");
+  canvas.classList.add("no-map-image");
+
+  canvas.style.width = "100%";
+  canvas.style.height = "420px";
+  canvas.style.minHeight = "420px";
+
+  board.style.height = "420px";
+  board.style.minHeight = "420px";
+}
+
+function fitMapToVisibleImage() {
+  const board = $("mapBoard");
+  const canvas = $("mapCanvas");
+  const image = $("mapImage");
+  const svg = $("mapSvg");
+
+  if (!board || !canvas || !image || image.classList.contains("hidden")) {
+    showEmptyMapCanvas();
+    return;
+  }
+
+  if (!image.naturalWidth || !image.naturalHeight) {
+    showEmptyMapCanvas();
+    return;
+  }
+
+  canvas.classList.add("has-map-image");
+  canvas.classList.remove("no-map-image");
+
+  const baseWidth = board.clientWidth || canvas.clientWidth || 1000;
+  const zoomedWidth = Math.max(baseWidth, Math.round(baseWidth * mapZoom));
+  const exactHeight = Math.max(1, Math.round(zoomedWidth * image.naturalHeight / image.naturalWidth));
+
+  canvas.style.width = `${zoomedWidth}px`;
+  canvas.style.height = `${exactHeight}px`;
+  canvas.style.minHeight = "0px";
+
+  board.style.height = `${exactHeight}px`;
+  board.style.minHeight = "0px";
+
+  image.style.width = "100%";
+  image.style.height = "100%";
+
+  if (svg) {
+    svg.style.width = "100%";
+    svg.style.height = "100%";
+  }
+}
+
 function renderMap() {
   const map = getActiveMap();
   renderMapTabs();
@@ -1578,6 +1736,7 @@ function renderMap() {
 
   canvas.querySelectorAll(".map-pin,.map-pin-card,.polygon-card,.polygon-point").forEach((el) => el.remove());
   svg.innerHTML = "";
+  showEmptyMapCanvas();
   $("mapBoard").classList.toggle("map-drawing", drawingPolygon);
   $("mapBoard").classList.toggle("map-moving-region", moveRegionMode);
   $("mapBoard").classList.toggle("map-quick-pin", quickPinMode);
@@ -1600,13 +1759,24 @@ function renderMap() {
   if (zoomLabel) zoomLabel.textContent = `${Math.round(mapZoom * 100)}%`;
 
   if (map.image) {
+    image.onload = () => {
+      rememberMapImageAspect(map, image);
+      
+    };
+    image.onload = () => {
+      if (typeof rememberMapImageAspect === "function") rememberMapImageAspect(map, image);
+      fitMapToVisibleImage();
+    };
     image.src = map.image;
     image.classList.remove("hidden");
     empty.classList.add("hidden");
+    requestAnimationFrame(fitMapToVisibleImage);
+    
   } else {
     image.removeAttribute("src");
     image.classList.add("hidden");
     empty.classList.remove("hidden");
+    showEmptyMapCanvas();
   }
 
   map.polygons.forEach((poly) => drawPolygon(poly));
@@ -2222,6 +2392,7 @@ function zoomMap(delta, anchorEvent = null) {
 
   mapZoom = nextZoom;
   renderMap();
+  
 
   requestAnimationFrame(() => {
     if (!board) return;
@@ -2233,6 +2404,7 @@ function zoomMap(delta, anchorEvent = null) {
 function resetMapZoom() {
   mapZoom = 1;
   renderMap();
+  requestAnimationFrame(fitMapToVisibleImage);
   requestAnimationFrame(() => {
     const board = $("mapBoard");
     if (!board) return;
@@ -2534,6 +2706,13 @@ function setMapImage(file) {
       if (!map) return;
 
       map.image = dataUrl;
+      const tempImage = new Image();
+      tempImage.onload = () => {
+        map.imageAspect = tempImage.naturalHeight / tempImage.naturalWidth;
+        saveState();
+        renderMap();
+      };
+      tempImage.src = dataUrl;
 
       // 이미지까지 localStorage에 넣으면 용량 초과가 자주 나서,
       // 화면에는 바로 반영하고 설정 저장은 이미지 제외 방식으로 처리합니다.
