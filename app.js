@@ -1611,47 +1611,49 @@ function fitMapToVisibleImage() {
   const svg = $("mapSvg");
 
   if (!board || !canvas || !image || image.classList.contains("hidden")) {
-    showEmptyMapCanvas();
+    if (typeof showEmptyMapCanvas === "function") showEmptyMapCanvas();
     return;
   }
 
   if (!image.naturalWidth || !image.naturalHeight) {
-    showEmptyMapCanvas();
+    if (typeof showEmptyMapCanvas === "function") showEmptyMapCanvas();
     return;
   }
 
   canvas.classList.add("has-map-image");
   canvas.classList.remove("no-map-image");
 
-  const availableWidth = board.clientWidth || canvas.clientWidth || 1000;
-  const naturalRatio = image.naturalWidth / image.naturalHeight;
+  const viewportWidth = board.clientWidth || board.parentElement?.clientWidth || canvas.clientWidth || 1000;
+  const imageRatio = image.naturalWidth / image.naturalHeight;
 
-  // 100% 상태에서 지도 인터페이스가 세로로 너무 길어지지 않도록 최대 높이를 제한.
-  // 대신 이미지 비율은 유지하고, 남는 공간은 좌우/상하 균형 있게 둔다.
-  const maxDisplayHeight = 520;
-  const minDisplayHeight = 260;
+  const maxImageHeight = 520;
+  let imageWidth = viewportWidth;
+  let imageHeight = Math.round(imageWidth / imageRatio);
 
-  let displayWidth = availableWidth;
-  let displayHeight = Math.round(displayWidth / naturalRatio);
-
-  if (displayHeight > maxDisplayHeight) {
-    displayHeight = maxDisplayHeight;
-    displayWidth = Math.round(displayHeight * naturalRatio);
+  if (imageHeight > maxImageHeight) {
+    imageHeight = maxImageHeight;
+    imageWidth = Math.round(imageHeight * imageRatio);
   }
 
-  displayHeight = Math.max(minDisplayHeight, displayHeight);
+  const zoomedWidth = Math.max(1, Math.round(imageWidth * mapZoom));
+  const zoomedHeight = Math.max(1, Math.round(imageHeight * mapZoom));
+  const verticalPad = 8;
+  const boardHeight = zoomedHeight + verticalPad * 2;
 
-  const zoomedWidth = Math.max(1, Math.round(displayWidth * mapZoom));
-  const zoomedHeight = Math.max(1, Math.round(displayHeight * mapZoom));
-
-  board.style.height = `${zoomedHeight}px`;
-  board.style.minHeight = "0px";
+  board.style.height = `${boardHeight}px`;
+  board.style.minHeight = `${boardHeight}px`;
+  board.style.maxHeight = "none";
+  board.style.paddingTop = `${verticalPad}px`;
+  board.style.paddingBottom = `${verticalPad}px`;
+  board.style.boxSizing = "border-box";
 
   canvas.style.width = `${zoomedWidth}px`;
   canvas.style.height = `${zoomedHeight}px`;
   canvas.style.minHeight = "0px";
-  canvas.style.marginLeft = zoomedWidth < availableWidth ? `${Math.round((availableWidth - zoomedWidth) / 2)}px` : "0px";
-  canvas.style.marginRight = zoomedWidth < availableWidth ? `${Math.round((availableWidth - zoomedWidth) / 2)}px` : "0px";
+  canvas.style.marginTop = "0px";
+  canvas.style.marginBottom = "0px";
+  canvas.style.marginLeft = zoomedWidth < viewportWidth ? `${Math.round((viewportWidth - zoomedWidth) / 2)}px` : "0px";
+  canvas.style.marginRight = zoomedWidth < viewportWidth ? `${Math.round((viewportWidth - zoomedWidth) / 2)}px` : "0px";
 
   image.style.width = "100%";
   image.style.height = "100%";

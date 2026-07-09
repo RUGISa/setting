@@ -1742,3 +1742,50 @@ button,input,select,textarea{font:inherit}button{min-height:38px;padding:0 15px;
   width: 100% !important;
   height: 100% !important;
 }
+
+
+/* 지도 위아래 공백 균등/최소화 */
+.map-board {
+  overflow: auto !important;
+  max-height: none !important;
+  background:
+    linear-gradient(rgba(125, 90, 52, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 90, 52, 0.045) 1px, transparent 1px),
+    rgba(255, 250, 241, 0.82);
+  background-size: 24px 24px;
+}
+
+.map-canvas {
+  position: relative !important;
+  display: block !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  background: transparent !important;
+}
+
+.map-canvas.has-map-image {
+  min-height: 0 !important;
+  background: transparent !important;
+}
+
+#mapImage {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  object-fit: fill !important;
+  object-position: center center !important;
+}
+
+#mapImage.hidden {
+  display: none !important;
+}
+
+#mapSvg {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
