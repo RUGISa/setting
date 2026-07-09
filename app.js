@@ -1605,19 +1605,61 @@ function fitMapCanvasToImage() {
 
 
 function fitMapToVisibleImage() {
-  forceVisibleMapFrame();
-}
+  const board = $("mapBoard");
+  const canvas = $("mapCanvas");
+  const image = $("mapImage");
+  const svg = $("mapSvg");
 
+  if (!board || !canvas) return;
+
+  const viewportWidth = board.clientWidth || board.parentElement?.clientWidth || canvas.clientWidth || 1000;
+  const frameHeight = 520;
+
+  board.style.height = `${frameHeight}px`;
+  board.style.minHeight = `${frameHeight}px`;
+  board.style.padding = "0";
+  board.style.overflow = "auto";
+
+  canvas.style.width = `${Math.max(viewportWidth, Math.round(viewportWidth * mapZoom))}px`;
+  canvas.style.height = `${Math.round(frameHeight * mapZoom)}px`;
+  canvas.style.minHeight = `${Math.round(frameHeight * mapZoom)}px`;
+  canvas.style.marginLeft = "0";
+  canvas.style.marginRight = "0";
+
+  if (image && !image.classList.contains("hidden")) {
+    image.style.width = "100%";
+    image.style.height = "100%";
+  }
+
+  if (svg) {
+    svg.style.width = "100%";
+    svg.style.height = "100%";
+  }
+}
 
 
 function showEmptyMapCanvas() {
+  const board = $("mapBoard");
+  const canvas = $("mapCanvas");
   const image = $("mapImage");
-  const empty = $("mapEmpty");
-  if (image) image.classList.add("hidden");
-  if (empty) empty.classList.remove("hidden");
-  forceVisibleMapFrame();
-}
 
+  if (!board || !canvas) return;
+
+  canvas.classList.remove("has-map-image");
+  canvas.classList.add("no-map-image");
+
+  board.style.height = "520px";
+  board.style.minHeight = "520px";
+  board.style.padding = "0";
+
+  canvas.style.width = "100%";
+  canvas.style.height = "520px";
+  canvas.style.minHeight = "520px";
+  canvas.style.marginLeft = "0px";
+  canvas.style.marginRight = "0px";
+
+  if (image) image.classList.add("hidden");
+}
 
 
 function fitMapToVisibleImage() {
@@ -1659,53 +1701,6 @@ function fitMapToVisibleImage() {
   }
 }
 
-
-function forceVisibleMapFrame() {
-  const board = $("mapBoard");
-  const canvas = $("mapCanvas");
-  const image = $("mapImage");
-  const svg = $("mapSvg");
-
-  if (!board || !canvas) return;
-
-  const frameHeight = 520;
-  const width = board.clientWidth || board.parentElement?.clientWidth || canvas.clientWidth || 1000;
-  const zoomedWidth = Math.max(width, Math.round(width * mapZoom));
-  const zoomedHeight = Math.round(frameHeight * mapZoom);
-
-  board.style.display = "block";
-  board.style.position = "relative";
-  board.style.height = `${frameHeight}px`;
-  board.style.minHeight = `${frameHeight}px`;
-  board.style.overflow = "auto";
-  board.style.padding = "0";
-
-  canvas.style.display = "block";
-  canvas.style.position = "relative";
-  canvas.style.width = `${zoomedWidth}px`;
-  canvas.style.height = `${zoomedHeight}px`;
-  canvas.style.minHeight = `${zoomedHeight}px`;
-  canvas.style.overflow = "hidden";
-
-  if (svg) {
-    svg.style.display = "block";
-    svg.style.position = "absolute";
-    svg.style.inset = "0";
-    svg.style.width = "100%";
-    svg.style.height = "100%";
-  }
-
-  if (image && !image.classList.contains("hidden")) {
-    image.style.display = "block";
-    image.style.position = "absolute";
-    image.style.inset = "0";
-    image.style.width = "100%";
-    image.style.height = "100%";
-    image.style.objectFit = "contain";
-    image.style.objectPosition = "center center";
-  }
-}
-
 function renderMap() {
   const map = getActiveMap();
   renderMapTabs();
@@ -1724,7 +1719,6 @@ function renderMap() {
 
   canvas.querySelectorAll(".map-pin,.map-pin-card,.polygon-card,.polygon-point").forEach((el) => el.remove());
   svg.innerHTML = "";
-  forceVisibleMapFrame();
   showEmptyMapCanvas();
   $("mapBoard").classList.toggle("map-drawing", drawingPolygon);
   $("mapBoard").classList.toggle("map-moving-region", moveRegionMode);
@@ -1761,7 +1755,6 @@ function renderMap() {
     image.src = map.image;
     image.classList.remove("hidden");
     empty.classList.add("hidden");
-    requestAnimationFrame(forceVisibleMapFrame);
     requestAnimationFrame(fitMapToVisibleImage);
     
   } else {
