@@ -1852,3 +1852,153 @@ button,input,select,textarea{font:inherit}button{min-height:38px;padding:0 15px;
 .map-empty.hidden {
   display: none !important;
 }
+
+
+/* =========================================================
+   White VSCode / Interpreter style override
+   ========================================================= */
+:root {
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --panel-2: #f7f7f8;
+  --line: #e5e7eb;
+  --text: #111827;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --accent-soft: rgba(37, 99, 235, .10);
+  --danger: #dc2626;
+}
+
+body {
+  background: #ffffff !important;
+  color: var(--text) !important;
+}
+
+.app-shell,
+.app,
+main,
+.main,
+.workspace,
+.content,
+.page,
+.screen {
+  background: #ffffff !important;
+}
+
+.sidebar,
+.side-nav,
+nav {
+  background: #f7f7f8 !important;
+  border-right: 1px solid var(--line) !important;
+  box-shadow: none !important;
+}
+
+button,
+select,
+input,
+textarea {
+  border-color: var(--line) !important;
+  background: #ffffff !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
+}
+
+button.primary,
+.primary {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border-color: #2563eb !important;
+}
+
+.card,
+.modal,
+.map-bottom-bar,
+.relation-bottom-bar,
+.timeline-bottom-bar,
+.map-board,
+.relation-board,
+.timeline-board,
+.empty-state,
+.detail-panel {
+  background: #ffffff !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: none !important;
+}
+
+.map-board,
+.relation-board,
+.timeline-board {
+  background:
+    linear-gradient(#eef2f7 1px, transparent 1px),
+    linear-gradient(90deg, #eef2f7 1px, transparent 1px),
+    #ffffff !important;
+  background-size: 24px 24px !important;
+}
+
+header,
+.topbar,
+.app-header {
+  background: #ffffff !important;
+  border-bottom: 1px solid var(--line) !important;
+  box-shadow: none !important;
+}
+
+/* map visibility restore: fixed visible frame, no collapse */
+.map-board {
+  display: block !important;
+  height: 520px !important;
+  min-height: 520px !important;
+  max-height: none !important;
+  overflow: auto !important;
+  padding: 0 !important;
+}
+
+.map-canvas {
+  position: relative !important;
+  display: block !important;
+  height: 520px !important;
+  min-height: 520px !important;
+  overflow: hidden !important;
+  background: #ffffff !important;
+}
+
+.map-canvas.no-map-image {
+  height: 520px !important;
+  min-height: 520px !important;
+}
+
+#mapImage {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  background: #ffffff !important;
+}
+
+#mapImage.hidden {
+  display: none !important;
+}
+
+#mapSvg {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.map-empty {
+  position: absolute !important;
+  inset: 0 !important;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  z-index: 1;
+}
+
+.map-empty.hidden {
+  display: none !important;
+}

@@ -1610,51 +1610,26 @@ function fitMapToVisibleImage() {
   const image = $("mapImage");
   const svg = $("mapSvg");
 
-  if (!board || !canvas || !image || image.classList.contains("hidden") || !image.naturalWidth || !image.naturalHeight) {
-    showEmptyMapCanvas();
-    return;
-  }
-
-  canvas.classList.add("has-map-image");
-  canvas.classList.remove("no-map-image");
+  if (!board || !canvas) return;
 
   const viewportWidth = board.clientWidth || board.parentElement?.clientWidth || canvas.clientWidth || 1000;
-  const ratio = image.naturalWidth / image.naturalHeight;
+  const frameHeight = 520;
 
-  // Too-tall images are limited, but the board never collapses.
-  const maxImageHeight = 520;
-  const minImageHeight = 260;
+  board.style.height = `${frameHeight}px`;
+  board.style.minHeight = `${frameHeight}px`;
+  board.style.padding = "0";
+  board.style.overflow = "auto";
 
-  let displayWidth = viewportWidth;
-  let displayHeight = Math.round(displayWidth / ratio);
+  canvas.style.width = `${Math.max(viewportWidth, Math.round(viewportWidth * mapZoom))}px`;
+  canvas.style.height = `${Math.round(frameHeight * mapZoom)}px`;
+  canvas.style.minHeight = `${Math.round(frameHeight * mapZoom)}px`;
+  canvas.style.marginLeft = "0";
+  canvas.style.marginRight = "0";
 
-  if (displayHeight > maxImageHeight) {
-    displayHeight = maxImageHeight;
-    displayWidth = Math.round(displayHeight * ratio);
+  if (image && !image.classList.contains("hidden")) {
+    image.style.width = "100%";
+    image.style.height = "100%";
   }
-
-  displayHeight = Math.max(minImageHeight, displayHeight);
-
-  const zoomedWidth = Math.max(1, Math.round(displayWidth * mapZoom));
-  const zoomedHeight = Math.max(1, Math.round(displayHeight * mapZoom));
-  const pad = 8;
-
-  board.style.height = `${zoomedHeight + pad * 2}px`;
-  board.style.minHeight = `${zoomedHeight + pad * 2}px`;
-  board.style.paddingTop = `${pad}px`;
-  board.style.paddingBottom = `${pad}px`;
-  board.style.boxSizing = "border-box";
-
-  canvas.style.width = `${zoomedWidth}px`;
-  canvas.style.height = `${zoomedHeight}px`;
-  canvas.style.minHeight = "0px";
-  canvas.style.marginTop = "0px";
-  canvas.style.marginBottom = "0px";
-  canvas.style.marginLeft = zoomedWidth < viewportWidth ? `${Math.round((viewportWidth - zoomedWidth) / 2)}px` : "0px";
-  canvas.style.marginRight = zoomedWidth < viewportWidth ? `${Math.round((viewportWidth - zoomedWidth) / 2)}px` : "0px";
-
-  image.style.width = "100%";
-  image.style.height = "100%";
 
   if (svg) {
     svg.style.width = "100%";
@@ -1673,14 +1648,13 @@ function showEmptyMapCanvas() {
   canvas.classList.remove("has-map-image");
   canvas.classList.add("no-map-image");
 
-  board.style.height = "420px";
-  board.style.minHeight = "420px";
-  board.style.paddingTop = "0px";
-  board.style.paddingBottom = "0px";
+  board.style.height = "520px";
+  board.style.minHeight = "520px";
+  board.style.padding = "0";
 
   canvas.style.width = "100%";
-  canvas.style.height = "420px";
-  canvas.style.minHeight = "420px";
+  canvas.style.height = "520px";
+  canvas.style.minHeight = "520px";
   canvas.style.marginLeft = "0px";
   canvas.style.marginRight = "0px";
 
@@ -2746,13 +2720,73 @@ function addMapPinFromBoard(event) {
   createInstantPinAt(x, y);
 }
 
+
+function stateToMarkdown(source) {
+  const safe = JSON.parse(JSON.stringify(source));
+  const lines = [];
+
+  lines.push("# 설정서랍");
+  lines.push("");
+  lines.push("> 설정서랍 Markdown 데이터 파일입니다.");
+  lines.push("");
+  lines.push("## 요약");
+  lines.push("");
+  lines.push(`- 생성일: ${new Date().toISOString()}`);
+  lines.push(`- 캐릭터: ${safe.characters?.length || 0}`);
+  lines.push(`- 지역: ${safe.places?.length || 0}`);
+  lines.push(`- 조직: ${safe.factions?.length || 0}`);
+  lines.push(`- 사건: ${safe.events?.length || 0}`);
+  lines.push(`- 아이템: ${safe.items?.length || 0}`);
+  lines.push(`- 능력: ${safe.abilities?.length || 0}`);
+  lines.push(`- 타임라인: ${safe.timeline?.length || 0}`);
+  lines.push(`- 관계도 카드: ${safe.relation?.nodes?.length || 0}`);
+  lines.push(`- 지도: ${safe.maps?.length || 0}`);
+  lines.push("");
+  lines.push("## 카드 목록");
+  lines.push("");
+
+  ["characters", "places", "factions", "events", "items", "abilities"].forEach((category) => {
+    const title = categories?.[category] || category;
+    lines.push(`### ${title}`);
+    lines.push("");
+
+    (safe[category] || []).forEach((item) => {
+      lines.push(`- **${item.title || "제목 없음"}**`);
+      if (item.summary) lines.push(`  - ${String(item.summary).replace(/\n/g, " ")}`);
+    });
+
+    if (!(safe[category] || []).length) lines.push("- 없음");
+    lines.push("");
+  });
+
+  lines.push("## 설정서랍 데이터");
+  lines.push("");
+  lines.push("```setting-drawer");
+  lines.push(JSON.stringify(safe, null, 2));
+  lines.push("```");
+  lines.push("");
+
+  return lines.join("\n");
+}
+
+function markdownToState(text) {
+  const source = String(text || "");
+  const fenced = source.match(/```setting-drawer\s*([\s\S]*?)```/);
+  if (fenced) return JSON.parse(fenced[1]);
+
+  const jsonBlock = source.match(/```json\s*([\s\S]*?)```/);
+  if (jsonBlock) return JSON.parse(jsonBlock[1]);
+
+  return JSON.parse(source);
+}
+
 function exportData() {
-  saveState();
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const markdown = stateToMarkdown(state);
+  const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "setting-drawer.json";
+  a.download = "setting-drawer.md";
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -2761,7 +2795,7 @@ function importData(file) {
   const reader = new FileReader();
   reader.onload = () => {
     try {
-      state = normalizeState(JSON.parse(reader.result));
+      state = normalizeState(markdownToState(reader.result));
       saveState();
       currentCategory = "all";
       render();
