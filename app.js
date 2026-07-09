@@ -1610,13 +1610,8 @@ function fitMapToVisibleImage() {
   const image = $("mapImage");
   const svg = $("mapSvg");
 
-  if (!board || !canvas || !image || image.classList.contains("hidden")) {
-    if (typeof showEmptyMapCanvas === "function") showEmptyMapCanvas();
-    return;
-  }
-
-  if (!image.naturalWidth || !image.naturalHeight) {
-    if (typeof showEmptyMapCanvas === "function") showEmptyMapCanvas();
+  if (!board || !canvas || !image || image.classList.contains("hidden") || !image.naturalWidth || !image.naturalHeight) {
+    showEmptyMapCanvas();
     return;
   }
 
@@ -1624,27 +1619,30 @@ function fitMapToVisibleImage() {
   canvas.classList.remove("no-map-image");
 
   const viewportWidth = board.clientWidth || board.parentElement?.clientWidth || canvas.clientWidth || 1000;
-  const imageRatio = image.naturalWidth / image.naturalHeight;
+  const ratio = image.naturalWidth / image.naturalHeight;
 
+  // Too-tall images are limited, but the board never collapses.
   const maxImageHeight = 520;
-  let imageWidth = viewportWidth;
-  let imageHeight = Math.round(imageWidth / imageRatio);
+  const minImageHeight = 260;
 
-  if (imageHeight > maxImageHeight) {
-    imageHeight = maxImageHeight;
-    imageWidth = Math.round(imageHeight * imageRatio);
+  let displayWidth = viewportWidth;
+  let displayHeight = Math.round(displayWidth / ratio);
+
+  if (displayHeight > maxImageHeight) {
+    displayHeight = maxImageHeight;
+    displayWidth = Math.round(displayHeight * ratio);
   }
 
-  const zoomedWidth = Math.max(1, Math.round(imageWidth * mapZoom));
-  const zoomedHeight = Math.max(1, Math.round(imageHeight * mapZoom));
-  const verticalPad = 8;
-  const boardHeight = zoomedHeight + verticalPad * 2;
+  displayHeight = Math.max(minImageHeight, displayHeight);
 
-  board.style.height = `${boardHeight}px`;
-  board.style.minHeight = `${boardHeight}px`;
-  board.style.maxHeight = "none";
-  board.style.paddingTop = `${verticalPad}px`;
-  board.style.paddingBottom = `${verticalPad}px`;
+  const zoomedWidth = Math.max(1, Math.round(displayWidth * mapZoom));
+  const zoomedHeight = Math.max(1, Math.round(displayHeight * mapZoom));
+  const pad = 8;
+
+  board.style.height = `${zoomedHeight + pad * 2}px`;
+  board.style.minHeight = `${zoomedHeight + pad * 2}px`;
+  board.style.paddingTop = `${pad}px`;
+  board.style.paddingBottom = `${pad}px`;
   board.style.boxSizing = "border-box";
 
   canvas.style.width = `${zoomedWidth}px`;
@@ -1668,18 +1666,27 @@ function fitMapToVisibleImage() {
 function showEmptyMapCanvas() {
   const board = $("mapBoard");
   const canvas = $("mapCanvas");
+  const image = $("mapImage");
+
   if (!board || !canvas) return;
 
   canvas.classList.remove("has-map-image");
   canvas.classList.add("no-map-image");
 
+  board.style.height = "420px";
+  board.style.minHeight = "420px";
+  board.style.paddingTop = "0px";
+  board.style.paddingBottom = "0px";
+
   canvas.style.width = "100%";
   canvas.style.height = "420px";
   canvas.style.minHeight = "420px";
+  canvas.style.marginLeft = "0px";
+  canvas.style.marginRight = "0px";
 
-  board.style.height = "420px";
-  board.style.minHeight = "420px";
+  if (image) image.classList.add("hidden");
 }
+
 
 function fitMapToVisibleImage() {
   const board = $("mapBoard");
@@ -1767,6 +1774,8 @@ function renderMap() {
     };
     image.onload = () => {
       if (typeof rememberMapImageAspect === "function") rememberMapImageAspect(map, image);
+      image.classList.remove("hidden");
+      empty.classList.add("hidden");
       fitMapToVisibleImage();
     };
     image.src = map.image;

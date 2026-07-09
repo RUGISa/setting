@@ -1789,3 +1789,66 @@ button,input,select,textarea{font:inherit}button{min-height:38px;padding:0 15px;
   width: 100% !important;
   height: 100% !important;
 }
+
+
+/* 지도 가려짐 복구: 보드가 0px로 접히지 않게 강제 */
+.map-board {
+  display: block !important;
+  overflow: auto !important;
+  max-height: none !important;
+  background:
+    linear-gradient(rgba(125, 90, 52, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(125, 90, 52, 0.045) 1px, transparent 1px),
+    rgba(255, 250, 241, 0.82);
+  background-size: 24px 24px;
+}
+
+.map-canvas {
+  position: relative !important;
+  display: block !important;
+  overflow: hidden !important;
+}
+
+.map-canvas.no-map-image {
+  height: 420px !important;
+  min-height: 420px !important;
+}
+
+.map-canvas.has-map-image {
+  min-height: 0 !important;
+}
+
+#mapImage {
+  position: absolute !important;
+  inset: 0 !important;
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  object-fit: fill !important;
+  object-position: center center !important;
+}
+
+#mapImage.hidden {
+  display: none !important;
+}
+
+#mapSvg {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.map-empty {
+  position: absolute !important;
+  inset: 0 !important;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  z-index: 1;
+}
+
+.map-empty.hidden {
+  display: none !important;
+}
