@@ -2081,36 +2081,30 @@ header,
 
 
 /* =========================================================
-   설정서랍 - beige / white drawer style
-   파란색 제거, 서랍장 느낌의 따뜻한 흰색 UI
+   설정서랍 - clean white/beige reset
+   레이아웃을 망가뜨리지 않고 색/질감만 정리
    ========================================================= */
 :root {
-  --bg: #f4ead8;
-  --paper: #fffdf8;
-  --paper-2: #fbf5ea;
-  --paper-3: #f6ead7;
-  --drawer: #ead8b9;
-  --drawer-dark: #d5b987;
-  --line: #e1d2bd;
-  --line-strong: #cdb489;
-  --text: #2f251b;
-  --muted: #846f55;
-  --accent: #c9a15f;
-  --accent-2: #b98c43;
-  --danger: #9d5a42;
-  --shadow: 0 18px 45px rgba(95, 67, 35, .13);
-  --soft-shadow: 0 8px 24px rgba(95, 67, 35, .08);
+  --sd-bg: #f3e6cf;
+  --sd-page: #fffdf8;
+  --sd-panel: #ffffff;
+  --sd-soft: #fbf4e8;
+  --sd-line: #e2d2ba;
+  --sd-line-2: #d4bd98;
+  --sd-text: #2c241b;
+  --sd-muted: #7b6b57;
+  --sd-accent: #c9a15f;
+  --sd-accent-dark: #a97f3e;
+  --sd-danger: #9a5942;
 }
 
 html,
 body {
-  background:
-    radial-gradient(circle at 18% 12%, rgba(255, 255, 255, .75), transparent 30%),
-    linear-gradient(135deg, #f7eedf 0%, #e6d1ad 100%) !important;
-  color: var(--text) !important;
+  background: #f1e2c7 !important;
+  color: var(--sd-text) !important;
 }
 
-/* 전체 앱 박스: 서랍장 안쪽 종이 */
+/* 전체 프레임은 기존 구조 유지 */
 .app-shell,
 .app,
 .workspace,
@@ -2122,34 +2116,33 @@ main,
 .main,
 .content,
 .page {
-  background: var(--paper) !important;
-  border: 1px solid rgba(205, 180, 137, .55) !important;
-  border-radius: 28px !important;
-  box-shadow: var(--shadow) !important;
+  background: var(--sd-page) !important;
+  border: 1px solid var(--sd-line) !important;
+  border-radius: 22px !important;
+  box-shadow: 0 12px 30px rgba(70, 48, 25, .08) !important;
 }
 
-/* 왼쪽 메뉴: 서랍 옆판 */
+/* 왼쪽 메뉴는 기존 크기/배치 유지하고 색만 정리 */
 .sidebar,
 .side-nav,
 nav {
-  background:
-    linear-gradient(180deg, #eedec1 0%, #e7d2aa 100%) !important;
-  border-right: 1px solid rgba(205, 180, 137, .6) !important;
-  box-shadow: inset -1px 0 0 rgba(255, 255, 255, .38) !important;
+  background: #ead6b3 !important;
+  border-right: 1px solid #d6bf98 !important;
+  box-shadow: none !important;
+  overflow: auto !important;
 }
 
+/* 메뉴 버튼을 다시 보기 좋게: 너무 납작하게 만들지 않음 */
 .nav-item,
 .category-btn,
 .sidebar button,
 .side-nav button,
 nav button {
-  background: rgba(255, 253, 248, .72) !important;
-  border: 1px solid rgba(205, 180, 137, .58) !important;
-  color: var(--text) !important;
-  border-radius: 14px !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, .75),
-    0 3px 10px rgba(95, 67, 35, .04) !important;
+  background: rgba(255, 253, 248, .74) !important;
+  border: 1px solid rgba(214, 191, 152, .72) !important;
+  border-radius: 12px !important;
+  color: var(--sd-text) !important;
+  box-shadow: none !important;
 }
 
 .nav-item.active,
@@ -2157,70 +2150,53 @@ nav button {
 .sidebar button.active,
 .side-nav button.active,
 nav button.active {
-  background: #fffaf1 !important;
-  border-color: rgba(185, 140, 67, .45) !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.9),
-    0 5px 16px rgba(95, 67, 35, .08) !important;
+  background: #fffdf8 !important;
+  border-color: #c7a86e !important;
+  color: var(--sd-text) !important;
 }
 
-/* 상단 */
-header,
-.topbar,
-.app-header {
-  background: rgba(255, 253, 248, .88) !important;
-  border-bottom: 1px solid rgba(205, 180, 137, .52) !important;
-  box-shadow: none !important;
-  backdrop-filter: blur(12px);
-}
-
+/* 제목과 텍스트 */
 h1,
 h2,
 h3,
 .page-title {
-  color: #2d2116 !important;
-  letter-spacing: -0.04em;
+  color: #2c241b !important;
 }
 
 p,
 .hint,
 small,
 .muted {
-  color: var(--muted) !important;
+  color: var(--sd-muted) !important;
 }
 
-/* 버튼: 파란색 제거 */
+/* 버튼: 파란색 제거, 기존 버튼감은 유지 */
 button,
 select,
 input,
 textarea {
   background: #fffdf8 !important;
-  color: var(--text) !important;
-  border: 1px solid var(--line) !important;
-  border-radius: 12px !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.82),
-    0 2px 8px rgba(95, 67, 35, .035) !important;
+  color: var(--sd-text) !important;
+  border: 1px solid var(--sd-line) !important;
+  box-shadow: none !important;
 }
 
 button:hover,
 select:hover,
 input:hover,
 textarea:hover {
-  border-color: var(--line-strong) !important;
-  background: #fff9ef !important;
+  background: #fbf4e8 !important;
+  border-color: var(--sd-line-2) !important;
 }
 
 button.primary,
 .primary,
 button.active,
 .map-tabs button.active {
-  background: linear-gradient(180deg, #d7b875 0%, #c9a15f 100%) !important;
-  color: #2e2114 !important;
-  border-color: #b98c43 !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.5),
-    0 6px 16px rgba(139, 95, 42, .16) !important;
+  background: #d2ae6f !important;
+  color: #2c241b !important;
+  border-color: #b78b45 !important;
+  box-shadow: none !important;
 }
 
 button.danger,
@@ -2232,26 +2208,11 @@ button.danger,
 #relCardDeleteBtn,
 #relOrgDeleteBtn {
   background: #fff7f1 !important;
-  color: #8e4f38 !important;
-  border-color: #e0c4b3 !important;
+  color: var(--sd-danger) !important;
+  border-color: #e2c6b3 !important;
 }
 
-/* 검색/입력 */
-input::placeholder,
-textarea::placeholder {
-  color: #ad9c87 !important;
-}
-
-.search-row,
-.filter-row,
-.sub-tools,
-.map-tools,
-.timeline-top-tools,
-.relation-top-tools {
-  border-color: transparent !important;
-}
-
-/* 카드, 모달, 빈 상태 */
+/* 카드/빈 상태: 과한 템플릿 느낌 줄이기 */
 .card,
 .empty-state,
 .detail-panel,
@@ -2260,41 +2221,40 @@ textarea::placeholder {
 .polygon-card,
 .relation-node,
 .timeline-card {
-  background: var(--paper) !important;
-  border: 1px solid rgba(205, 180, 137, .56) !important;
-  box-shadow: var(--soft-shadow) !important;
-  color: var(--text) !important;
+  background: #fffdf8 !important;
+  border: 1px solid var(--sd-line) !important;
+  color: var(--sd-text) !important;
+  box-shadow: none !important;
 }
 
 .empty-state {
-  background:
-    linear-gradient(180deg, rgba(255, 253, 248, .96), rgba(250, 243, 232, .96)) !important;
-  border-style: dashed !important;
+  background: #fffaf1 !important;
+  border: 1px dashed #d8c3a1 !important;
 }
 
-/* 지도, 관계도, 타임라인 보드 */
+/* 지도/관계도/타임라인 */
 .map-board,
 .relation-board,
 .timeline-board {
   background:
-    linear-gradient(rgba(151, 112, 64, .045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(151, 112, 64, .045) 1px, transparent 1px),
+    linear-gradient(rgba(120, 86, 42, .04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 86, 42, .04) 1px, transparent 1px),
     #fffaf1 !important;
   background-size: 24px 24px !important;
-  border: 1px solid rgba(205, 180, 137, .66) !important;
-  border-radius: 20px !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.78),
-    0 10px 24px rgba(95, 67, 35, .07) !important;
+  border: 1px solid var(--sd-line) !important;
+  border-radius: 18px !important;
+  box-shadow: none !important;
 }
 
-/* 지도는 잘 보이던 기준 유지 */
+/* 지도는 잘 되던 기준으로 강제 유지 */
 #mapBoard {
   display: block !important;
   position: relative !important;
   height: 520px !important;
   min-height: 520px !important;
+  max-height: none !important;
   overflow: auto !important;
+  padding: 0 !important;
 }
 
 #mapCanvas {
@@ -2306,393 +2266,58 @@ textarea::placeholder {
 }
 
 #mapImage {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
   object-fit: contain !important;
   object-position: center center !important;
+  background: transparent !important;
 }
 
-/* 하단 툴바: 서랍 손잡이 느낌 */
+#mapImage.hidden {
+  display: none !important;
+}
+
+#mapSvg {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+#mapEmpty {
+  position: absolute !important;
+  inset: 0 !important;
+  display: grid;
+  place-content: center;
+}
+
+#mapEmpty.hidden {
+  display: none !important;
+}
+
+/* 하단바는 다시 자연스럽게 */
 .map-bottom-bar,
 .relation-bottom-bar,
 .timeline-bottom-bar {
-  background:
-    linear-gradient(180deg, #fffdf8 0%, #faf1e3 100%) !important;
-  border: 1px solid rgba(205, 180, 137, .66) !important;
-  border-radius: 18px !important;
-  box-shadow:
-    inset 0 1px 0 rgba(255,255,255,.85),
-    0 12px 30px rgba(95, 67, 35, .10) !important;
-}
-
-/* 관계도 선/타임라인도 베이지 계열 */
-#relationSvg path,
-.relation-board path {
-  stroke: #7c5c34 !important;
-}
-
-#relationSvg path.selected,
-.relation-board path.selected {
-  stroke: #b98c43 !important;
-  filter: drop-shadow(0 0 3px rgba(185, 140, 67, .45)) !important;
-}
-
-.edge-label {
-  background: #fffaf1 !important;
-  color: #6c4d2c !important;
-  border: 1px solid rgba(205, 180, 137, .7) !important;
-}
-
-.timeline-dot {
-  background: #c9a15f !important;
-  border-color: #fffdf8 !important;
-}
-
-.timeline-dot.selected {
-  box-shadow: 0 0 0 6px rgba(201, 161, 95, .18) !important;
-}
-
-.timeline-line {
-  background: #d7c3a3 !important;
-}
-
-.timeline-year-line {
-  border-left-color: rgba(139, 100, 55, .23) !important;
-}
-
-.timeline-year-label {
-  background: #fffaf1 !important;
-  border-color: rgba(205, 180, 137, .7) !important;
-  color: #7c5c34 !important;
-}
-
-/* 스크롤바도 베이지 */
-*::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
-}
-
-*::-webkit-scrollbar-track {
-  background: #f7eedf;
-}
-
-*::-webkit-scrollbar-thumb {
-  background: #d5b987;
-  border: 3px solid #f7eedf;
-  border-radius: 999px;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background: #c9a15f;
+  background: #fffdf8 !important;
+  border: 1px solid var(--sd-line) !important;
+  box-shadow: none !important;
 }
 
 /* 파란색 잔재 제거 */
-[style*="blue"],
-[style*="#2563eb"],
-[style*="rgb(37, 99, 235)"] {
-  color: var(--text) !important;
-  background-color: #fffdf8 !important;
-  border-color: var(--line) !important;
-}
-
-
-/* =========================================================
-   설정서랍 - less AI, quiet drawer UI
-   기능 변경 없음 / CSS만 덮어쓰기
-   ========================================================= */
-:root {
-  --bg: #eee0c6;
-  --surface: #fffdf8;
-  --surface-soft: #fbf6ec;
-  --drawer: #e6d1aa;
-  --drawer-light: #f2e3c8;
-  --line: #dfcfb5;
-  --line-soft: #eee3d2;
-  --text: #2d251b;
-  --muted: #7c6b55;
-  --accent: #caa66a;
-  --accent-dark: #a67c3f;
-  --danger: #9a5a43;
-}
-
-/* 전체 배경: 과한 그라데이션 제거 */
-html,
-body {
-  background: #ead7b4 !important;
-  color: var(--text) !important;
-}
-
-/* 큰 둥근 카드/AI스러운 그림자 줄이기 */
-.app-shell,
-.app,
-.workspace,
-.screen {
-  background: transparent !important;
-}
-
-main,
-.main,
-.content,
-.page {
-  background: #fffaf1 !important;
-  border: 1px solid #dcc8a7 !important;
-  border-radius: 18px !important;
-  box-shadow: 0 10px 24px rgba(72, 48, 24, .08) !important;
-}
-
-/* 왼쪽 서랍: 큰 여백 줄이고 실제 메뉴처럼 */
-.sidebar,
-.side-nav,
-nav {
-  background: #ead7b4 !important;
-  border-right: 1px solid #d4bd96 !important;
-  box-shadow: none !important;
-}
-
-.sidebar h1,
-.side-nav h1,
-nav h1 {
-  font-size: 26px !important;
-  letter-spacing: -0.05em !important;
-  margin-bottom: 28px !important;
-}
-
-/* 카테고리 버튼: 캡슐 느낌 줄이고 평평한 서랍 라벨 */
-.nav-item,
-.category-btn,
-.sidebar button,
-.side-nav button,
-nav button {
-  background: transparent !important;
-  border: 0 !important;
-  border-bottom: 1px solid rgba(130, 96, 55, .14) !important;
-  border-radius: 0 !important;
-  color: var(--text) !important;
-  box-shadow: none !important;
-  padding: 13px 14px !important;
-  text-align: left !important;
-}
-
-.nav-item:hover,
-.category-btn:hover,
-.sidebar button:hover,
-.side-nav button:hover,
-nav button:hover {
-  background: rgba(255, 252, 246, .45) !important;
-}
-
-.nav-item.active,
-.category-btn.active,
-.sidebar button.active,
-.side-nav button.active,
-nav button.active {
-  background: #fffaf1 !important;
-  border: 1px solid #ddc8a7 !important;
-  border-radius: 10px !important;
-  box-shadow: none !important;
-}
-
-/* 제목, 텍스트 */
-h1,
-h2,
-h3,
-.page-title {
-  color: #2b2117 !important;
-  letter-spacing: -0.045em !important;
-}
-
-p,
-.hint,
-small,
-.muted {
-  color: var(--muted) !important;
-}
-
-/* 상단 버튼 줄: 튀는 색 제거 */
-button,
-select,
-input,
-textarea {
-  background: #fffdf8 !important;
-  color: var(--text) !important;
-  border: 1px solid #ddcfb9 !important;
-  border-radius: 9px !important;
-  box-shadow: none !important;
-}
-
-button:hover,
-select:hover,
-input:hover,
-textarea:hover {
-  background: #fbf3e5 !important;
-  border-color: #cdb489 !important;
-}
-
 button.primary,
 .primary,
-button.active,
-.map-tabs button.active {
-  background: #d5b77d !important;
-  color: #241a10 !important;
-  border-color: #bf9c5e !important;
-  box-shadow: none !important;
+[style*="#2563eb"],
+[style*="rgb(37, 99, 235)"],
+[style*="blue"] {
+  background-color: #d2ae6f !important;
+  border-color: #b78b45 !important;
+  color: #2c241b !important;
 }
 
-button.danger,
-.danger,
-#deleteMapBtn,
-#deleteLineBtn,
-#deleteMapPinBtn,
-#relEdgeDeleteBtn,
-#relCardDeleteBtn,
-#relOrgDeleteBtn {
-  background: #fff8f2 !important;
-  color: var(--danger) !important;
-  border-color: #e2c8b7 !important;
-}
-
-/* 검색창/폼: 얇고 조용하게 */
-input,
-textarea,
-select {
-  outline: none !important;
-}
-
-input:focus,
-textarea:focus,
-select:focus {
-  border-color: #b99861 !important;
-  box-shadow: 0 0 0 2px rgba(201, 166, 106, .18) !important;
-}
-
-input::placeholder,
-textarea::placeholder {
-  color: #a99983 !important;
-}
-
-/* 카드 영역: 큰 AI 배너 느낌 제거 */
-.card,
-.empty-state,
-.detail-panel,
-.modal,
-.map-pin-card,
-.polygon-card,
-.relation-node,
-.timeline-card {
-  background: #fffdf8 !important;
-  border: 1px solid #e0d0b7 !important;
-  border-radius: 12px !important;
-  box-shadow: none !important;
-  color: var(--text) !important;
-}
-
-.empty-state {
-  background: #fffaf1 !important;
-  border: 1px dashed #d4bd96 !important;
-  min-height: 160px !important;
-}
-
-/* 메인 패널 내부 과한 박스감 줄이기 */
-.panel,
-.section,
-.list-panel,
-.editor-panel {
-  box-shadow: none !important;
-}
-
-/* 지도/관계도/타임라인 보드: 종이 격자 */
-.map-board,
-.relation-board,
-.timeline-board {
-  background:
-    linear-gradient(rgba(120, 86, 42, .045) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(120, 86, 42, .045) 1px, transparent 1px),
-    #fffaf1 !important;
-  background-size: 22px 22px !important;
-  border: 1px solid #decbae !important;
-  border-radius: 12px !important;
-  box-shadow: none !important;
-}
-
-/* 지도 표시 안정화는 유지 */
-#mapBoard {
-  display: block !important;
-  position: relative !important;
-  height: 520px !important;
-  min-height: 520px !important;
-  overflow: auto !important;
-}
-
-#mapCanvas {
-  display: block !important;
-  position: relative !important;
-  height: 520px !important;
-  min-height: 520px !important;
-  overflow: hidden !important;
-}
-
-#mapImage {
-  object-fit: contain !important;
-  object-position: center center !important;
-}
-
-/* 하단 바: 과한 플로팅 느낌 제거 */
-.map-bottom-bar,
-.relation-bottom-bar,
-.timeline-bottom-bar {
-  background: #fffaf1 !important;
-  border: 1px solid #decbae !important;
-  border-radius: 12px !important;
-  box-shadow: none !important;
-}
-
-/* 관계도/타임라인 색상 */
-#relationSvg path,
-.relation-board path {
-  stroke: #6f5431 !important;
-}
-
-#relationSvg path.selected,
-.relation-board path.selected {
-  stroke: #a67c3f !important;
-  filter: none !important;
-  stroke-width: 4px !important;
-}
-
-.edge-label {
-  background: #fffaf1 !important;
-  color: #5f4729 !important;
-  border: 1px solid #decbae !important;
-  box-shadow: none !important;
-}
-
-.timeline-dot {
-  background: #b99054 !important;
-  border-color: #fffdf8 !important;
-}
-
-.timeline-dot.selected {
-  box-shadow: 0 0 0 4px rgba(185, 144, 84, .18) !important;
-}
-
-.timeline-line {
-  background: #d0b891 !important;
-}
-
-.timeline-year-line {
-  border-left-color: rgba(111, 84, 49, .22) !important;
-}
-
-.timeline-year-label {
-  background: #fffaf1 !important;
-  border-color: #decbae !important;
-  color: #6f5431 !important;
-}
-
-/* MD 버튼도 자연스럽게 */
-button {
-  font-weight: 500 !important;
-}
-
-/* 스크롤바: 조용하게 */
+/* 스크롤바 */
 *::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -2703,28 +2328,7 @@ button {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: #cbb28a;
+  background: #cdb489;
   border: 2px solid #f3e6cf;
   border-radius: 999px;
 }
-
-*::-webkit-scrollbar-thumb:hover {
-  background: #b99861;
-}
-
-/* 파란색 잔재 제거 */
-button.primary,
-.primary,
-[style*="#2563eb"],
-[style*="rgb(37, 99, 235)"],
-[style*="blue"] {
-  background-color: #d5b77d !important;
-  border-color: #bf9c5e !important;
-  color: #241a10 !important;
-}
-
-/* 너무 큰 둥근 모서리 완화 */
-* {
-  scrollbar-color: #cbb28a #f3e6cf;
-}
-
