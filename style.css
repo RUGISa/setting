@@ -2002,3 +2002,400 @@ header,
 .map-empty.hidden {
   display: none !important;
 }
+
+
+/* =========================================================
+   설정서랍 white/beige only theme
+   기준 파일 구조 유지 / CSS만 색 정리
+   사용 색상: 흰색, 베이지, 갈색 계열만
+   ========================================================= */
+:root {
+  --bg: #efe2ca;
+  --paper: #fffdf8;
+  --paper-soft: #fbf5ea;
+  --side: #ead7b6;
+  --line: #e0cfb4;
+  --line-strong: #cdb48d;
+  --text: #2d241a;
+  --muted: #7d6a54;
+  --accent: #d2ae6f;
+  --accent-dark: #aa7f3f;
+  --danger: #8c5a43;
+  --shadow: 0 14px 34px rgba(70, 48, 25, .08);
+}
+
+html,
+body {
+  background: #efe2ca !important;
+  color: var(--text) !important;
+}
+
+/* 전체 앱 프레임 */
+.app {
+  background: var(--paper) !important;
+  border-color: rgba(205, 180, 137, .55) !important;
+  box-shadow: var(--shadow) !important;
+}
+
+/* 왼쪽 서랍 */
+.app-header,
+.drawer,
+.sidebar,
+.side-nav,
+nav {
+  background: var(--side) !important;
+  border-color: var(--line-strong) !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
+}
+
+.app-header h1,
+.drawer h1,
+.sidebar h1,
+.side-nav h1,
+nav h1 {
+  color: var(--text) !important;
+}
+
+/* 화면 본문 */
+.screen,
+main,
+.main,
+.content,
+.page,
+.workspace {
+  background: var(--paper) !important;
+  color: var(--text) !important;
+}
+
+/* 카테고리 버튼 */
+.drawer-nav button,
+#categoryNav button,
+.nav-item,
+.category-btn,
+.sidebar button,
+.side-nav button,
+nav button {
+  background: rgba(255, 253, 248, .72) !important;
+  color: var(--text) !important;
+  border: 1px solid rgba(205, 180, 137, .55) !important;
+  box-shadow: none !important;
+}
+
+.drawer-nav button:hover,
+#categoryNav button:hover,
+.nav-item:hover,
+.category-btn:hover,
+.sidebar button:hover,
+.side-nav button:hover,
+nav button:hover {
+  background: #fffdf8 !important;
+  border-color: var(--line-strong) !important;
+}
+
+.drawer-nav button.active,
+#categoryNav button.active,
+.nav-item.active,
+.category-btn.active,
+.sidebar button.active,
+.side-nav button.active,
+nav button.active {
+  background: #fffdf8 !important;
+  color: var(--text) !important;
+  border-color: var(--accent-dark) !important;
+}
+
+/* 제목/본문 */
+h1,
+h2,
+h3,
+h4,
+.page-title {
+  color: var(--text) !important;
+}
+
+p,
+.hint,
+small,
+.muted,
+span {
+  color: inherit;
+}
+
+.hint,
+small,
+.muted,
+.page-head p,
+.modal-head p {
+  color: var(--muted) !important;
+}
+
+/* 버튼/입력: 파랑 제거 */
+button,
+select,
+input,
+textarea,
+.file-action,
+.file-btn,
+.ghost-btn {
+  background: #fffdf8 !important;
+  color: var(--text) !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: none !important;
+}
+
+button:hover,
+select:hover,
+input:hover,
+textarea:hover,
+.file-action:hover,
+.file-btn:hover,
+.ghost-btn:hover {
+  background: var(--paper-soft) !important;
+  border-color: var(--line-strong) !important;
+}
+
+button.primary,
+.primary,
+.file-action.primary,
+.map-tabs button.active,
+button.active {
+  background: var(--accent) !important;
+  color: #2d241a !important;
+  border-color: var(--accent-dark) !important;
+  box-shadow: none !important;
+}
+
+button.danger,
+.danger,
+#deleteMapBtn,
+#deleteLineBtn,
+#deleteMapPinBtn,
+#relEdgeDeleteBtn,
+#relCardDeleteBtn,
+#relOrgDeleteBtn {
+  background: #fff8f1 !important;
+  color: var(--danger) !important;
+  border-color: #d9bdab !important;
+}
+
+/* 검색/폼 포커스도 베이지 */
+input:focus,
+textarea:focus,
+select:focus {
+  outline: none !important;
+  border-color: var(--accent-dark) !important;
+  box-shadow: 0 0 0 2px rgba(210, 174, 111, .20) !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #a3917b !important;
+}
+
+/* 카드/모달/빈 상태 */
+.card,
+.empty,
+.empty-state,
+.detail-panel,
+.modal,
+.import-item,
+.link-picker,
+.map-pin-card,
+.polygon-card,
+.relation-node,
+.timeline-card {
+  background: #fffdf8 !important;
+  color: var(--text) !important;
+  border-color: var(--line) !important;
+  box-shadow: none !important;
+}
+
+.empty,
+.empty-state {
+  background: #fffaf1 !important;
+  border-color: #d8c3a1 !important;
+}
+
+/* 칩/태그 */
+.chip,
+.tag,
+.badge {
+  background: #fbf5ea !important;
+  color: var(--text) !important;
+  border-color: var(--line) !important;
+}
+
+/* 지도/관계도/타임라인 보드 */
+.map-board,
+.relation-board,
+.timeline-board {
+  background:
+    linear-gradient(rgba(120, 86, 42, .04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120, 86, 42, .04) 1px, transparent 1px),
+    #fffaf1 !important;
+  background-size: 24px 24px !important;
+  border-color: var(--line) !important;
+  box-shadow: none !important;
+}
+
+/* 지도 표시 안정화 */
+#mapBoard {
+  display: block !important;
+  position: relative !important;
+  height: 520px !important;
+  min-height: 520px !important;
+  max-height: none !important;
+  overflow: auto !important;
+}
+
+#mapCanvas {
+  display: block !important;
+  position: relative !important;
+  height: 520px !important;
+  min-height: 520px !important;
+  overflow: hidden !important;
+}
+
+#mapImage {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  object-position: center center !important;
+  background: transparent !important;
+}
+
+#mapImage.hidden {
+  display: none !important;
+}
+
+#mapSvg {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+#mapEmpty {
+  position: absolute !important;
+  inset: 0 !important;
+  display: grid;
+  place-content: center;
+}
+
+#mapEmpty.hidden {
+  display: none !important;
+}
+
+/* 하단바 */
+.map-bottom-bar,
+.relation-bottom-bar,
+.timeline-bottom-bar {
+  background: #fffdf8 !important;
+  color: var(--text) !important;
+  border-color: var(--line) !important;
+  box-shadow: none !important;
+}
+
+/* 관계도 색상: 베이지/갈색 계열 */
+#relationSvg path,
+.relation-board path {
+  stroke: #6f5431 !important;
+}
+
+#relationSvg path.selected,
+.relation-board path.selected {
+  stroke: var(--accent-dark) !important;
+  filter: none !important;
+}
+
+.edge-label,
+.timeline-year-label {
+  background: #fffaf1 !important;
+  color: #6f5431 !important;
+  border-color: var(--line) !important;
+}
+
+/* 기존 파란/초록/보라/빨강 범례 색 제거 */
+.legend-character,
+.legend-faction,
+.legend-place,
+.legend-ability,
+.legend-event {
+  background: var(--accent) !important;
+}
+
+/* 노드 상단 색도 베이지 계열로 통일 */
+.relation-node.node-characters,
+.relation-node.node-places,
+.relation-node.node-events,
+.relation-node.node-items,
+.relation-node.node-abilities,
+.relation-node.node-custom {
+  border-top-color: var(--accent) !important;
+}
+
+/* 타임라인 */
+.timeline-dot {
+  background: var(--accent) !important;
+  border-color: #fffdf8 !important;
+}
+
+.timeline-dot.selected {
+  background: var(--accent-dark) !important;
+  box-shadow: 0 0 0 6px rgba(210, 174, 111, .18) !important;
+}
+
+.timeline-line {
+  background: #d0b891 !important;
+}
+
+.timeline-year-line {
+  border-left-color: rgba(111, 84, 49, .22) !important;
+}
+
+/* 지도 영역 기본 색상도 베이지 유지 */
+#regionColorInput {
+  background: #fffdf8 !important;
+}
+
+/* 브라우저 스크롤바 */
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #f3e6cf;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #cdb489;
+  border: 2px solid #f3e6cf;
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #b99861;
+}
+
+/* 파란색 계열 최종 제거 */
+[style*="#2563eb"],
+[style*="rgb(37, 99, 235)"],
+[style*="blue"],
+[style*="#5a84c8"],
+[style*="#5a9b70"],
+[style*="#9d76c9"],
+[style*="#c86b5a"] {
+  background-color: #fffdf8 !important;
+  border-color: var(--line) !important;
+  color: var(--text) !important;
+}
+
+button.primary,
+.primary {
+  background-color: var(--accent) !important;
+  color: #2d241a !important;
+}
