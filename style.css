@@ -2399,3 +2399,47 @@ button.primary,
   background-color: var(--accent) !important;
   color: #2d241a !important;
 }
+
+
+/* 확대축소 실제 동작 보정 */
+#timelineBoard {
+  --timeline-zoom: 1;
+  overflow: auto !important;
+}
+
+.timeline-zoom-spacer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 1px;
+  pointer-events: none;
+}
+
+#timelineBoard .timeline-dot {
+  transform: translate(-50%, -50%) scale(var(--timeline-zoom)) !important;
+  transform-origin: center center !important;
+}
+
+#timelineBoard .timeline-card {
+  transform: translate(-50%, -50%) scale(var(--timeline-zoom)) !important;
+  transform-origin: center center !important;
+}
+
+#timelineBoard .timeline-year-line {
+  transform: translateX(-50%) scaleY(var(--timeline-zoom)) !important;
+  transform-origin: top center !important;
+}
+
+#timelineBoard .timeline-year-label {
+  transform: translateX(-50%) scale(var(--timeline-zoom)) !important;
+  transform-origin: center center !important;
+}
+
+#relationBoard {
+  overflow: auto !important;
+}
+
+#relationSvg {
+  min-width: 1050px;
+  min-height: 760px;
+}

@@ -796,7 +796,14 @@ function deleteFolder() {
 
 function renderTimeline() {
   const board = $("timelineBoard");
-  board.querySelectorAll(".timeline-dot,.timeline-card,.timeline-year-line,.timeline-year-label").forEach((el) => el.remove());
+  board.querySelectorAll(".timeline-dot,.timeline-card,.timeline-year-line,.timeline-year-label,.timeline-zoom-spacer").forEach((el) => el.remove());
+
+  const zoomSpacer = document.createElement("div");
+  zoomSpacer.className = "timeline-zoom-spacer";
+  zoomSpacer.style.width = `${Math.max(board.clientWidth, Math.round(1200 * timelineZoom))}px`;
+  zoomSpacer.style.height = "1px";
+  zoomSpacer.style.pointerEvents = "none";
+  board.appendChild(zoomSpacer);
 
   const yearMap = new Map();
   state.timeline.forEach((point, index) => {
@@ -818,12 +825,12 @@ function renderTimeline() {
   yearMap.forEach((x, year) => {
     const line = document.createElement("div");
     line.className = "timeline-year-line";
-    line.style.left = `${x * timelineZoom}%`;
+    line.style.left = `${x}%`;
     board.appendChild(line);
 
     const label = document.createElement("div");
     label.className = "timeline-year-label";
-    label.style.left = `${x * timelineZoom}%`;
+    label.style.left = `${x}%`;
     label.textContent = year;
     board.appendChild(label);
   });
@@ -831,7 +838,7 @@ function renderTimeline() {
   state.timeline.forEach((point) => {
     const dot = document.createElement("div");
     dot.className = `timeline-dot ${selectedTimelineId === point.id ? "selected" : ""}`;
-    dot.style.left = `${point.dotX * timelineZoom}%`;
+    dot.style.left = `${point.dotX}%`;
     dot.style.top = "50%";
     dot.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -839,15 +846,15 @@ function renderTimeline() {
       renderTimeline();
     });
     makeDrag(dot, (x) => {
-      point.dotX = Math.max(4, Math.min(96, x / timelineZoom));
+      point.dotX = Math.max(4, Math.min(96, x));
       point.cardX = point.dotX;
-      dot.style.left = `${point.dotX * timelineZoom}%`;
+      dot.style.left = `${point.dotX}%`;
     }, true);
     board.appendChild(dot);
 
     const card = document.createElement("div");
     card.className = `timeline-card ${selectedTimelineId === point.id ? "selected" : ""}`;
-    card.style.left = `${point.cardX * timelineZoom}%`;
+    card.style.left = `${point.cardX}%`;
     card.style.top = `${point.cardY}%`;
     card.innerHTML = `<strong>${escapeHTML(point.title)}</strong><small>${escapeHTML(point.year || "")}</small><span>${escapeHTML(point.desc || "")}</span>`;
     card.addEventListener("click", (event) => {
@@ -858,7 +865,7 @@ function renderTimeline() {
     makeDrag(card, (x, y) => {
       point.cardY = Math.max(8, Math.min(86, y));
       point.cardX = point.dotX;
-      card.style.left = `${point.cardX * timelineZoom}%`;
+      card.style.left = `${point.cardX}%`;
       card.style.top = `${point.cardY}%`;
     });
     board.appendChild(card);
@@ -944,10 +951,52 @@ function importTimelineEvents() {
   showToast("사건 카드를 타임라인에 불러왔습니다.");
 }
 
-function zoomTimeline(delta) {
-  timelineZoom = Math.max(0.5, Math.min(3, Math.round((timelineZoom + delta) * 10) / 10));
+function zoomTimeline(delta, event = null) {
+  const board = $("timelineBoard");
+  const oldZoom = timelineZoom;
+  const nextZoom = Math.max(0.5, Math.min(3, Math.round((timelineZoom + delta) * 10) / 10));
+  if (nextZoom === oldZoom) return;
+
+  const rect = board?.getBoundingClientRect();
+  const anchorX = event && rect ? event.clientX - rect.left : (board?.clientWidth || 0) / 2;
+  const beforeX = board ? board.scrollLeft + anchorX : 0;
+
+  timelineZoom = nextZoom;
   renderTimeline();
+  applyTimelineZoom();
+
+  requestAnimationFrame(() => {
+    if (!board) return;
+    const ratio = nextZoom / oldZoom;
+    board.scrollLeft = Math.max(0, beforeX * ratio - anchorX);
+  });
 }
+
+function resetTimelineZoom() {
+  timelineZoom = 1;
+  renderTimeline();
+  applyTimelineZoom();
+}
+
+function applyTimelineZoom() {
+  const board = $("timelineBoard");
+  if (!board) return;
+  board.style.setProperty("--timeline-zoom", timelineZoom);
+  const label = $("timelineZoomResetBtn");
+  if (label) label.textContent = `${Math.round(timelineZoom * 100)}%`;
+
+  const spacer = board.querySelector(".timeline-zoom-spacer");
+  if (spacer) {
+    spacer.style.width = `${Math.max(board.clientWidth, Math.round(1200 * timelineZoom))}px`;
+  }
+}
+
+function handleTimelineWheel(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  zoomTimeline(event.deltaY < 0 ? 0.1 : -0.1, event);
+}
+
 
 function renderRelations() {
   const board = $("relationBoard");
@@ -955,6 +1004,11 @@ function renderRelations() {
   if (!board || !svg) return;
 
   board.querySelectorAll(".relation-node,.edge-label,.relation-legend,.relation-empty,.edge-control-point").forEach((el) => el.remove());
+  svg.style.width = `${Math.max(1050, Math.round(1050 * relationZoom))}px`;
+  svg.style.height = `${Math.max(760, Math.round(760 * relationZoom))}px`;
+  const relationZoomLabel = $("relationZoomResetBtn");
+  if (relationZoomLabel) relationZoomLabel.textContent = `${Math.round(relationZoom * 100)}%`;
+
   svg.innerHTML = `
     <defs>
       <marker id="arrow-brown" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
@@ -1349,23 +1403,37 @@ function organizeMembers() {
 function zoomRelation(delta, event = null) {
   const board = $("relationBoard");
   const oldZoom = relationZoom;
-  const nextZoom = Math.max(0.4, Math.min(2.5, Math.round((relationZoom + delta) * 10) / 10));
+  const nextZoom = Math.max(0.4, Math.min(3, Math.round((relationZoom + delta) * 10) / 10));
   if (nextZoom === oldZoom) return;
 
-  const anchorX = event && board ? event.clientX - board.getBoundingClientRect().left : board.clientWidth / 2;
-  const anchorY = event && board ? event.clientY - board.getBoundingClientRect().top : board.clientHeight / 2;
-  const beforeX = board ? (board.scrollLeft + anchorX) / oldZoom : 0;
-  const beforeY = board ? (board.scrollTop + anchorY) / oldZoom : 0;
+  const rect = board?.getBoundingClientRect();
+  const anchorX = event && rect ? event.clientX - rect.left : (board?.clientWidth || 0) / 2;
+  const anchorY = event && rect ? event.clientY - rect.top : (board?.clientHeight || 0) / 2;
+  const beforeX = board ? board.scrollLeft + anchorX : 0;
+  const beforeY = board ? board.scrollTop + anchorY : 0;
 
   relationZoom = nextZoom;
   renderRelations();
 
   requestAnimationFrame(() => {
     if (!board) return;
-    board.scrollLeft = beforeX * relationZoom - anchorX;
-    board.scrollTop = beforeY * relationZoom - anchorY;
+    const ratio = nextZoom / oldZoom;
+    board.scrollLeft = Math.max(0, beforeX * ratio - anchorX);
+    board.scrollTop = Math.max(0, beforeY * ratio - anchorY);
   });
 }
+
+function resetRelationZoom() {
+  relationZoom = 1;
+  renderRelations();
+}
+
+function handleRelationWheel(event) {
+  event.preventDefault();
+  event.stopPropagation();
+  zoomRelation(event.deltaY < 0 ? 0.1 : -0.1, event);
+}
+
 
 function resetRelationZoom() {
   relationZoom = 1;
@@ -1403,6 +1471,7 @@ function endRelationPan(event) {
 
 function handleRelationWheel(event) {
   event.preventDefault();
+  event.stopPropagation();
   zoomRelation(event.deltaY < 0 ? 0.1 : -0.1, event);
 }
 
@@ -2912,10 +2981,7 @@ function initEvents() {
   on("importTimelineBtn", "click", importTimelineEvents);
   on("timelineZoomInBtn", "click", () => zoomTimeline(0.2));
   on("timelineZoomOutBtn", "click", () => zoomTimeline(-0.2));
-  on("timelineZoomResetBtn", "click", () => {
-    timelineZoom = 1;
-    renderTimeline();
-  });
+  on("timelineZoomResetBtn", "click", resetTimelineZoom);
 
   on("relCardCreateBtn", "click", () => openNodeModal());
   on("relCardImportBtn", "click", openImportNodes);
@@ -3090,6 +3156,24 @@ function initEvents() {
       else deletePolygon();
     }
   });
+
+  on("timelineZoomInBtn", "click", () => zoomTimeline(0.1));
+  on("timelineZoomOutBtn", "click", () => zoomTimeline(-0.1));
+  on("timelineZoomResetBtn", "click", resetTimelineZoom);
+
+  const timelineBoardForZoom = $("timelineBoard");
+  if (timelineBoardForZoom) {
+    timelineBoardForZoom.addEventListener("wheel", handleTimelineWheel, { passive: false });
+  }
+
+  on("relationZoomInBtn", "click", () => zoomRelation(0.1));
+  on("relationZoomOutBtn", "click", () => zoomRelation(-0.1));
+  on("relationZoomResetBtn", "click", resetRelationZoom);
+
+  const relationBoardForZoom = $("relationBoard");
+  if (relationBoardForZoom) {
+    relationBoardForZoom.addEventListener("wheel", handleRelationWheel, { passive: false });
+  }
 }
 
 function init() {
