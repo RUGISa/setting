@@ -3268,10 +3268,10 @@ input:focus, select:focus, textarea:focus { outline: none !important; border-col
   border: 0 !important;
   background: transparent !important;
   color: var(--ob-text) !important;
-  font-family: var(--ob-mono) !important;
-  font-size: 14.5px !important;
-  line-height: 1.7;
-  padding: 0 2px !important;
+  font-family: var(--ob-font) !important;
+  font-size: 15px !important;
+  line-height: 1.75;
+  padding: 2px !important;
 }
 .editor-textarea:focus { outline: none !important; }
 .editor-preview {
@@ -3279,6 +3279,7 @@ input:focus, select:focus, textarea:focus { outline: none !important; border-col
   min-height: 420px;
   padding: 2px;
   color: var(--ob-text);
+  font-family: var(--ob-font);
   font-size: 15px;
   line-height: 1.75;
   overflow: auto;
@@ -3445,4 +3446,83 @@ select:hover, select:focus {
 ::selection {
   background: var(--ob-accent-soft);
   color: var(--ob-text-strong);
+}
+
+
+/* =========================================================================
+   속성 패널 (포토샵식 옆 탭)
+   ========================================================================= */
+.editor-view {
+  display: flex !important;
+  flex-direction: row;
+  align-items: stretch;
+  height: 100%;
+  max-width: none !important;
+  gap: 0;
+}
+.editor-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  max-width: 880px;
+  padding-right: 8px;
+}
+.editor-props-panel {
+  width: 0;
+  min-width: 0;
+  overflow: hidden;
+  border-left: 0 solid var(--ob-line);
+  background: var(--ob-bg-elevated);
+  transition: width .15s ease;
+  flex-shrink: 0;
+}
+.editor-props-panel.open {
+  width: 300px;
+  min-width: 300px;
+  border-left: 1px solid var(--ob-line);
+  margin-left: 18px;
+}
+.props-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--ob-line);
+  white-space: nowrap;
+}
+.props-panel-head strong { color: var(--ob-text-strong); font-size: 14px; }
+.props-panel-head button {
+  border: 0 !important; background: transparent !important; color: var(--ob-muted) !important;
+  font-size: 16px; min-height: 0 !important; width: 24px; height: 24px; padding: 0 !important; border-radius: 6px !important;
+}
+.props-panel-head button:hover { background: var(--ob-bg-hover) !important; color: var(--ob-text-strong) !important; }
+.props-panel-body {
+  padding: 14px 16px 24px;
+  width: 300px;
+  overflow-y: auto;
+  max-height: calc(100vh - 130px);
+}
+.props-panel-body label {
+  display: block;
+  margin-bottom: 14px;
+  font-size: 12.5px;
+  color: var(--ob-muted);
+}
+.props-panel-body input,
+.props-panel-body select,
+.props-panel-body textarea {
+  margin-top: 5px;
+  width: 100%;
+}
+.props-panel-body .image-box { margin-bottom: 14px; }
+.props-panel-body .link-picker { max-height: 260px; overflow-y: auto; }
+
+@media (max-width: 980px) {
+  .editor-view { flex-direction: column; }
+  .editor-props-panel.open {
+    width: 100%; min-width: 0; margin-left: 0;
+    border-left: 0; border-top: 1px solid var(--ob-line);
+  }
+  .props-panel-body { width: 100%; max-height: none; }
 }

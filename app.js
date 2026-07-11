@@ -396,6 +396,7 @@ function switchCategory(key) {
   selectedEdgeId = null;
   connectNodes = [];
   detailTarget = null;
+  closePropsPanel();
   if (dataCategories.includes(key)) expandedCategories.add(key);
   document.body.classList.remove("menu-open");
   render();
@@ -636,11 +637,14 @@ function renderSidebarSearch() {
   if (!input || !results) return;
   const keyword = input.value.trim().toLowerCase();
   results.innerHTML = "";
-  if (!keyword) return;
 
   const matches = [];
   dataCategories.forEach((category) => {
     state[category].forEach((item) => {
+      if (!keyword) {
+        matches.push({ category, item });
+        return;
+      }
       const haystack = [item.title, item.summary, item.body, item.tags.join(" ")].join(" ").toLowerCase();
       if (haystack.includes(keyword)) matches.push({ category, item });
     });
@@ -930,21 +934,22 @@ function openCardModal(category = null, id = null) {
   const item = editingCard ? findItem(category, id) : null;
   const targetCategory = item?.category || (dataCategories.includes(currentCategory) ? currentCategory : "characters");
 
-  $("cardModalTitle").textContent = "속성";
   $("cardCategory").value = targetCategory;
   $("cardCategory").disabled = Boolean(editingCard);
   fillFolderSelect(targetCategory, item?.folderId || "");
 
-  $("cardTitle").value = item?.title || "";
   $("cardSummary").value = item?.summary || "";
   $("cardDate").value = item?.dateText || "";
   $("cardTags").value = (item?.tags || []).join(", ");
-  $("cardBody").value = item?.body || "";
   formImage = item?.image || "";
   selectedLinks = normalizeLinks(item?.links || []);
   renderImagePreview();
   renderLinkPicker(targetCategory, item?.id || null);
-  openModal("cardModal");
+  $("propsPanel")?.classList.add("open");
+}
+
+function closePropsPanel() {
+  $("propsPanel")?.classList.remove("open");
 }
 
 function renderImagePreview() {
@@ -999,28 +1004,40 @@ function readLinks() {
 
 function saveCard() {
   const category = $("cardCategory").value;
-  const title = $("cardTitle").value.trim();
-  if (!title) return showToast("제목을 적어주세요.");
-
-  const data = {
-    title,
-    summary: $("cardSummary").value.trim(),
-    body: $("cardBody").value.trim(),
-    dateText: $("cardDate").value.trim(),
-    folderId: $("cardFolder").value,
-    tags: $("cardTags").value.split(",").map((tag) => tag.trim()).filter(Boolean),
-    links: readLinks(),
-    image: formImage,
-    updatedAt: now()
-  };
-  if (!data.tags.length) data.tags = ["미분류"];
 
   if (editingCard) {
     const item = findItem(editingCard.category, editingCard.id);
+    if (!item) return;
+    const data = {
+      summary: $("cardSummary").value.trim(),
+      dateText: $("cardDate").value.trim(),
+      folderId: $("cardFolder").value,
+      tags: $("cardTags").value.split(",").map((tag) => tag.trim()).filter(Boolean),
+      links: readLinks(),
+      image: formImage,
+      updatedAt: now()
+    };
+    if (!data.tags.length) data.tags = ["미분류"];
     const prev = normalizeLinks(item.links || []);
     Object.assign(item, data);
     item.links = syncLinks(editingCard.category, editingCard.id, data.links, prev);
+    saveState();
+    renderSidebar();
+    renderTitle();
+    renderEditor();
   } else {
+    const data = {
+      title: "제목 없음",
+      summary: $("cardSummary").value.trim(),
+      body: "",
+      dateText: $("cardDate").value.trim(),
+      folderId: $("cardFolder").value,
+      tags: $("cardTags").value.split(",").map((tag) => tag.trim()).filter(Boolean),
+      links: readLinks(),
+      image: formImage,
+      updatedAt: now()
+    };
+    if (!data.tags.length) data.tags = ["미분류"];
     const id = uid();
     const item = {
       id,
@@ -1033,12 +1050,9 @@ function saveCard() {
     state[category].push(item);
     item.links = syncLinks(category, id, data.links, []);
     currentCategory = category;
+    saveState();
+    render();
   }
-
-  saveState();
-  closeModal("cardModal");
-  showToast("저장했습니다.");
-  render();
 }
 
 function inlineMarkdown(text) {
@@ -1097,10 +1111,12 @@ function openDetail(category, id, mode = "preview") {
   editorMode = mode;
   renderSidebar();
   renderEditor();
+  if ($("propsPanel")?.classList.contains("open")) openCardModal(category, id);
 }
 
 function closeEditor() {
   detailTarget = null;
+  closePropsPanel();
   renderEditor();
 }
 
@@ -3573,8 +3589,17 @@ function initEvents() {
     fillFolderSelect($("cardCategory").value, "");
     selectedLinks = readLinks();
     renderLinkPicker($("cardCategory").value, editingCard?.id || null);
+    if (!editingCard) return; // 새 카드 생성 흐름에서는 저장하지 않고 폼만 갱신
+    saveCard();
   });
-  $("saveCardBtn").addEventListener("click", saveCard);
+  on("closePropsBtn", "click", closePropsPanel);
+  $("cardSummary").addEventListener("blur", saveCard);
+  $("cardDate").addEventListener("blur", saveCard);
+  $("cardTags").addEventListener("blur", saveCard);
+  $("cardFolder").addEventListener("change", saveCard);
+  $("linkPicker").addEventListener("change", (event) => {
+    if (event.target.matches('input[type="checkbox"]')) saveCard();
+  });
   $("imageInput").addEventListener("change", (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -3582,6 +3607,7 @@ function initEvents() {
     reader.onload = () => {
       formImage = reader.result;
       renderImagePreview();
+      saveCard();
     };
     reader.readAsDataURL(file);
     event.target.value = "";
@@ -3589,6 +3615,7 @@ function initEvents() {
   $("removeImageBtn").addEventListener("click", () => {
     formImage = "";
     renderImagePreview();
+    saveCard();
   });
 
   const saveEditorTitle = debounce((value) => {
@@ -3626,20 +3653,33 @@ function initEvents() {
   on("editorTitleInput", "input", (event) => saveEditorTitle(event.target.value));
   on("editorTextarea", "input", (event) => saveEditorBody(event.target.value));
 
+  function syncEditorScroll(from, to) {
+    if (!from || !to) return;
+    const fromRange = from.scrollHeight - from.clientHeight;
+    const toRange = to.scrollHeight - to.clientHeight;
+    if (fromRange <= 0 || toRange <= 0) return;
+    to.scrollTop = (from.scrollTop / fromRange) * toRange;
+  }
+
   on("editorTextarea", "blur", (event) => {
     if (event.relatedTarget && event.relatedTarget.id === "editorPreviewToggle") return;
     flushEditorEdits();
+    const textarea = $("editorTextarea");
+    const scrollRatio = textarea ? textarea.scrollTop : 0;
     editorMode = "preview";
     renderSidebar();
     renderEditor();
+    syncEditorScroll(textarea, $("editorPreview"));
   });
 
   on("editorPreview", "click", () => {
     if (!detailTarget) return;
+    const preview = $("editorPreview");
     editorMode = "edit";
     renderEditor();
     const textarea = $("editorTextarea");
     if (textarea) {
+      syncEditorScroll(preview, textarea);
       textarea.focus();
       textarea.setSelectionRange(textarea.value.length, textarea.value.length);
     }
@@ -3647,19 +3687,29 @@ function initEvents() {
 
   on("editorPreviewToggle", "click", () => {
     if (!detailTarget) return;
+    const textarea = $("editorTextarea");
+    const preview = $("editorPreview");
     if (editorMode === "edit") {
       flushEditorEdits();
       editorMode = "preview";
       renderSidebar();
+      renderEditor();
+      syncEditorScroll(textarea, $("editorPreview"));
     } else {
       editorMode = "edit";
+      renderEditor();
+      syncEditorScroll(preview, $("editorTextarea"));
+      $("editorTextarea")?.focus();
     }
-    renderEditor();
-    if (editorMode === "edit") $("editorTextarea")?.focus();
   });
 
   on("editorPropsBtn", "click", () => {
     if (!detailTarget) return;
+    const panel = $("propsPanel");
+    if (panel?.classList.contains("open")) {
+      closePropsPanel();
+      return;
+    }
     flushEditorEdits();
     openCardModal(detailTarget.category, detailTarget.id);
   });

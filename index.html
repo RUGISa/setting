@@ -112,20 +112,59 @@
       </div>
 
       <section class="editor-view hidden" id="editorView">
-        <div class="editor-topbar">
-          <input id="editorTitleInput" class="editor-title-input" placeholder="제목 없음" />
-          <div class="editor-actions">
-            <button id="editorPreviewToggle" type="button">미리보기</button>
-            <button id="editorPropsBtn" type="button">속성</button>
-            <button id="editorPinBtn" type="button">고정</button>
-            <button id="editorExportBtn" type="button">MD로 내보내기</button>
-            <button class="danger" id="editorDeleteBtn" type="button">삭제</button>
+        <div class="editor-main">
+          <div class="editor-topbar">
+            <input id="editorTitleInput" class="editor-title-input" placeholder="제목 없음" />
+            <div class="editor-actions">
+              <button id="editorPreviewToggle" type="button">미리보기</button>
+              <button id="editorPropsBtn" type="button">속성</button>
+              <button id="editorPinBtn" type="button">고정</button>
+              <button id="editorExportBtn" type="button">MD로 내보내기</button>
+              <button class="danger" id="editorDeleteBtn" type="button">삭제</button>
+            </div>
           </div>
+          <div class="editor-meta" id="editorMeta"></div>
+          <textarea id="editorTextarea" class="editor-textarea" placeholder="마크다운으로 작성하세요..." spellcheck="false"></textarea>
+          <div class="editor-preview hidden" id="editorPreview"></div>
+          <div class="editor-links" id="editorLinks"></div>
         </div>
-        <div class="editor-meta" id="editorMeta"></div>
-        <textarea id="editorTextarea" class="editor-textarea" placeholder="마크다운으로 작성하세요..." spellcheck="false"></textarea>
-        <div class="editor-preview hidden" id="editorPreview"></div>
-        <div class="editor-links" id="editorLinks"></div>
+
+        <aside class="editor-props-panel" id="propsPanel">
+          <div class="props-panel-head">
+            <strong>속성</strong>
+            <button id="closePropsBtn" type="button" aria-label="속성 닫기">×</button>
+          </div>
+          <div class="props-panel-body">
+            <label>서랍
+              <select id="cardCategory"></select>
+            </label>
+            <label>요약
+              <input id="cardSummary" type="text" placeholder="한 줄 요약" />
+            </label>
+            <label>시점 / 날짜
+              <input id="cardDate" type="text" placeholder="예: 1막, 과거, 1024년" />
+            </label>
+            <label>폴더
+              <select id="cardFolder"></select>
+            </label>
+            <label>태그
+              <input id="cardTags" type="text" placeholder="쉼표로 구분" />
+            </label>
+
+            <div class="image-box">
+              <div class="image-preview" id="imagePreview">이미지 없음</div>
+              <div class="mini-row">
+                <label class="file-btn">이미지 선택
+                  <input id="imageInput" type="file" accept="image/*" />
+                </label>
+                <button id="removeImageBtn" type="button">이미지 제거</button>
+              </div>
+            </div>
+
+            <label>연결된 설정</label>
+            <div class="link-picker" id="linkPicker"></div>
+          </div>
+        </aside>
       </section>
 
       <section class="timeline-view hidden" id="timelineView">
@@ -286,58 +325,6 @@
     </main>
   </div>
 
-  <div class="modal-bg" id="cardModal">
-    <section class="modal">
-      <header class="modal-head">
-        <div>
-          <h2 id="cardModalTitle">속성</h2>
-          <p>요약·시점·폴더·태그·이미지·연결을 설정합니다. 제목과 본문은 편집기에서 바로 씁니다.</p>
-        </div>
-        <div class="modal-actions top">
-          <button data-close="cardModal" type="button">닫기</button>
-          <button data-close="cardModal" type="button">취소</button>
-          <button class="primary" id="saveCardBtn" type="button">저장</button>
-        </div>
-      </header>
-
-      <div class="form">
-        <label>서랍
-          <select id="cardCategory"></select>
-        </label>
-        <label>제목
-          <input id="cardTitle" type="text" placeholder="예: 루스" />
-        </label>
-        <label>요약
-          <input id="cardSummary" type="text" placeholder="한 줄 요약" />
-        </label>
-        <label>시점 / 날짜
-          <input id="cardDate" type="text" placeholder="예: 1막, 과거, 1024년" />
-        </label>
-        <label>폴더
-          <select id="cardFolder"></select>
-        </label>
-        <label>태그
-          <input id="cardTags" type="text" placeholder="쉼표로 구분" />
-        </label>
-        <label>본문
-          <textarea id="cardBody" placeholder="설정 내용을 적어주세요."></textarea>
-        </label>
-
-        <div class="image-box">
-          <div class="image-preview" id="imagePreview">이미지 없음</div>
-          <div class="mini-row">
-            <label class="file-btn">이미지 선택
-              <input id="imageInput" type="file" accept="image/*" />
-            </label>
-            <button id="removeImageBtn" type="button">이미지 제거</button>
-          </div>
-        </div>
-
-        <label>연결된 설정</label>
-        <div class="link-picker" id="linkPicker"></div>
-      </div>
-    </section>
-  </div>
 
   <div class="modal-bg" id="folderModal">
     <section class="modal small">
