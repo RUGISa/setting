@@ -409,6 +409,8 @@ function renderNav() {
 function renderTitle() {
   $("pageTitle").textContent = categories[currentCategory];
   $("pageDesc").textContent = categoryDesc[currentCategory];
+  const tabLabel = $("pageTabLabel");
+  if (tabLabel) tabLabel.textContent = categories[currentCategory];
 }
 
 function renderMainMode() {
@@ -715,6 +717,53 @@ function saveCard() {
   render();
 }
 
+function inlineMarkdown(text) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+    .replace(/`(.+?)`/g, "<code>$1</code>")
+    .replace(/\[\[(.+?)\]\]/g, '<span class="wikilink">$1</span>')
+    .replace(/(^|\s)#([\w가-힣_-]+)/g, '$1<span class="md-tag">#$2</span>');
+}
+
+function renderMarkdownToHTML(markdown) {
+  if (!markdown) return "";
+  const lines = escapeHTML(markdown).split("\n");
+  let html = "";
+  let inList = false;
+  let inQuote = false;
+
+  const closeList = () => { if (inList) { html += "</ul>"; inList = false; } };
+  const closeQuote = () => { if (inQuote) { html += "</blockquote>"; inQuote = false; } };
+
+  lines.forEach((line) => {
+    const heading = line.match(/^(#{1,4})\s+(.*)$/);
+    const listItem = line.match(/^[-*]\s+(.*)$/);
+    const quote = line.match(/^&gt;\s?(.*)$/);
+
+    if (heading) {
+      closeList(); closeQuote();
+      const level = Math.min(heading[1].length + 1, 4);
+      html += `<h${level}>${inlineMarkdown(heading[2])}</h${level}>`;
+    } else if (listItem) {
+      closeQuote();
+      if (!inList) { html += "<ul>"; inList = true; }
+      html += `<li>${inlineMarkdown(listItem[1])}</li>`;
+    } else if (quote) {
+      closeList();
+      if (!inQuote) { html += "<blockquote>"; inQuote = true; }
+      html += `<p>${inlineMarkdown(quote[1])}</p>`;
+    } else if (line.trim() === "") {
+      closeList(); closeQuote();
+    } else {
+      closeList(); closeQuote();
+      html += `<p>${inlineMarkdown(line)}</p>`;
+    }
+  });
+  closeList(); closeQuote();
+  return html;
+}
+
 function openDetail(category, id) {
   const item = findItem(category, id);
   if (!item) return;
@@ -723,7 +772,13 @@ function openDetail(category, id) {
   $("detailMeta").textContent = `${categories[category]}${item.dateText ? " · " + item.dateText : ""}`;
   $("detailImage").innerHTML = item.image ? `<img src="${item.image}" alt="">` : "이미지 없음";
   $("detailSummary").textContent = item.summary || "";
-  $("detailBody").textContent = item.body || "내용 없음";
+  const tagsBox = $("detailTags");
+  if (tagsBox) {
+    tagsBox.innerHTML = (item.tags || [])
+      .map((tag) => `<span class="tag-pill">#${escapeHTML(tag)}</span>`)
+      .join("");
+  }
+  $("detailBody").innerHTML = item.body ? renderMarkdownToHTML(item.body) : "<p class=\"muted\">내용 없음</p>";
   $("pinCardBtn").textContent = item.pinned ? "고정 해제" : "고정";
   renderDetailLinks(item);
   openModal("detailModal");
@@ -2759,90 +2814,327 @@ function addMapPinFromBoard(event) {
 }
 
 
-function stateToMarkdown(source) {
-  const safe = JSON.parse(JSON.stringify(source));
-  const lines = [];
+function sanitizeFilename(name) {
+  return String(name || "").replace(/[\\/:*?"<>|]/g, "_").trim().slice(0, 120) || "제목 없음";
+}
 
-  lines.push("# 설정서랍");
-  lines.push("");
-  lines.push("> 설정서랍 Markdown 데이터 파일입니다.");
-  lines.push("");
-  lines.push("## 요약");
-  lines.push("");
-  lines.push(`- 생성일: ${new Date().toISOString()}`);
-  lines.push(`- 캐릭터: ${safe.characters?.length || 0}`);
-  lines.push(`- 지역: ${safe.places?.length || 0}`);
-  lines.push(`- 조직: ${safe.factions?.length || 0}`);
-  lines.push(`- 사건: ${safe.events?.length || 0}`);
-  lines.push(`- 아이템: ${safe.items?.length || 0}`);
-  lines.push(`- 능력: ${safe.abilities?.length || 0}`);
-  lines.push(`- 타임라인: ${safe.timeline?.length || 0}`);
-  lines.push(`- 관계도 카드: ${safe.relation?.nodes?.length || 0}`);
-  lines.push(`- 지도: ${safe.maps?.length || 0}`);
-  lines.push("");
-  lines.push("## 카드 목록");
-  lines.push("");
+function yamlScalar(value) {
+  const str = String(value ?? "");
+  if (str === "") return '""';
+  if (/^[A-Za-z0-9가-힣._-]+$/.test(str)) return str;
+  return `"${str.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, " ")}"`;
+}
 
-  ["characters", "places", "factions", "events", "items", "abilities"].forEach((category) => {
-    const title = categories?.[category] || category;
-    lines.push(`### ${title}`);
-    lines.push("");
+function yamlUnquote(raw) {
+  const trimmed = String(raw ?? "").trim();
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return trimmed.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+  }
+  return trimmed;
+}
 
-    (safe[category] || []).forEach((item) => {
-      lines.push(`- **${item.title || "제목 없음"}**`);
-      if (item.summary) lines.push(`  - ${String(item.summary).replace(/\n/g, " ")}`);
-    });
-
-    if (!(safe[category] || []).length) lines.push("- 없음");
-    lines.push("");
+function buildFrontmatter(fields) {
+  const lines = ["---"];
+  Object.entries(fields).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      if (!value.length) {
+        lines.push(`${key}: []`);
+        return;
+      }
+      lines.push(`${key}:`);
+      value.forEach((entry) => lines.push(`  - ${yamlScalar(entry)}`));
+    } else if (typeof value === "boolean") {
+      lines.push(`${key}: ${value}`);
+    } else {
+      lines.push(`${key}: ${yamlScalar(value)}`);
+    }
   });
-
-  lines.push("## 설정서랍 데이터");
-  lines.push("");
-  lines.push("```setting-drawer");
-  lines.push(JSON.stringify(safe, null, 2));
-  lines.push("```");
-  lines.push("");
-
+  lines.push("---");
   return lines.join("\n");
 }
 
-function markdownToState(text) {
-  const source = String(text || "");
-  const fenced = source.match(/```setting-drawer\s*([\s\S]*?)```/);
-  if (fenced) return JSON.parse(fenced[1]);
+function parseFrontmatter(text) {
+  const source = String(text || "").replace(/\r\n/g, "\n");
+  const match = source.match(/^---\n([\s\S]*?)\n---\n?/);
+  if (!match) return { data: {}, body: source };
 
-  const jsonBlock = source.match(/```json\s*([\s\S]*?)```/);
-  if (jsonBlock) return JSON.parse(jsonBlock[1]);
+  const data = {};
+  const rawLines = match[1].split("\n");
+  let currentKey = null;
 
-  return JSON.parse(source);
+  rawLines.forEach((line) => {
+    const listItem = line.match(/^\s*-\s+(.*)$/);
+    if (listItem && currentKey) {
+      if (!Array.isArray(data[currentKey])) data[currentKey] = [];
+      data[currentKey].push(yamlUnquote(listItem[1]));
+      return;
+    }
+    const kv = line.match(/^([A-Za-z0-9_]+):\s*(.*)$/);
+    if (!kv) return;
+    const key = kv[1];
+    const rawValue = kv[2].trim();
+    currentKey = key;
+    if (rawValue === "") {
+      data[key] = [];
+    } else if (rawValue === "[]") {
+      data[key] = [];
+      currentKey = null;
+    } else if (rawValue.startsWith("[") && rawValue.endsWith("]")) {
+      data[key] = rawValue.slice(1, -1).split(",").map((part) => yamlUnquote(part.trim())).filter(Boolean);
+      currentKey = null;
+    } else if (rawValue === "true" || rawValue === "false") {
+      data[key] = rawValue === "true";
+      currentKey = null;
+    } else {
+      data[key] = yamlUnquote(rawValue);
+      currentKey = null;
+    }
+  });
+
+  return { data, body: source.slice(match[0].length).replace(/^\n+/, "") };
 }
 
-function exportData() {
-  const markdown = stateToMarkdown(state);
-  const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+function cardToMarkdown(category, item) {
+  const folderName = item.folderId
+    ? (state.folders[category]?.find((folder) => folder.id === item.folderId)?.name || "")
+    : "";
+  const links = normalizeLinks(item.links || []);
+  const linkRefs = links
+    .map((link) => {
+      const target = findItem(link.category, link.id);
+      return target ? `${link.category}:${target.title}` : null;
+    })
+    .filter(Boolean);
+
+  const frontmatter = buildFrontmatter({
+    title: item.title || "제목 없음",
+    category,
+    folder: folderName,
+    tags: item.tags || [],
+    date: item.dateText || "",
+    pinned: !!item.pinned,
+    links: linkRefs,
+    ...(item.image ? { image: item.image } : {})
+  });
+
+  const parts = [frontmatter, "", `# ${item.title || "제목 없음"}`, ""];
+  if (item.summary) {
+    parts.push(`> ${item.summary}`, "");
+  }
+  if (item.body) {
+    parts.push(item.body, "");
+  }
+  if (links.length) {
+    parts.push("## 연결된 설정", "");
+    links.forEach((link) => {
+      const target = findItem(link.category, link.id);
+      if (target) parts.push(`- [[${target.title}]] · ${categories[link.category] || link.category}`);
+    });
+    parts.push("");
+  }
+
+  return parts.join("\n");
+}
+
+function markdownFileToCard(text, fallbackTitle) {
+  const { data, body } = parseFrontmatter(text);
+  let cleanBody = body;
+
+  const headingMatch = cleanBody.match(/^#\s+.+\n+/);
+  if (headingMatch) cleanBody = cleanBody.slice(headingMatch[0].length);
+
+  let summary = typeof data.summary === "string" ? data.summary : "";
+  const quoteMatch = cleanBody.match(/^>\s?(.+)\n+/);
+  if (quoteMatch && !summary) {
+    summary = quoteMatch[1].trim();
+    cleanBody = cleanBody.slice(quoteMatch[0].length);
+  }
+
+  cleanBody = cleanBody.replace(/\n?##\s*연결된 설정[\s\S]*$/, "").trim();
+
+  const tags = Array.isArray(data.tags) ? data.tags : (data.tags ? [data.tags] : []);
+  const linkRefs = Array.isArray(data.links) ? data.links : (data.links ? [data.links] : []);
+
+  return {
+    category: dataCategories.includes(data.category) ? data.category : null,
+    title: (typeof data.title === "string" && data.title.trim()) || fallbackTitle || "제목 없음",
+    summary,
+    body: cleanBody,
+    dateText: typeof data.date === "string" ? data.date : "",
+    folderName: typeof data.folder === "string" ? data.folder : "",
+    tags,
+    pinned: data.pinned === true,
+    linkRefs,
+    image: typeof data.image === "string" ? data.image : ""
+  };
+}
+
+function applyImportedCard(parsed, defaultCategory) {
+  const category = parsed.category || defaultCategory;
+  if (!dataCategories.includes(category)) return null;
+
+  let folderId = "";
+  if (parsed.folderName) {
+    let folder = state.folders[category].find((item) => item.name === parsed.folderName);
+    if (!folder) {
+      folder = { id: uid(), name: parsed.folderName };
+      state.folders[category].push(folder);
+    }
+    folderId = folder.id;
+  }
+
+  const id = uid();
+  state[category].push({
+    id,
+    title: parsed.title,
+    summary: parsed.summary,
+    body: parsed.body,
+    dateText: parsed.dateText,
+    folderId,
+    tags: parsed.tags.length ? parsed.tags : ["미분류"],
+    links: [],
+    image: parsed.image || "",
+    pinned: parsed.pinned,
+    order: state[category].length,
+    createdAt: now(),
+    updatedAt: now()
+  });
+
+  return { category, id, linkRefs: parsed.linkRefs };
+}
+
+function resolveImportedLinks(created) {
+  created.forEach(({ category, id, linkRefs }) => {
+    if (!linkRefs?.length) return;
+    const links = [];
+    linkRefs.forEach((ref) => {
+      const raw = String(ref);
+      const sepIndex = raw.indexOf(":");
+      if (sepIndex < 0) return;
+      const cat = raw.slice(0, sepIndex);
+      const title = raw.slice(sepIndex + 1);
+      if (!dataCategories.includes(cat)) return;
+      const target = state[cat].find((entry) => entry.title === title);
+      if (target) links.push({ category: cat, id: target.id });
+    });
+    if (links.length) {
+      const item = findItem(category, id);
+      if (item) item.links = syncLinks(category, id, links, []);
+    }
+  });
+}
+
+async function exportData() {
+  if (typeof JSZip === "undefined") {
+    showToast("내보내기에는 인터넷 연결이 필요합니다.");
+    return;
+  }
+
+  const zip = new JSZip();
+  let count = 0;
+
+  dataCategories.forEach((category) => {
+    const folder = zip.folder(categories[category] || category);
+    state[category].forEach((item) => {
+      folder.file(`${sanitizeFilename(item.title)}.md`, cardToMarkdown(category, item));
+      count += 1;
+    });
+  });
+
+  if (!count) {
+    showToast("내보낼 설정이 없습니다.");
+    return;
+  }
+
+  const blob = await zip.generateAsync({ type: "blob" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "setting-drawer.md";
+  a.download = "설정서랍-vault.zip";
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast(`.md 파일 ${count}개를 내보냈습니다.`);
+}
+
+function exportSingleCard() {
+  if (!detailTarget) return;
+  const { category, id } = detailTarget;
+  const item = findItem(category, id);
+  if (!item) return;
+
+  const blob = new Blob([cardToMarkdown(category, item)], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${sanitizeFilename(item.title)}.md`;
   a.click();
   URL.revokeObjectURL(url);
 }
 
-function importData(file) {
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      state = normalizeState(markdownToState(reader.result));
+// 예전 버전(state 전체를 JSON으로 감싼 단일 md)으로 내보낸 백업 파일도 계속 불러올 수 있도록 남겨둡니다.
+function legacyMarkdownToState(text) {
+  const fenced = String(text || "").match(/```setting-drawer\s*([\s\S]*?)```/);
+  return fenced ? JSON.parse(fenced[1]) : null;
+}
+
+async function importData(fileList) {
+  const files = Array.from(fileList || []);
+  if (!files.length) return;
+
+  const mdFiles = [];
+
+  for (const file of files) {
+    if (/\.zip$/i.test(file.name)) {
+      if (typeof JSZip === "undefined") {
+        showToast("ZIP을 가져오려면 인터넷 연결이 필요합니다.");
+        continue;
+      }
+      try {
+        const zip = await JSZip.loadAsync(await file.arrayBuffer());
+        const entries = Object.values(zip.files).filter((entry) => !entry.dir && /\.(md|markdown)$/i.test(entry.name));
+        for (const entry of entries) {
+          mdFiles.push({ name: entry.name.split("/").pop(), text: await entry.async("string") });
+        }
+      } catch {
+        showToast(`${file.name}을(를) 열 수 없습니다.`);
+      }
+    } else if (/\.(md|markdown)$/i.test(file.name)) {
+      mdFiles.push({ name: file.name, text: await file.text() });
+    }
+  }
+
+  if (!mdFiles.length) {
+    showToast("가져올 .md 파일이 없습니다.");
+    return;
+  }
+
+  // 예전 전체 백업 형식(md 하나에 JSON 전체)인지 먼저 확인합니다.
+  if (mdFiles.length === 1) {
+    const legacy = legacyMarkdownToState(mdFiles[0].text);
+    if (legacy) {
+      state = normalizeState(legacy);
       saveState();
       currentCategory = "all";
       render();
-      showToast("가져왔습니다.");
-    } catch {
-      showToast("파일을 읽을 수 없습니다.");
+      showToast("이전 형식 백업을 가져왔습니다.");
+      return;
     }
-  };
-  reader.readAsText(file);
+  }
+
+  const defaultCategory = dataCategories.includes(currentCategory) ? currentCategory : "characters";
+  const created = [];
+
+  mdFiles.forEach(({ name, text }) => {
+    const parsed = markdownFileToCard(text, name.replace(/\.(md|markdown)$/i, ""));
+    const result = applyImportedCard(parsed, defaultCategory);
+    if (result) created.push(result);
+  });
+
+  resolveImportedLinks(created);
+  saveState();
+  currentCategory = "all";
+  render();
+  showToast(`노트 ${created.length}개를 가져왔습니다.`);
 }
 
 function initEvents() {
@@ -2867,9 +3159,32 @@ function initEvents() {
   $("exportBtn").addEventListener("click", exportData);
   $("importBtn").addEventListener("click", () => $("importFile").click());
   $("importFile").addEventListener("change", (event) => {
-    const file = event.target.files[0];
-    if (file) importData(file);
+    const files = event.target.files;
+    if (files && files.length) importData(files);
     event.target.value = "";
+  });
+  on("exportCardBtn", "click", exportSingleCard);
+
+  on("pageTabAdd", "click", () => openCardModal());
+  on("pageTabClose", "click", () => {
+    currentCategory = "all";
+    currentFolderId = "";
+    currentTag = "";
+    render();
+  });
+  on("quickSearchBtn", "click", () => {
+    if (!dataCategories.includes(currentCategory)) {
+      currentCategory = "all";
+      render();
+    }
+    $("searchInput")?.focus();
+  });
+  on("quickTagBtn", "click", () => {
+    if (!dataCategories.includes(currentCategory) && currentCategory !== "all") {
+      currentCategory = "all";
+      render();
+    }
+    $("tagRow")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   });
 
   $("searchInput").addEventListener("input", render);
