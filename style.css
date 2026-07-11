@@ -3284,13 +3284,26 @@ input:focus, select:focus, textarea:focus { outline: none !important; border-col
   line-height: 1.75;
   overflow: auto;
 }
+.editor-preview > *:first-child { margin-top: 0 !important; }
 .editor-preview h1, .editor-preview h2, .editor-preview h3, .editor-preview h4 {
-  color: var(--ob-text-strong); font-weight: 800; margin: 20px 0 8px;
+  color: var(--ob-text-strong);
+  font-weight: 800;
+  line-height: 1.75;
+  margin: 18px 0 4px;
 }
+.editor-preview h2 { font-size: 1.3em; }
+.editor-preview h3 { font-size: 1.15em; }
+.editor-preview h4 { font-size: 1.05em; }
+.editor-preview p { margin: 0 0 10px; line-height: 1.75; }
+.editor-preview p:last-child { margin-bottom: 0; }
+.editor-preview ul { margin: 0 0 10px; padding-left: 22px; }
+.editor-preview li { margin: 0; line-height: 1.75; }
 .editor-preview blockquote {
-  margin: 12px 0; padding: 4px 0 4px 16px;
+  margin: 10px 0; padding: 4px 0 4px 16px;
   border-left: 3px solid var(--ob-accent); color: var(--ob-muted);
+  line-height: 1.75;
 }
+.editor-preview blockquote p { margin: 0; }
 .editor-preview code {
   background: var(--ob-bg-elevated); border: 1px solid var(--ob-line);
   border-radius: 4px; padding: 1px 6px; font-family: var(--ob-mono); font-size: .9em;

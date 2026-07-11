@@ -28,6 +28,41 @@ const categoryDesc = {
 
 const dataCategories = ["characters", "places", "factions", "events", "items", "abilities"];
 
+const categoryDateFields = {
+  characters: [
+    { key: "birthDate", label: "탄생일" },
+    { key: "deathDate", label: "사망일" },
+    { key: "age", label: "나이" }
+  ],
+  places: [
+    { key: "foundedDate", label: "설립일" },
+    { key: "dissolvedDate", label: "해산일" }
+  ],
+  factions: [
+    { key: "foundedDate", label: "설립일" },
+    { key: "dissolvedDate", label: "해산일" }
+  ],
+  events: [
+    { key: "occurredDate", label: "발생일" }
+  ],
+  items: [
+    { key: "dateText", label: "시점 / 날짜" }
+  ],
+  abilities: [
+    { key: "dateText", label: "시점 / 날짜" }
+  ]
+};
+
+function getCategoryDateFields(category) {
+  return categoryDateFields[category] || categoryDateFields.items;
+}
+
+function allDateFieldKeys() {
+  const keys = new Set();
+  Object.values(categoryDateFields).forEach((fields) => fields.forEach((field) => keys.add(field.key)));
+  return Array.from(keys);
+}
+
 const emptyFolders = {
   characters: [],
   places: [],
@@ -355,8 +390,11 @@ function getVisibleItems() {
     items = items.filter((item) => currentFolderId === "__none" ? !item.folderId : item.folderId === currentFolderId);
   }
   if (keyword) {
-    items = items.filter((item) => [item.title, item.summary, item.body, item.dateText, item.tags.join(" ")]
-      .join(" ").toLowerCase().includes(keyword));
+    items = items.filter((item) => {
+      const dateValues = allDateFieldKeys().map((key) => item[key]);
+      return [item.title, item.summary, item.body, ...dateValues, item.tags.join(" ")]
+        .join(" ").toLowerCase().includes(keyword);
+    });
   }
   if (currentTag) {
     items = items.filter((item) => item.tags.includes(currentTag));
@@ -448,12 +486,14 @@ function insertInlineInput(parentEl, iconHTML, placeholder, onSubmit) {
 function createFileIn(category, folderId) {
   const cleanTitle = "제목 없음";
   const id = uid();
+  const dateFields = {};
+  allDateFieldKeys().forEach((key) => { dateFields[key] = ""; });
   state[category].push({
     id,
     title: cleanTitle,
     summary: "",
     body: "",
-    dateText: "",
+    ...dateFields,
     folderId: folderId || "",
     tags: ["미분류"],
     links: [],
@@ -936,6 +976,25 @@ function fillFolderSelect(category, selected = "") {
   });
 }
 
+function renderCardDateFields(category, item) {
+  const box = $("cardDateFields");
+  if (!box) return;
+  box.innerHTML = getCategoryDateFields(category).map((field) => `
+    <label>${escapeHTML(field.label)}
+      <input type="text" data-date-key="${field.key}" value="${escapeHTML(item?.[field.key] || "")}" />
+    </label>
+  `).join("");
+}
+
+function readCardDateFields(category) {
+  const result = {};
+  getCategoryDateFields(category).forEach((field) => {
+    const input = document.querySelector(`#cardDateFields [data-date-key="${field.key}"]`);
+    result[field.key] = input ? input.value.trim() : "";
+  });
+  return result;
+}
+
 function openCardModal(category = null, id = null) {
   editingCard = category && id ? { category, id } : null;
   const item = editingCard ? findItem(category, id) : null;
@@ -946,7 +1005,7 @@ function openCardModal(category = null, id = null) {
   fillFolderSelect(targetCategory, item?.folderId || "");
 
   $("cardSummary").value = item?.summary || "";
-  $("cardDate").value = item?.dateText || "";
+  renderCardDateFields(targetCategory, item);
   $("cardTags").value = (item?.tags || []).join(", ");
   formImage = item?.image || "";
   selectedLinks = normalizeLinks(item?.links || []);
@@ -1017,7 +1076,7 @@ function saveCard() {
     if (!item) return;
     const data = {
       summary: $("cardSummary").value.trim(),
-      dateText: $("cardDate").value.trim(),
+      ...readCardDateFields(editingCard.category),
       folderId: $("cardFolder").value,
       tags: $("cardTags").value.split(",").map((tag) => tag.trim()).filter(Boolean),
       links: readLinks(),
@@ -1037,7 +1096,7 @@ function saveCard() {
       title: "제목 없음",
       summary: $("cardSummary").value.trim(),
       body: "",
-      dateText: $("cardDate").value.trim(),
+      ...readCardDateFields(category),
       folderId: $("cardFolder").value,
       tags: $("cardTags").value.split(",").map((tag) => tag.trim()).filter(Boolean),
       links: readLinks(),
@@ -1147,9 +1206,13 @@ function renderEditor() {
 
   const metaBox = $("editorMeta");
   if (metaBox) {
+    const datePills = getCategoryDateFields(detailTarget.category)
+      .filter((field) => item[field.key])
+      .map((field) => `<span class="editor-meta-pill">${escapeHTML(field.label)} ${escapeHTML(item[field.key])}</span>`)
+      .join("");
     metaBox.innerHTML = `
       <span class="editor-meta-pill">${escapeHTML(categories[detailTarget.category] || detailTarget.category)}</span>
-      ${item.dateText ? `<span class="editor-meta-pill">${escapeHTML(item.dateText)}</span>` : ""}
+      ${datePills}
       ${(item.tags || []).map((tag) => `<span class="tag-pill">#${escapeHTML(tag)}</span>`).join("")}
     `;
   }
@@ -1593,7 +1656,7 @@ function importTimelineEvents() {
 
   const base = ordinalToYMD(timelineCenter || 0);
   candidates.forEach((event, index) => {
-    const parsedYear = event.dateText ? parseInt(event.dateText, 10) : NaN;
+    const parsedYear = event.occurredDate ? parseInt(event.occurredDate, 10) : NaN;
     state.timeline.push({
       id: uid(),
       sourceCategory: "events",
@@ -3486,12 +3549,17 @@ function cardToMarkdown(category, item) {
     })
     .filter(Boolean);
 
+  const dateFrontmatter = {};
+  getCategoryDateFields(category).forEach((field) => {
+    if (item[field.key]) dateFrontmatter[field.key] = item[field.key];
+  });
+
   const frontmatter = buildFrontmatter({
     title: item.title || "제목 없음",
     category,
     folder: folderName,
     tags: item.tags || [],
-    date: item.dateText || "",
+    ...dateFrontmatter,
     pinned: !!item.pinned,
     links: linkRefs,
     ...(item.image ? { image: item.image } : {})
@@ -3535,12 +3603,19 @@ function markdownFileToCard(text, fallbackTitle) {
   const tags = Array.isArray(data.tags) ? data.tags : (data.tags ? [data.tags] : []);
   const linkRefs = Array.isArray(data.links) ? data.links : (data.links ? [data.links] : []);
 
+  const dateFields = {};
+  allDateFieldKeys().forEach((key) => {
+    if (typeof data[key] === "string") dateFields[key] = data[key];
+  });
+  // 예전 백업 파일의 date 필드는 items/abilities의 dateText로 취급합니다.
+  if (typeof data.date === "string" && !dateFields.dateText) dateFields.dateText = data.date;
+
   return {
     category: dataCategories.includes(data.category) ? data.category : null,
     title: (typeof data.title === "string" && data.title.trim()) || fallbackTitle || "제목 없음",
     summary,
     body: cleanBody,
-    dateText: typeof data.date === "string" ? data.date : "",
+    dateFields,
     folderName: typeof data.folder === "string" ? data.folder : "",
     tags,
     pinned: data.pinned === true,
@@ -3569,7 +3644,7 @@ function applyImportedCard(parsed, defaultCategory) {
     title: parsed.title,
     summary: parsed.summary,
     body: parsed.body,
-    dateText: parsed.dateText,
+    ...parsed.dateFields,
     folderId,
     tags: parsed.tags.length ? parsed.tags : ["미분류"],
     links: [],
@@ -3782,12 +3857,15 @@ function initEvents() {
     fillFolderSelect($("cardCategory").value, "");
     selectedLinks = readLinks();
     renderLinkPicker($("cardCategory").value, editingCard?.id || null);
+    renderCardDateFields($("cardCategory").value, editingCard ? findItem(editingCard.category, editingCard.id) : null);
     if (!editingCard) return; // 새 카드 생성 흐름에서는 저장하지 않고 폼만 갱신
     saveCard();
   });
   on("closePropsBtn", "click", closePropsPanel);
   $("cardSummary").addEventListener("blur", saveCard);
-  $("cardDate").addEventListener("blur", saveCard);
+  $("cardDateFields").addEventListener("focusout", (event) => {
+    if (event.target.matches("input")) saveCard();
+  });
   $("cardTags").addEventListener("blur", saveCard);
   $("cardFolder").addEventListener("change", saveCard);
   $("linkPicker").addEventListener("change", (event) => {
