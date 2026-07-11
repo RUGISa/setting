@@ -2573,6 +2573,7 @@ button.primary,
   --ob-muted: #8d8b96;
   --ob-accent: #ac7f5e;
   --ob-accent-strong: #c39875;
+  --ob-accent-press: #8f6849;
   --ob-accent-soft: rgba(172, 127, 94, .18);
   --ob-accent-text: #e0b791;
   --ob-danger: #e0707d;
@@ -3398,3 +3399,21 @@ button.active,
   color: #ffffff !important;
   border-color: var(--ob-accent) !important;
 }
+
+
+/* =========================================================================
+   호버 대비 보정 (밝은 hover로 텍스트가 안 보이던 문제)
+   ========================================================================= */
+button.primary:hover, .primary:hover, .tab-add:hover, .rail-btn#railWriteBtn:hover {
+  background: var(--ob-accent-press) !important;
+  color: #ffffff !important;
+}
+.tl-add-btn:hover { background: var(--ob-accent-press) !important; }
+
+/* ---------- 옵시디언 스타일 읽기/편집 전환 (읽을 땐 렌더링, 클릭하면 편집) ---------- */
+.editor-preview { cursor: text; }
+.editor-preview:empty::after,
+.editor-preview .editor-empty-hint {
+  content: "";
+}
+.editor-empty-hint { color: var(--ob-muted); }

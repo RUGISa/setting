@@ -62,6 +62,7 @@ let expandedCategories = new Set();
 let expandedFolders = new Set();
 let editingCard = null;
 let detailTarget = null;
+let editorMode = "preview";
 let editingFolder = null;
 let formImage = "";
 let selectedLinks = [];
@@ -460,7 +461,7 @@ function createFileIn(category, folderId) {
   expandedCategories.add(category);
   if (folderId) expandedFolders.add(folderId);
   render();
-  openDetail(category, id);
+  openDetail(category, id, "edit");
   requestAnimationFrame(() => {
     const titleInput = $("editorTitleInput");
     if (titleInput) { titleInput.select(); titleInput.focus(); }
@@ -1087,11 +1088,12 @@ function renderMarkdownToHTML(markdown) {
   return html;
 }
 
-function openDetail(category, id) {
+function openDetail(category, id, mode = "preview") {
   const item = findItem(category, id);
   if (!item) return;
   detailTarget = { category, id };
   currentCategory = category;
+  editorMode = mode;
   renderSidebar();
   renderEditor();
 }
@@ -1129,11 +1131,20 @@ function renderEditor() {
   }
 
   const textarea = $("editorTextarea");
+  const preview = $("editorPreview");
+  const toggleBtn = $("editorPreviewToggle");
+
   if (textarea && document.activeElement !== textarea) textarea.value = item.body || "";
 
-  const preview = $("editorPreview");
-  if (preview && !preview.classList.contains("hidden")) {
-    preview.innerHTML = item.body ? renderMarkdownToHTML(item.body) : "<p class=\"muted\">내용 없음</p>";
+  const isEditing = editorMode === "edit";
+  if (textarea) textarea.classList.toggle("hidden", !isEditing);
+  if (preview) preview.classList.toggle("hidden", isEditing);
+  if (toggleBtn) toggleBtn.textContent = isEditing ? "완료" : "편집";
+
+  if (preview && !isEditing) {
+    preview.innerHTML = item.body
+      ? renderMarkdownToHTML(item.body)
+      : "<p class=\"editor-empty-hint\">내용이 없습니다. 클릭해서 마크다운으로 작성하세요.</p>";
   }
 
   const pinBtn = $("editorPinBtn");
@@ -3599,44 +3610,68 @@ function initEvents() {
     saveState();
   }, 350);
 
+  function flushEditorEdits() {
+    if (!detailTarget) return;
+    const item = findItem(detailTarget.category, detailTarget.id);
+    if (!item) return;
+    const titleVal = $("editorTitleInput")?.value;
+    const bodyVal = $("editorTextarea")?.value;
+    if (typeof titleVal === "string") item.title = titleVal.trim() || "제목 없음";
+    if (typeof bodyVal === "string") item.body = bodyVal;
+    item.updatedAt = now();
+    saveState();
+  }
+
   on("editorTitleInput", "input", (event) => saveEditorTitle(event.target.value));
   on("editorTextarea", "input", (event) => saveEditorBody(event.target.value));
 
+  on("editorTextarea", "blur", (event) => {
+    if (event.relatedTarget && event.relatedTarget.id === "editorPreviewToggle") return;
+    flushEditorEdits();
+    editorMode = "preview";
+    renderSidebar();
+    renderEditor();
+  });
+
+  on("editorPreview", "click", () => {
+    if (!detailTarget) return;
+    editorMode = "edit";
+    renderEditor();
+    const textarea = $("editorTextarea");
+    if (textarea) {
+      textarea.focus();
+      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    }
+  });
+
   on("editorPreviewToggle", "click", () => {
     if (!detailTarget) return;
-    const item = findItem(detailTarget.category, detailTarget.id);
-    const textarea = $("editorTextarea");
-    const preview = $("editorPreview");
-    const showingPreview = !preview.classList.contains("hidden");
-    if (showingPreview) {
-      preview.classList.add("hidden");
-      textarea.classList.remove("hidden");
-      $("editorPreviewToggle").textContent = "미리보기";
+    if (editorMode === "edit") {
+      flushEditorEdits();
+      editorMode = "preview";
+      renderSidebar();
     } else {
-      preview.innerHTML = item?.body ? renderMarkdownToHTML(item.body) : "<p class=\"muted\">내용 없음</p>";
-      preview.classList.remove("hidden");
-      textarea.classList.add("hidden");
-      $("editorPreviewToggle").textContent = "편집";
+      editorMode = "edit";
     }
+    renderEditor();
+    if (editorMode === "edit") $("editorTextarea")?.focus();
   });
 
   on("editorPropsBtn", "click", () => {
     if (!detailTarget) return;
-    const item = findItem(detailTarget.category, detailTarget.id);
-    if (item) {
-      const titleVal = $("editorTitleInput")?.value;
-      const bodyVal = $("editorTextarea")?.value;
-      if (typeof titleVal === "string") item.title = titleVal.trim() || "제목 없음";
-      if (typeof bodyVal === "string") item.body = bodyVal;
-    }
+    flushEditorEdits();
     openCardModal(detailTarget.category, detailTarget.id);
   });
   on("editorPinBtn", "click", () => {
     if (!detailTarget) return;
+    flushEditorEdits();
     togglePin(detailTarget.category, detailTarget.id);
-    openDetail(detailTarget.category, detailTarget.id);
+    openDetail(detailTarget.category, detailTarget.id, editorMode);
   });
-  on("editorExportBtn", "click", exportSingleCard);
+  on("editorExportBtn", "click", () => {
+    flushEditorEdits();
+    exportSingleCard();
+  });
   on("editorDeleteBtn", "click", () => {
     if (!detailTarget) return;
     deleteCard(detailTarget.category, detailTarget.id);
