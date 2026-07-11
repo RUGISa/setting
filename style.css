@@ -3285,21 +3285,21 @@ input:focus, select:focus, textarea:focus { outline: none !important; border-col
   overflow: auto;
 }
 .editor-preview > *:first-child { margin-top: 0 !important; }
+.editor-preview > *:last-child { margin-bottom: 0 !important; }
 .editor-preview h1, .editor-preview h2, .editor-preview h3, .editor-preview h4 {
   color: var(--ob-text-strong);
   font-weight: 800;
   line-height: 1.75;
-  margin: 18px 0 4px;
+  margin: 0 0 1.75em;
 }
 .editor-preview h2 { font-size: 1.3em; }
 .editor-preview h3 { font-size: 1.15em; }
 .editor-preview h4 { font-size: 1.05em; }
-.editor-preview p { margin: 0 0 10px; line-height: 1.75; }
-.editor-preview p:last-child { margin-bottom: 0; }
-.editor-preview ul { margin: 0 0 10px; padding-left: 22px; }
+.editor-preview p { margin: 0 0 1.75em; line-height: 1.75; }
+.editor-preview ul { margin: 0 0 1.75em; padding-left: 22px; }
 .editor-preview li { margin: 0; line-height: 1.75; }
 .editor-preview blockquote {
-  margin: 10px 0; padding: 4px 0 4px 16px;
+  margin: 0 0 1.75em; padding: 4px 0 4px 16px;
   border-left: 3px solid var(--ob-accent); color: var(--ob-muted);
   line-height: 1.75;
 }
@@ -3581,4 +3581,18 @@ select:hover, select:focus {
   width: 100%;
   min-width: 0;
   text-align: center;
+}
+
+
+/* =========================================================================
+   타임라인 드래그 중 텍스트 선택 방지
+   ========================================================================= */
+.tl-board, .tl-board * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+body.tl-no-select, body.tl-no-select * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  cursor: grabbing !important;
 }

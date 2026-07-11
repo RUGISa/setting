@@ -108,6 +108,7 @@ let selectedEraId = null;
 let editingEraId = null;
 let isTimelineDragging = false;
 let timelineDragStart = null;
+let timelineDragFrame = null;
 let selectedNodeId = null;
 let selectedEdgeId = null;
 let connectNodes = [];
@@ -1137,7 +1138,14 @@ function renderMarkdownToHTML(markdown) {
   let html = "";
   let inList = false;
   let inQuote = false;
+  let paragraphLines = [];
 
+  const flushParagraph = () => {
+    if (paragraphLines.length) {
+      html += `<p>${paragraphLines.map(inlineMarkdown).join("<br>")}</p>`;
+      paragraphLines = [];
+    }
+  };
   const closeList = () => { if (inList) { html += "</ul>"; inList = false; } };
   const closeQuote = () => { if (inQuote) { html += "</blockquote>"; inQuote = false; } };
 
@@ -1147,25 +1155,25 @@ function renderMarkdownToHTML(markdown) {
     const quote = line.match(/^&gt;\s?(.*)$/);
 
     if (heading) {
-      closeList(); closeQuote();
+      flushParagraph(); closeList(); closeQuote();
       const level = Math.min(heading[1].length + 1, 4);
       html += `<h${level}>${inlineMarkdown(heading[2])}</h${level}>`;
     } else if (listItem) {
-      closeQuote();
+      flushParagraph(); closeQuote();
       if (!inList) { html += "<ul>"; inList = true; }
       html += `<li>${inlineMarkdown(listItem[1])}</li>`;
     } else if (quote) {
-      closeList();
+      flushParagraph(); closeList();
       if (!inQuote) { html += "<blockquote>"; inQuote = true; }
       html += `<p>${inlineMarkdown(quote[1])}</p>`;
     } else if (line.trim() === "") {
-      closeList(); closeQuote();
+      flushParagraph(); closeList(); closeQuote();
     } else {
       closeList(); closeQuote();
-      html += `<p>${inlineMarkdown(line)}</p>`;
+      paragraphLines.push(line);
     }
   });
-  closeList(); closeQuote();
+  flushParagraph(); closeList(); closeQuote();
   return html;
 }
 
@@ -1357,9 +1365,9 @@ function timelinePointOrdinal(point) {
   return ymdToOrdinal(point.year, point.month, point.day);
 }
 
-function timelineRangeDays() {
+function timelineRangeDays(zoom = timelineZoom) {
   const baseRange = 4 * 372; // 100% 배율에서 대략 4년치가 보이도록
-  return baseRange / timelineZoom;
+  return baseRange / zoom;
 }
 
 function timelineBounds() {
@@ -1416,13 +1424,39 @@ function renderTimeline() {
 
   const { start, range } = timelineBounds();
   const query = timelineSearchQuery.trim().toLowerCase();
+  const boardWidthPx = board.clientWidth || 900;
 
   const laneInfo = assignEraLanes(state.timelineEras || []);
   const laneCount = laneInfo.length ? Math.max(...laneInfo.map((entry) => entry.lane)) + 1 : 0;
   const eraAreaHeight = laneCount ? laneCount * 26 + 8 : 0;
   const axisHeight = 40;
   const lineTop = eraAreaHeight + axisHeight + 90;
-  const boardHeight = lineTop + 170;
+
+  const visiblePoints = state.timeline
+    .map((point) => ({ point, ordinal: timelinePointOrdinal(point) ?? 0 }))
+    .filter(({ point }) => {
+      if (!query) return true;
+      return point.title.toLowerCase().includes(query) || (point.desc || "").toLowerCase().includes(query);
+    })
+    .sort((a, b) => a.ordinal - b.ordinal)
+    .map((entry) => ({ ...entry, xPx: ((entry.ordinal - start) / range) * boardWidthPx }));
+
+  // 카드끼리 겹치지 않도록 겹치는 시점끼리는 아래로 줄을 나눠 쌓습니다.
+  const cardWidthPx = 210;
+  const cardLaneEnds = [];
+  visiblePoints.forEach((entry) => {
+    let lane = cardLaneEnds.findIndex((rightEdge) => rightEdge < entry.xPx);
+    if (lane === -1) {
+      lane = cardLaneEnds.length;
+      cardLaneEnds.push(entry.xPx + cardWidthPx);
+    } else {
+      cardLaneEnds[lane] = entry.xPx + cardWidthPx;
+    }
+    entry.cardLane = lane;
+  });
+  const cardLaneCount = cardLaneEnds.length || 1;
+  const cardLaneStep = 92;
+  const boardHeight = lineTop + 50 + cardLaneCount * cardLaneStep + 30;
 
   board.style.height = `${boardHeight}px`;
   eraLayer.style.height = `${eraAreaHeight}px`;
@@ -1474,19 +1508,12 @@ function renderTimeline() {
     axis.appendChild(label);
   }
 
-  const visiblePoints = state.timeline
-    .map((point) => ({ point, ordinal: timelinePointOrdinal(point) ?? 0 }))
-    .filter(({ point }) => {
-      if (!query) return true;
-      return point.title.toLowerCase().includes(query) || (point.desc || "").toLowerCase().includes(query);
-    })
-    .sort((a, b) => a.ordinal - b.ordinal);
-
-  visiblePoints.forEach(({ point, ordinal }, index) => {
+  visiblePoints.forEach(({ point, ordinal, cardLane }) => {
     const ratio = (ordinal - start) / range;
     if (ratio < -0.03 || ratio > 1.03) return;
     const x = Math.min(100, Math.max(0, ratio * 100));
     const selected = selectedTimelineId === point.id;
+    const cardTop = lineTop + 50 + cardLane * cardLaneStep;
 
     const dot = document.createElement("div");
     dot.className = `tl-dot ${selected ? "selected" : ""}`;
@@ -1504,13 +1531,13 @@ function renderTimeline() {
     stem.className = `tl-stem ${selected ? "selected" : ""}`;
     stem.style.left = `${x}%`;
     stem.style.top = `${lineTop}px`;
-    stem.style.height = "50px";
+    stem.style.height = `${cardTop - lineTop}px`;
     eventsLayer.appendChild(stem);
 
     const card = document.createElement("div");
-    card.className = `tl-card ${selected ? "selected" : ""} ${index % 2 ? "row-b" : "row-a"}`;
+    card.className = `tl-card ${selected ? "selected" : ""}`;
     card.style.left = `${x}%`;
-    card.style.top = `${lineTop + 50}px`;
+    card.style.top = `${cardTop}px`;
     card.innerHTML = `
       <strong>${escapeHTML(point.title)}</strong>
       <small>${escapeHTML(formatTimelineFull(point))}</small>
@@ -1674,10 +1701,30 @@ function importTimelineEvents() {
   showToast("사건 카드를 타임라인에 불러왔습니다.");
 }
 
-function zoomTimeline(delta) {
+function zoomTimeline(delta, clientX = null) {
+  const board = $("timelineBoard");
+  const oldZoom = timelineZoom;
   const nextZoom = Math.max(0.4, Math.min(8, Math.round((timelineZoom + delta) * 10) / 10));
-  if (nextZoom === timelineZoom) return;
+  if (nextZoom === oldZoom) return;
+
+  if (!board || clientX === null) {
+    timelineZoom = nextZoom;
+    renderTimeline();
+    return;
+  }
+
+  const rect = board.getBoundingClientRect();
+  const cursorRatio = rect.width ? (clientX - rect.left) / rect.width : 0.5;
+
+  const oldRange = timelineRangeDays(oldZoom);
+  const oldStart = (timelineCenter || 0) - oldRange / 2;
+  const cursorOrdinal = oldStart + cursorRatio * oldRange;
+
   timelineZoom = nextZoom;
+  const newRange = timelineRangeDays(nextZoom);
+  const newStart = cursorOrdinal - cursorRatio * newRange;
+  timelineCenter = newStart + newRange / 2;
+
   renderTimeline();
 }
 
@@ -1696,7 +1743,7 @@ function resetTimelineZoom() {
 function handleTimelineWheel(event) {
   event.preventDefault();
   event.stopPropagation();
-  zoomTimeline(event.deltaY < 0 ? 0.2 : -0.2);
+  zoomTimeline(event.deltaY < 0 ? 0.2 : -0.2, event.clientX);
 }
 
 function startTimelineDrag(event) {
@@ -1704,26 +1751,40 @@ function startTimelineDrag(event) {
   if (event.target.closest(".tl-dot, .tl-card, .tl-era-bar")) return;
   const board = $("timelineBoard");
   if (!board) return;
+  event.preventDefault();
   isTimelineDragging = true;
   timelineDragStart = { x: event.clientX, center: timelineCenter || 0, width: board.clientWidth };
   board.classList.add("dragging");
+  document.body.classList.add("tl-no-select");
   board.setPointerCapture?.(event.pointerId);
 }
 
 function moveTimelineDrag(event) {
   if (!isTimelineDragging || !timelineDragStart) return;
+  event.preventDefault();
   const { range } = timelineBounds();
   const deltaPx = event.clientX - timelineDragStart.x;
   timelineCenter = timelineDragStart.center - (deltaPx / timelineDragStart.width) * range;
-  renderTimeline();
+
+  if (timelineDragFrame) return;
+  timelineDragFrame = requestAnimationFrame(() => {
+    timelineDragFrame = null;
+    renderTimeline();
+  });
 }
 
 function endTimelineDrag(event) {
   if (!isTimelineDragging) return;
   isTimelineDragging = false;
   timelineDragStart = null;
+  if (timelineDragFrame) {
+    cancelAnimationFrame(timelineDragFrame);
+    timelineDragFrame = null;
+    renderTimeline();
+  }
   const board = $("timelineBoard");
   board?.classList.remove("dragging");
+  document.body.classList.remove("tl-no-select");
   board?.releasePointerCapture?.(event.pointerId);
 }
 
