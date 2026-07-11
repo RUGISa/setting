@@ -63,19 +63,54 @@
       </section>
 
       <section class="timeline-view hidden" id="timelineView">
-        <div class="sub-tools timeline-top-tools">
-          <button class="primary" id="addTimelineBtn" type="button">사건 추가</button>
-          <button id="importTimelineBtn" type="button">사건 불러오기</button>
-          <button id="editTimelineBtn" type="button">수정</button>
-          <button id="deleteTimelineBtn" type="button">삭제</button>
-        </div>
-        <div class="timeline-board" id="timelineBoard">
-          <div class="timeline-line"></div>
-        </div>
-        <div class="timeline-bottom-bar">
-          <button id="timelineZoomOutBtn" type="button">-</button>
-          <button id="timelineZoomResetBtn" type="button">100%</button>
-          <button id="timelineZoomInBtn" type="button">+</button>
+        <div class="tl-panel">
+          <div class="tl-headrow">
+            <div class="tl-heading">
+              <span class="tl-eyebrow">타임라인</span>
+              <h3>사건 흐름</h3>
+            </div>
+            <div class="tl-controls">
+              <span class="tl-count" id="timelineCount">0개</span>
+              <button class="tl-icon-btn" id="timelinePrevBtn" type="button" title="이전" aria-label="이전">
+                <svg viewBox="0 0 24 24" width="16" height="16"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button class="tl-icon-btn" id="timelineZoomOutBtn" type="button" title="축소" aria-label="축소">
+                <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="11" x2="14" y2="11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </button>
+              <button class="tl-icon-btn active" id="timelineZoomInBtn" type="button" title="확대" aria-label="확대">
+                <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><line x1="16.5" y1="16.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="11" y1="8" x2="11" y2="14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="11" x2="14" y2="11" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </button>
+              <button class="tl-icon-btn" id="timelineNextBtn" type="button" title="다음" aria-label="다음">
+                <svg viewBox="0 0 24 24" width="16" height="16"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <button class="tl-reset-btn" id="timelineResetBtn" type="button" title="초기화">
+                <svg viewBox="0 0 24 24" width="14" height="14"><path d="M3 12a9 9 0 1 1 2.64 6.36" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M3 20v-6h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                초기화
+              </button>
+              <span class="tl-zoom-badge" id="timelineZoomResetBtn">100%</span>
+            </div>
+          </div>
+
+          <div class="tl-toolrow">
+            <button id="importTimelineBtn" type="button">사건 불러오기</button>
+            <button id="editTimelineBtn" type="button">수정</button>
+            <button id="deleteTimelineBtn" type="button">삭제</button>
+          </div>
+
+          <div class="tl-board" id="timelineBoard">
+            <div class="tl-axis" id="timelineAxis"></div>
+            <div class="tl-line"></div>
+            <div class="tl-events" id="timelineEvents"></div>
+            <div class="tl-empty hidden" id="timelineEmpty">등록된 사건이 없습니다. 사건을 추가해보세요.</div>
+          </div>
+
+          <div class="tl-bottombar">
+            <label class="tl-search">
+              <span>⌕</span>
+              <input id="timelineSearchInput" type="search" placeholder="사건 검색" />
+            </label>
+            <button class="primary tl-add-btn" id="addTimelineBtn" type="button">+ 사건 추가</button>
+          </div>
         </div>
       </section>
 
@@ -289,10 +324,13 @@
       </header>
       <div class="form">
         <label>제목
-          <input id="timelineTitle" type="text" />
+          <input id="timelineTitle" type="text" placeholder="예: 중요한 사건" />
         </label>
-        <label>연도 / 시점
-          <input id="timelineYear" type="text" placeholder="예: 1024, 1막, 과거" />
+        <label>날짜 / 시간
+          <input id="timelineDate" type="datetime-local" />
+        </label>
+        <label>시대 / 메모 (선택)
+          <input id="timelineYear" type="text" placeholder="예: 1막, 과거" />
         </label>
         <label>설명
           <textarea id="timelineDesc"></textarea>
