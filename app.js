@@ -69,6 +69,8 @@ let selectedEdgeId = null;
 let connectNodes = [];
 let editingNodeId = null;
 let relationZoom = 1;
+let relationPanX = 0;
+let relationPanY = 0;
 let isRelationPanning = false;
 let relationPanStart = null;
 let timelineZoom = 1;
@@ -82,6 +84,8 @@ let editingPolygonId = null;
 let drawingPolygon = false;
 let polygonDraft = [];
 let mapZoom = 1;
+let mapPanX = 0;
+let mapPanY = 0;
 let currentMapId = "";
 let editingLineMode = false;
 let addPointMode = false;
@@ -1026,16 +1030,30 @@ function handleTimelineWheel(event) {
 }
 
 
+function relationScreenToWorld(clientX, clientY) {
+  const rect = $("relationBoard").getBoundingClientRect();
+  return {
+    x: (clientX - rect.left - relationPanX) / relationZoom,
+    y: (clientY - rect.top - relationPanY) / relationZoom
+  };
+}
+
+function applyRelationTransform() {
+  const canvas = $("relationCanvas");
+  if (canvas) canvas.style.setProperty("transform", `translate(${relationPanX}px, ${relationPanY}px) scale(${relationZoom})`, "important");
+  const zoomLabel = $("relationZoomResetBtn");
+  if (zoomLabel) zoomLabel.textContent = `${Math.round(relationZoom * 100)}%`;
+}
+
 function renderRelations() {
   const board = $("relationBoard");
+  const canvas = $("relationCanvas");
   const svg = $("relationSvg");
-  if (!board || !svg) return;
+  if (!board || !canvas || !svg) return;
 
-  board.querySelectorAll(".relation-node,.edge-label,.relation-legend,.relation-empty,.edge-control-point").forEach((el) => el.remove());
-  svg.style.width = `${Math.max(1050, Math.round(1050 * relationZoom))}px`;
-  svg.style.height = `${Math.max(760, Math.round(760 * relationZoom))}px`;
-  const relationZoomLabel = $("relationZoomResetBtn");
-  if (relationZoomLabel) relationZoomLabel.textContent = `${Math.round(relationZoom * 100)}%`;
+  board.querySelectorAll(".relation-legend,.relation-empty").forEach((el) => el.remove());
+  canvas.querySelectorAll(".relation-node,.edge-label,.edge-control-point").forEach((el) => el.remove());
+  applyRelationTransform();
 
   svg.innerHTML = `
     <defs>
@@ -1093,10 +1111,8 @@ function renderRelations() {
       ].join(" ").trim();
 
       el.dataset.id = node.id;
-      el.style.left = `${(node.x ?? 100) * relationZoom}px`;
-      el.style.top = `${(node.y ?? 120) * relationZoom}px`;
-      el.style.transform = `scale(${relationZoom})`;
-      el.style.transformOrigin = "0 0";
+      el.style.left = `${node.x ?? 100}px`;
+      el.style.top = `${node.y ?? 120}px`;
 
       el.innerHTML = isOrg
         ? `
@@ -1121,26 +1137,21 @@ function renderRelations() {
       });
 
       dragNode(el, node);
-      board.appendChild(el);
+      canvas.appendChild(el);
     });
 
   requestAnimationFrame(() => {
     svg.querySelectorAll("path:not(defs path)").forEach((path) => path.remove());
-    board.querySelectorAll(".edge-label,.edge-control-point").forEach((label) => label.remove());
+    canvas.querySelectorAll(".edge-label,.edge-control-point").forEach((label) => label.remove());
     state.relation.edges.forEach((edge) => drawEdge(edge));
   });
-
-  const zoomLabel = $("relationZoomResetBtn");
-  if (zoomLabel) zoomLabel.textContent = `${Math.round(relationZoom * 100)}%`;
 }
 
 function nodeCenter(id) {
-  const boardRect = $("relationBoard").getBoundingClientRect();
-  const el = $("relationBoard").querySelector(`[data-id="${id}"]`);
+  const el = $("relationCanvas").querySelector(`[data-id="${id}"]`);
   const node = state.relation.nodes.find((item) => item.id === id);
   if (!el) return { x: (node?.x || 0) + 80, y: (node?.y || 0) + 28 };
-  const rect = el.getBoundingClientRect();
-  return { x: rect.left - boardRect.left + rect.width / 2, y: rect.top - boardRect.top + rect.height / 2 };
+  return { x: el.offsetLeft + el.offsetWidth / 2, y: el.offsetTop + el.offsetHeight / 2 };
 }
 
 function drawEdge(edge) {
@@ -1197,7 +1208,7 @@ function drawEdge(edge) {
       syncEdgeControls(edge);
       renderRelations();
     });
-    $("relationBoard").appendChild(label);
+    $("relationCanvas").appendChild(label);
   }
 
   if (selectedEdgeId === edge.id) {
@@ -1208,21 +1219,21 @@ function drawEdge(edge) {
     control.style.top = `${horizontal ? (from.y + to.y) / 2 : midY}px`;
     control.title = "드래그해서 선 꺾임 위치 수정";
     dragEdgeControl(control, edge, horizontal);
-    $("relationBoard").appendChild(control);
+    $("relationCanvas").appendChild(control);
   }
 }
 
 function dragEdgeControl(control, edge, horizontal) {
   control.addEventListener("pointerdown", (event) => {
     event.stopPropagation();
-    const boardRect = $("relationBoard").getBoundingClientRect();
     control.setPointerCapture(event.pointerId);
 
     const move = (e) => {
-      edge.midX = e.clientX - boardRect.left;
-      edge.midY = e.clientY - boardRect.top;
-      $("relationSvg").innerHTML = "";
-      $("relationBoard").querySelectorAll(".edge-label,.edge-control-point").forEach((el) => el.remove());
+      const world = relationScreenToWorld(e.clientX, e.clientY);
+      edge.midX = world.x;
+      edge.midY = world.y;
+      $("relationSvg").querySelectorAll("path:not(defs path)").forEach((path) => path.remove());
+      $("relationCanvas").querySelectorAll(".edge-label,.edge-control-point").forEach((el) => el.remove());
       state.relation.edges.forEach((item) => drawEdge(item));
     };
 
@@ -1277,11 +1288,11 @@ function dragNode(el, node) {
       moved = true;
       node.x = Math.max(8, nodeX + (e.clientX - startX) / relationZoom);
       node.y = Math.max(8, nodeY + (e.clientY - startY) / relationZoom);
-      el.style.left = `${node.x * relationZoom}px`;
-      el.style.top = `${node.y * relationZoom}px`;
+      el.style.left = `${node.x}px`;
+      el.style.top = `${node.y}px`;
 
-      $("relationSvg").innerHTML = "";
-      $("relationBoard").querySelectorAll(".edge-label,.edge-control-point").forEach((label) => label.remove());
+      $("relationSvg").querySelectorAll("path:not(defs path)").forEach((path) => path.remove());
+      $("relationCanvas").querySelectorAll(".edge-label,.edge-control-point").forEach((label) => label.remove());
       state.relation.edges.forEach((edge) => drawEdge(edge));
     };
 
@@ -1430,30 +1441,30 @@ function organizeMembers() {
 
 function zoomRelation(delta, event = null) {
   const board = $("relationBoard");
+  if (!board) return;
   const oldZoom = relationZoom;
   const nextZoom = Math.max(0.4, Math.min(3, Math.round((relationZoom + delta) * 10) / 10));
   if (nextZoom === oldZoom) return;
 
-  const rect = board?.getBoundingClientRect();
-  const anchorX = event && rect ? event.clientX - rect.left : (board?.clientWidth || 0) / 2;
-  const anchorY = event && rect ? event.clientY - rect.top : (board?.clientHeight || 0) / 2;
-  const beforeX = board ? board.scrollLeft + anchorX : 0;
-  const beforeY = board ? board.scrollTop + anchorY : 0;
+  const rect = board.getBoundingClientRect();
+  const cursorX = event ? event.clientX - rect.left : rect.width / 2;
+  const cursorY = event ? event.clientY - rect.top : rect.height / 2;
+
+  const worldX = (cursorX - relationPanX) / oldZoom;
+  const worldY = (cursorY - relationPanY) / oldZoom;
 
   relationZoom = nextZoom;
-  renderRelations();
+  relationPanX = cursorX - worldX * nextZoom;
+  relationPanY = cursorY - worldY * nextZoom;
 
-  requestAnimationFrame(() => {
-    if (!board) return;
-    const ratio = nextZoom / oldZoom;
-    board.scrollLeft = Math.max(0, beforeX * ratio - anchorX);
-    board.scrollTop = Math.max(0, beforeY * ratio - anchorY);
-  });
+  applyRelationTransform();
 }
 
 function resetRelationZoom() {
   relationZoom = 1;
-  renderRelations();
+  relationPanX = 0;
+  relationPanY = 0;
+  applyRelationTransform();
 }
 
 function handleRelationWheel(event) {
@@ -1466,21 +1477,21 @@ function handleRelationWheel(event) {
 function startRelationPan(event) {
   if (event.button !== 0 && event.button !== 1) return;
   const board = $("relationBoard");
-  const baseTarget = event.target === board || event.target === $("relationSvg");
+  const baseTarget = event.target === board || event.target === $("relationSvg") || event.target === $("relationCanvas");
   if (!baseTarget) return;
 
   event.preventDefault();
   isRelationPanning = true;
-  relationPanStart = { x: event.clientX, y: event.clientY, left: board.scrollLeft, top: board.scrollTop };
+  relationPanStart = { x: event.clientX, y: event.clientY, panX: relationPanX, panY: relationPanY };
   board.classList.add("panning");
   board.setPointerCapture?.(event.pointerId);
 }
 
 function moveRelationPan(event) {
   if (!isRelationPanning || !relationPanStart) return;
-  const board = $("relationBoard");
-  board.scrollLeft = relationPanStart.left - (event.clientX - relationPanStart.x);
-  board.scrollTop = relationPanStart.top - (event.clientY - relationPanStart.y);
+  relationPanX = relationPanStart.panX + (event.clientX - relationPanStart.x);
+  relationPanY = relationPanStart.panY + (event.clientY - relationPanStart.y);
+  applyRelationTransform();
 }
 
 function endRelationPan(event) {
@@ -1665,30 +1676,12 @@ function rememberMapImageAspect(map, imageEl) {
 }
 
 
-function fitMapCanvasToImage() {
-  const board = $("mapBoard");
+function applyMapTransform() {
   const canvas = $("mapCanvas");
-  const image = $("mapImage");
-
-  if (!board || !canvas || !image || image.classList.contains("hidden")) return;
-
-  const width = board.clientWidth || canvas.clientWidth || image.clientWidth || 1000;
-  const naturalW = image.naturalWidth || 0;
-  const naturalH = image.naturalHeight || 0;
-
-  if (!naturalW || !naturalH) return;
-
-  const height = Math.max(1, Math.round((width * naturalH / naturalW) * mapZoom));
-  const zoomedWidth = Math.max(width, Math.round(width * mapZoom));
-
-  canvas.style.width = `${zoomedWidth}px`;
-  canvas.style.height = `${height}px`;
-  board.style.height = `${height}px`;
-
-  image.style.width = "100%";
-  image.style.height = "100%";
+  if (canvas) canvas.style.setProperty("transform", `translate(${mapPanX}px, ${mapPanY}px) scale(${mapZoom})`, "important");
+  const zoomLabel = $("zoomResetBtn");
+  if (zoomLabel) zoomLabel.textContent = `${Math.round(mapZoom * 100)}%`;
 }
-
 
 function showEmptyMapCanvas() {
   const board = $("mapBoard");
@@ -1700,17 +1693,19 @@ function showEmptyMapCanvas() {
   canvas.classList.remove("has-map-image");
   canvas.classList.add("no-map-image");
 
-  board.style.height = "520px";
-  board.style.minHeight = "520px";
+  board.style.height = "560px";
+  board.style.minHeight = "560px";
   board.style.padding = "0";
 
   canvas.style.width = "100%";
-  canvas.style.height = "520px";
-  canvas.style.minHeight = "520px";
+  canvas.style.height = "560px";
+  canvas.style.minHeight = "0px";
   canvas.style.marginLeft = "0px";
   canvas.style.marginRight = "0px";
 
   if (image) image.classList.add("hidden");
+
+  applyMapTransform();
 }
 
 
@@ -1733,16 +1728,20 @@ function fitMapToVisibleImage() {
   canvas.classList.add("has-map-image");
   canvas.classList.remove("no-map-image");
 
+  board.style.height = "560px";
+  board.style.minHeight = "560px";
+  board.style.padding = "0";
+
+  // 캔버스 자체 크기는 항상 100% 배율 기준으로 고정하고,
+  // 확대/축소는 transform(scale)만으로 처리합니다 (배경 이미지 포함 전체가 함께 확대됨).
   const baseWidth = board.clientWidth || canvas.clientWidth || 1000;
-  const zoomedWidth = Math.max(baseWidth, Math.round(baseWidth * mapZoom));
-  const exactHeight = Math.max(1, Math.round(zoomedWidth * image.naturalHeight / image.naturalWidth));
+  const baseHeight = Math.max(1, Math.round(baseWidth * image.naturalHeight / image.naturalWidth));
 
-  canvas.style.width = `${zoomedWidth}px`;
-  canvas.style.height = `${exactHeight}px`;
+  canvas.style.width = `${baseWidth}px`;
+  canvas.style.height = `${baseHeight}px`;
   canvas.style.minHeight = "0px";
-
-  board.style.height = `${exactHeight}px`;
-  board.style.minHeight = "0px";
+  canvas.style.marginLeft = "0";
+  canvas.style.marginRight = "0";
 
   image.style.width = "100%";
   image.style.height = "100%";
@@ -1751,6 +1750,8 @@ function fitMapToVisibleImage() {
     svg.style.width = "100%";
     svg.style.height = "100%";
   }
+
+  applyMapTransform();
 }
 
 function renderMap() {
@@ -1771,16 +1772,10 @@ function renderMap() {
 
   canvas.querySelectorAll(".map-pin,.map-pin-card,.polygon-card,.polygon-point").forEach((el) => el.remove());
   svg.innerHTML = "";
-  showEmptyMapCanvas();
   $("mapBoard").classList.toggle("map-drawing", drawingPolygon);
   $("mapBoard").classList.toggle("map-moving-region", moveRegionMode);
   $("mapBoard").classList.toggle("map-quick-pin", quickPinMode);
   updateToolPanel();
-
-  canvas.style.transform = "none";
-
-  const zoomLabel = $("zoomResetBtn");
-  if (zoomLabel) zoomLabel.textContent = `${Math.round(mapZoom * 100)}%`;
 
   if (map.image) {
     image.onload = () => {
@@ -1798,6 +1793,9 @@ function renderMap() {
     image.removeAttribute("src");
     image.classList.add("hidden");
     empty.classList.remove("hidden");
+    mapZoom = 1;
+    mapPanX = 0;
+    mapPanY = 0;
     showEmptyMapCanvas();
   }
 
@@ -2396,43 +2394,47 @@ function updateMapHint() {
 
 function zoomMap(delta, anchorEvent = null) {
   const board = $("mapBoard");
+  if (!board) return;
   const oldZoom = mapZoom;
   const nextZoom = Math.max(1, Math.min(6, Math.round((mapZoom + delta) * 10) / 10));
   if (nextZoom === oldZoom) return;
 
-  let anchorX = board ? board.clientWidth / 2 : 0;
-  let anchorY = board ? board.clientHeight / 2 : 0;
+  const rect = board.getBoundingClientRect();
+  const cursorX = anchorEvent ? anchorEvent.clientX - rect.left : rect.width / 2;
+  const cursorY = anchorEvent ? anchorEvent.clientY - rect.top : rect.height / 2;
 
-  if (anchorEvent && board) {
-    const rect = board.getBoundingClientRect();
-    anchorX = anchorEvent.clientX - rect.left;
-    anchorY = anchorEvent.clientY - rect.top;
-  }
-
-  const beforeX = board ? (board.scrollLeft + anchorX) / oldZoom : 0;
-  const beforeY = board ? (board.scrollTop + anchorY) / oldZoom : 0;
+  const worldX = (cursorX - mapPanX) / oldZoom;
+  const worldY = (cursorY - mapPanY) / oldZoom;
 
   mapZoom = nextZoom;
-  renderMap();
-  
+  mapPanX = cursorX - worldX * mapZoom;
+  mapPanY = cursorY - worldY * mapZoom;
 
-  requestAnimationFrame(() => {
-    if (!board) return;
-    board.scrollLeft = beforeX * mapZoom - anchorX;
-    board.scrollTop = beforeY * mapZoom - anchorY;
-  });
+  clampMapPan();
+  applyMapTransform();
+}
+
+function clampMapPan() {
+  const board = $("mapBoard");
+  const canvas = $("mapCanvas");
+  if (!board || !canvas) return;
+
+  const viewW = board.clientWidth;
+  const viewH = board.clientHeight;
+  const canvasW = canvas.offsetWidth * mapZoom;
+  const canvasH = canvas.offsetHeight * mapZoom;
+
+  const minX = Math.min(0, viewW - canvasW);
+  const minY = Math.min(0, viewH - canvasH);
+  mapPanX = Math.max(minX, Math.min(0, mapPanX));
+  mapPanY = Math.max(minY, Math.min(0, mapPanY));
 }
 
 function resetMapZoom() {
   mapZoom = 1;
-  renderMap();
-  requestAnimationFrame(fitMapToVisibleImage);
-  requestAnimationFrame(() => {
-    const board = $("mapBoard");
-    if (!board) return;
-    board.scrollLeft = 0;
-    board.scrollTop = 0;
-  });
+  mapPanX = 0;
+  mapPanY = 0;
+  applyMapTransform();
 }
 
 function startMapPan(event) {
@@ -2457,8 +2459,8 @@ function startMapPan(event) {
   mapPanStart = {
     x: event.clientX,
     y: event.clientY,
-    left: board.scrollLeft,
-    top: board.scrollTop
+    panX: mapPanX,
+    panY: mapPanY
   };
   board.classList.add("panning");
   board.setPointerCapture?.(event.pointerId);
@@ -2466,11 +2468,10 @@ function startMapPan(event) {
 
 function moveMapPan(event) {
   if (!isMapPanning || !mapPanStart) return;
-  const board = $("mapBoard");
-  if (!board) return;
-
-  board.scrollLeft = mapPanStart.left - (event.clientX - mapPanStart.x);
-  board.scrollTop = mapPanStart.top - (event.clientY - mapPanStart.y);
+  mapPanX = mapPanStart.panX + (event.clientX - mapPanStart.x);
+  mapPanY = mapPanStart.panY + (event.clientY - mapPanStart.y);
+  clampMapPan();
+  applyMapTransform();
 }
 
 function endMapPan(event) {

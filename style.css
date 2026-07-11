@@ -1,3 +1,4 @@
+
 *{box-sizing:border-box}
 :root{--bg:#ead8bb;--paper:#fffdf8;--side:#f0dfc1;--line:rgba(92,62,32,.15);--text:#2b2118;--muted:#8a725c;--accent:#d8b674;--danger:#a24d43;--shadow:0 18px 50px rgba(76,50,24,.12)}
 html,body{margin:0;min-height:100%;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Noto Sans KR","Apple SD Gothic Neo",sans-serif;color:var(--text)}
@@ -2492,4 +2493,63 @@ button.primary,
   .tl-card{width:150px;font-size:12px}
   .tl-controls{gap:4px}
   .tl-headrow{align-items:flex-start}
+}
+
+
+/* =========================================================
+   관계도 / 지도: 커서 기준 확대·축소 (transform 기반, 인터랙티브 맵 방식)
+   ========================================================= */
+#relationBoard,
+.relation-board {
+  overflow: hidden !important;
+  position: relative !important;
+  cursor: grab;
+}
+#relationBoard.panning,
+.relation-board.panning {
+  cursor: grabbing !important;
+}
+#relationCanvas {
+  position: absolute !important;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0 !important;
+  will-change: transform;
+}
+#relationSvg {
+  position: absolute !important;
+  left: 0;
+  top: 0;
+  width: 3000px !important;
+  height: 2000px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  pointer-events: none;
+}
+.relation-node,
+.edge-label,
+.edge-control-point {
+  position: absolute;
+}
+
+#mapBoard,
+.map-board {
+  overflow: hidden !important;
+  position: relative !important;
+  cursor: grab;
+  height: 560px !important;
+  min-height: 560px !important;
+}
+#mapBoard.panning,
+.map-board.panning {
+  cursor: grabbing !important;
+}
+#mapCanvas,
+.map-canvas {
+  position: absolute !important;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0 !important;
+  will-change: transform;
+  margin: 0 !important;
 }
