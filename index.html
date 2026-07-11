@@ -35,11 +35,7 @@
     </nav>
 
     <div class="tab-strip" id="tabStrip">
-      <div class="tab active" id="pageTab">
-        <span id="pageTabLabel">전체</span>
-        <button type="button" id="pageTabClose" title="전체로 이동" aria-label="전체로 이동">×</button>
-      </div>
-      <button class="tab-add" id="pageTabAdd" type="button" title="새 파일" aria-label="새 파일">+</button>
+      <div class="tab-list" id="tabList"></div>
       <div class="tab-strip-spacer"></div>
       <button class="ghost-btn small" id="saveBtn" type="button">저장</button>
     </div>
@@ -55,6 +51,10 @@
         <div class="explorer-row all-row" id="explorerAllRow">
           <span class="explorer-label">전체</span>
           <span class="explorer-count" id="explorerAllCount">0</span>
+          <span class="explorer-actions">
+            <button class="explorer-action" type="button" id="explorerNewFileBtn" title="새 파일"></button>
+            <button class="explorer-action" type="button" id="explorerNewFolderBtn" title="새 폴더"></button>
+          </span>
         </div>
         <div class="explorer-tree" id="explorerTree"></div>
       </div>

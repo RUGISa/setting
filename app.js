@@ -79,7 +79,7 @@ const emptyState = {
   events: [],
   items: [],
   abilities: [],
-  folders: structuredClone(emptyFolders),
+  folders: [],
   timeline: [],
   timelineEras: [],
   relation: {
@@ -91,6 +91,8 @@ const emptyState = {
 
 let state = loadState();
 let currentCategory = "all";
+let openTabs = [{ type: "view", key: "all" }];
+let activeTabKey = "view:all";
 let currentFolderId = "";
 let currentTag = "";
 let sidebarPanel = "explorer";
@@ -186,12 +188,35 @@ function loadState() {
   }
 }
 
+function migrateFoldersToGlobal(merged) {
+  if (Array.isArray(merged.folders)) return;
+  const oldFolders = merged.folders || {};
+  const newFolders = [];
+  const idMap = {};
+  dataCategories.forEach((category) => {
+    (oldFolders[category] || []).forEach((folder) => {
+      // 이름이 같은 예전 폴더는 하나로 합칩니다 (예: 캐릭터의 '주요' 폴더와 지역의 '주요' 폴더).
+      let target = newFolders.find((f) => f.name === folder.name);
+      if (!target) {
+        target = { id: uid(), name: folder.name };
+        newFolders.push(target);
+      }
+      idMap[`${category}:${folder.id}`] = target.id;
+    });
+  });
+  merged.folders = newFolders;
+  dataCategories.forEach((category) => {
+    (merged[category] || []).forEach((item) => {
+      if (item.folderId) item.folderId = idMap[`${category}:${item.folderId}`] || "";
+    });
+  });
+}
+
 function normalizeState(data) {
   const merged = { ...structuredClone(emptyState), ...data };
-  if (!merged.folders) merged.folders = structuredClone(emptyFolders);
+  migrateFoldersToGlobal(merged);
   dataCategories.forEach((cat) => {
     if (!Array.isArray(merged[cat])) merged[cat] = [];
-    if (!Array.isArray(merged.folders[cat])) merged.folders[cat] = [];
     merged[cat].forEach((item, index) => {
       item.order ??= index;
       item.tags ??= ["미분류"];
@@ -386,7 +411,7 @@ function getVisibleItems() {
   let items = getItems();
   const keyword = $("searchInput").value.trim().toLowerCase();
 
-  if (currentFolderId && dataCategories.includes(currentCategory)) {
+  if (currentFolderId) {
     items = items.filter((item) => currentFolderId === "__none" ? !item.folderId : item.folderId === currentFolderId);
   }
   if (keyword) {
@@ -418,6 +443,7 @@ function render() {
   try {
     renderSidebar();
     renderTitle();
+    renderTabStrip();
     renderMainMode();
     renderFolders();
     renderTags();
@@ -458,6 +484,105 @@ function switchCategory(key) {
   if (dataCategories.includes(key)) expandedCategories.add(key);
   document.body.classList.remove("menu-open");
   render();
+  registerTab({ type: "view", key });
+}
+
+function tabKey(tab) {
+  return tab.type === "file" ? `file:${tab.category}:${tab.id}` : `view:${tab.key}`;
+}
+
+function loadOpenTabs() {
+  try {
+    const raw = localStorage.getItem(`${STORAGE_KEY}-tabs`);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed.tabs) && parsed.tabs.length) openTabs = parsed.tabs;
+    if (typeof parsed.active === "string") activeTabKey = parsed.active;
+  } catch {
+    // 무시하고 기본값 사용
+  }
+}
+
+function saveOpenTabs() {
+  try {
+    localStorage.setItem(`${STORAGE_KEY}-tabs`, JSON.stringify({ tabs: openTabs, active: activeTabKey }));
+  } catch {
+    // 저장 실패는 조용히 무시 (탭 목록은 부가 기능)
+  }
+}
+
+function registerTab(tab) {
+  const key = tabKey(tab);
+  const exists = openTabs.some((t) => tabKey(t) === key);
+  if (!exists) openTabs.push(tab);
+  activeTabKey = key;
+  saveOpenTabs();
+  renderTabStrip();
+}
+
+function closeTab(index, event) {
+  event?.stopPropagation();
+  const tab = openTabs[index];
+  if (!tab) return;
+  if (tab.type === "view" && tab.key === "all") return; // 전체 탭은 닫을 수 없음
+  const wasActive = tabKey(tab) === activeTabKey;
+  openTabs.splice(index, 1);
+  if (!openTabs.some((t) => t.type === "view" && t.key === "all")) {
+    openTabs.unshift({ type: "view", key: "all" });
+  }
+  saveOpenTabs();
+  if (wasActive) {
+    const nextIndex = Math.max(0, index - 1);
+    navigateToTab(openTabs[nextIndex] || openTabs[0]);
+  } else {
+    renderTabStrip();
+  }
+}
+
+function navigateToTab(tab) {
+  if (!tab) { switchCategory("all"); return; }
+  if (tab.type === "file") {
+    const item = findItem(tab.category, tab.id);
+    if (!item) {
+      openTabs = openTabs.filter((t) => tabKey(t) !== tabKey(tab));
+      saveOpenTabs();
+      navigateToTab(openTabs[openTabs.length - 1]);
+      return;
+    }
+    openDetail(tab.category, tab.id, "preview");
+  } else {
+    switchCategory(tab.key);
+  }
+}
+
+function pruneInvalidTabs() {
+  openTabs = openTabs.filter((tab) => tab.type !== "file" || findItem(tab.category, tab.id));
+  if (!openTabs.some((t) => t.type === "view" && t.key === "all")) {
+    openTabs.unshift({ type: "view", key: "all" });
+  }
+}
+
+function renderTabStrip() {
+  const list = $("tabList");
+  if (!list) return;
+  list.innerHTML = "";
+  openTabs.forEach((tab, index) => {
+    const el = document.createElement("div");
+    const active = tabKey(tab) === activeTabKey;
+    el.className = `tab ${active ? "active" : ""}`;
+    const label = tab.type === "file"
+      ? (findItem(tab.category, tab.id)?.title || "제목 없음")
+      : categories[tab.key];
+    const closable = !(tab.type === "view" && tab.key === "all");
+    el.innerHTML = `
+      <span>${escapeHTML(label)}</span>
+      ${closable ? `<button type="button" aria-label="탭 닫기">×</button>` : ""}
+    `;
+    el.addEventListener("click", () => navigateToTab(tab));
+    const closeBtn = el.querySelector("button");
+    if (closeBtn) closeBtn.addEventListener("click", (event) => closeTab(index, event));
+    list.appendChild(el);
+  });
 }
 
 const chevronIcon = (open) => `<svg class="chev ${open ? "open" : ""}" viewBox="0 0 24 24" width="11" height="11"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -517,9 +642,7 @@ function createFileIn(category, folderId) {
     updatedAt: now()
   });
   saveState();
-  currentCategory = category;
   currentFolderId = folderId || "";
-  expandedCategories.add(category);
   if (folderId) expandedFolders.add(folderId);
   render();
   openDetail(category, id, "edit");
@@ -529,19 +652,21 @@ function createFileIn(category, folderId) {
   });
 }
 
-function createFolderIn(category, name) {
+function createFolderIn(name) {
   const folder = { id: uid(), name };
-  state.folders[category].push(folder);
+  state.folders.push(folder);
   saveState();
-  expandedCategories.add(category);
   renderSidebar();
+  return folder;
 }
 
-function deleteFolderDirect(category, folderId) {
+function deleteFolderDirect(folderId) {
   if (!confirm("폴더를 삭제할까요? 안의 파일은 삭제되지 않고 폴더 밖으로 나갑니다.")) return;
-  state.folders[category] = state.folders[category].filter((folder) => folder.id !== folderId);
-  state[category].forEach((item) => {
-    if (item.folderId === folderId) item.folderId = "";
+  state.folders = state.folders.filter((folder) => folder.id !== folderId);
+  dataCategories.forEach((category) => {
+    state[category].forEach((item) => {
+      if (item.folderId === folderId) item.folderId = "";
+    });
   });
   if (currentFolderId === folderId) currentFolderId = "";
   expandedFolders.delete(folderId);
@@ -549,11 +674,22 @@ function deleteFolderDirect(category, folderId) {
   render();
 }
 
+const categoryBadge = {
+  characters: { label: "캐", color: "#8fb3ff" },
+  places: { label: "지", color: "#7fd4a8" },
+  factions: { label: "조", color: "#e0b791" },
+  events: { label: "사", color: "#f0a5c0" },
+  items: { label: "아", color: "#e0c85a" },
+  abilities: { label: "능", color: "#c3a0f5" }
+};
+
 function createExplorerNoteRow(item, category) {
   const row = document.createElement("div");
   row.className = "explorer-row note-row";
+  row.draggable = true;
+  const badge = categoryBadge[category] || { label: "?", color: "#999" };
   row.innerHTML = `
-    <span class="explorer-icon file">${fileIcon}</span>
+    <span class="explorer-type-badge" style="color:${badge.color};border-color:${badge.color}">${badge.label}</span>
     <span class="explorer-label">${escapeHTML(item.title)}</span>
     <span class="explorer-actions">
       <button class="explorer-action" type="button" title="파일 삭제">${trashIcon}</button>
@@ -568,6 +704,11 @@ function createExplorerNoteRow(item, category) {
     event.stopPropagation();
     deleteCard(category, item.id);
   });
+  row.addEventListener("dragstart", (event) => {
+    event.dataTransfer.effectAllowed = "copyMove";
+    event.dataTransfer.setData("application/x-explorer-file", JSON.stringify({ category, id: item.id }));
+    event.dataTransfer.setData("text/plain", item.title);
+  });
   return row;
 }
 
@@ -576,7 +717,56 @@ function renderExplorerAll() {
   const count = $("explorerAllCount");
   if (!row || !count) return;
   count.textContent = getAllItems().length;
-  row.classList.toggle("active", currentCategory === "all");
+  row.classList.toggle("active", currentCategory === "all" && !currentFolderId);
+
+  const newFileBtn = $("explorerNewFileBtn");
+  if (newFileBtn && !newFileBtn.dataset.bound) {
+    newFileBtn.innerHTML = fileAddIcon;
+    newFileBtn.dataset.bound = "1";
+    newFileBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      createFileIn("characters", "");
+    });
+  }
+  const newFolderBtn = $("explorerNewFolderBtn");
+  if (newFolderBtn && !newFolderBtn.dataset.bound) {
+    newFolderBtn.innerHTML = folderAddIcon;
+    newFolderBtn.dataset.bound = "1";
+    newFolderBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      insertInlineInput($("explorerTree"), folderAddIcon, "새 폴더 이름", (name) => createFolderIn(name));
+    });
+  }
+}
+
+function findItemAnyCategory(id) {
+  for (const category of dataCategories) {
+    const item = state[category].find((entry) => entry.id === id);
+    if (item) return { category, item };
+  }
+  return null;
+}
+
+function moveItemToFolder(category, id, folderId) {
+  const item = findItem(category, id);
+  if (!item) return;
+  item.folderId = folderId || "";
+  item.updatedAt = now();
+  saveState();
+  render();
+}
+
+function handleExplorerDrop(event, folderId) {
+  const raw = event.dataTransfer.getData("application/x-explorer-file");
+  if (!raw) return;
+  event.preventDefault();
+  event.stopPropagation();
+  try {
+    const { category, id } = JSON.parse(raw);
+    moveItemToFolder(category, id, folderId);
+  } catch {
+    // 무시
+  }
 }
 
 function renderExplorerTree() {
@@ -584,105 +774,88 @@ function renderExplorerTree() {
   if (!tree) return;
   tree.innerHTML = "";
 
+  const allByFolder = new Map(); // folderId -> [{item, category}]
+  const loose = [];
   dataCategories.forEach((category) => {
-    const items = state[category];
-    const isOpen = expandedCategories.has(category);
-
-    const catRow = document.createElement("div");
-    catRow.className = `explorer-row cat-row ${currentCategory === category ? "active" : ""}`;
-    catRow.innerHTML = `
-      <button class="chev-btn" type="button">${chevronIcon(isOpen)}</button>
-      <span class="explorer-icon">${folderIcon}</span>
-      <span class="explorer-label">${categories[category]}</span>
-      <span class="explorer-count">${items.length}</span>
-      <span class="explorer-actions">
-        <button class="explorer-action" type="button" title="새 파일">${fileAddIcon}</button>
-        <button class="explorer-action" type="button" title="새 폴더">${folderAddIcon}</button>
-      </span>
-    `;
-    const [fileAddBtn, folderAddBtn] = catRow.querySelectorAll(".explorer-action");
-    catRow.querySelector(".explorer-label").addEventListener("click", () => switchCategory(category));
-    catRow.querySelector(".chev-btn").addEventListener("click", (event) => {
-      event.stopPropagation();
-      if (expandedCategories.has(category)) expandedCategories.delete(category);
-      else expandedCategories.add(category);
-      renderExplorerTree();
-    });
-    fileAddBtn.addEventListener("click", (event) => {
-      event.stopPropagation();
-      createFileIn(category, "");
-    });
-    folderAddBtn.addEventListener("click", (event) => {
-      event.stopPropagation();
-      expandedCategories.add(category);
-      if (!isOpen) renderExplorerTree();
-      const wrap = tree.querySelector(`.explorer-children[data-category="${category}"]`);
-      insertInlineInput(wrap || tree, folderAddIcon, "새 폴더 이름", (name) => createFolderIn(category, name));
-    });
-    tree.appendChild(catRow);
-
-    if (!isOpen) return;
-
-    const childWrap = document.createElement("div");
-    childWrap.className = "explorer-children";
-    childWrap.dataset.category = category;
-
-    state.folders[category].forEach((folder) => {
-      const folderItems = items.filter((item) => item.folderId === folder.id);
-      const folderOpen = expandedFolders.has(folder.id);
-      const folderRow = document.createElement("div");
-      folderRow.className = `explorer-row folder-row ${currentCategory === category && currentFolderId === folder.id ? "active" : ""}`;
-      folderRow.innerHTML = `
-        <button class="chev-btn" type="button">${chevronIcon(folderOpen)}</button>
-        <span class="explorer-icon">${folderIcon}</span>
-        <span class="explorer-label">${escapeHTML(folder.name)}</span>
-        <span class="explorer-count">${folderItems.length}</span>
-        <span class="explorer-actions">
-          <button class="explorer-action" type="button" title="새 파일">${fileAddIcon}</button>
-          <button class="explorer-action" type="button" title="폴더 삭제">${trashIcon}</button>
-        </span>
-      `;
-      const [folderFileAddBtn, folderDeleteBtn] = folderRow.querySelectorAll(".explorer-action");
-      folderRow.querySelector(".explorer-label").addEventListener("click", () => {
-        currentCategory = category;
-        currentFolderId = folder.id;
-        currentTag = "";
-        expandedFolders.add(folder.id);
-        render();
-      });
-      folderRow.querySelector(".chev-btn").addEventListener("click", (event) => {
-        event.stopPropagation();
-        if (expandedFolders.has(folder.id)) expandedFolders.delete(folder.id);
-        else expandedFolders.add(folder.id);
-        renderExplorerTree();
-      });
-      folderFileAddBtn.addEventListener("click", (event) => {
-        event.stopPropagation();
-        createFileIn(category, folder.id);
-      });
-      folderDeleteBtn.addEventListener("click", (event) => {
-        event.stopPropagation();
-        deleteFolderDirect(category, folder.id);
-      });
-      childWrap.appendChild(folderRow);
-
-      if (folderOpen) {
-        folderItems.forEach((item) => childWrap.appendChild(createExplorerNoteRow(item, category)));
+    state[category].forEach((item) => {
+      if (item.folderId) {
+        if (!allByFolder.has(item.folderId)) allByFolder.set(item.folderId, []);
+        allByFolder.get(item.folderId).push({ item, category });
+      } else {
+        loose.push({ item, category });
       }
     });
-
-    items.filter((item) => !item.folderId).forEach((item) => {
-      childWrap.appendChild(createExplorerNoteRow(item, category));
-    });
-
-    tree.appendChild(childWrap);
   });
+
+  state.folders.forEach((folder) => {
+    const entries = allByFolder.get(folder.id) || [];
+    const folderOpen = expandedFolders.has(folder.id);
+    const folderRow = document.createElement("div");
+    folderRow.className = `explorer-row folder-row ${currentFolderId === folder.id ? "active" : ""}`;
+    folderRow.innerHTML = `
+      <button class="chev-btn" type="button">${chevronIcon(folderOpen)}</button>
+      <span class="explorer-icon">${folderIcon}</span>
+      <span class="explorer-label">${escapeHTML(folder.name)}</span>
+      <span class="explorer-count">${entries.length}</span>
+      <span class="explorer-actions">
+        <button class="explorer-action" type="button" title="새 파일">${fileAddIcon}</button>
+        <button class="explorer-action" type="button" title="폴더 삭제">${trashIcon}</button>
+      </span>
+    `;
+    const [folderFileAddBtn, folderDeleteBtn] = folderRow.querySelectorAll(".explorer-action");
+    folderRow.querySelector(".explorer-label").addEventListener("click", () => {
+      currentCategory = "all";
+      currentFolderId = folder.id;
+      currentTag = "";
+      expandedFolders.add(folder.id);
+      render();
+    });
+    folderRow.querySelector(".chev-btn").addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (expandedFolders.has(folder.id)) expandedFolders.delete(folder.id);
+      else expandedFolders.add(folder.id);
+      renderExplorerTree();
+    });
+    folderFileAddBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      createFileIn("characters", folder.id);
+    });
+    folderDeleteBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      deleteFolderDirect(folder.id);
+    });
+    folderRow.addEventListener("dragover", (event) => {
+      if (event.dataTransfer.types.includes("application/x-explorer-file")) {
+        event.preventDefault();
+        folderRow.classList.add("drop-target");
+      }
+    });
+    folderRow.addEventListener("dragleave", () => folderRow.classList.remove("drop-target"));
+    folderRow.addEventListener("drop", (event) => {
+      folderRow.classList.remove("drop-target");
+      handleExplorerDrop(event, folder.id);
+    });
+    tree.appendChild(folderRow);
+
+    if (folderOpen) {
+      const childWrap = document.createElement("div");
+      childWrap.className = "explorer-children";
+      entries
+        .sort((a, b) => a.item.title.localeCompare(b.item.title))
+        .forEach(({ item, category }) => childWrap.appendChild(createExplorerNoteRow(item, category)));
+      tree.appendChild(childWrap);
+    }
+  });
+
+  loose
+    .sort((a, b) => a.item.title.localeCompare(b.item.title))
+    .forEach(({ item, category }) => tree.appendChild(createExplorerNoteRow(item, category)));
 
   const sep = document.createElement("div");
   sep.className = "explorer-sep";
   tree.appendChild(sep);
 
-  ["timeline", "relations", "map"].forEach((key) => {
+  ["relations", "timeline", "map"].forEach((key) => {
     const row = document.createElement("div");
     row.className = `explorer-row view-row ${currentCategory === key ? "active" : ""}`;
     row.innerHTML = `<span class="explorer-icon">${viewIcons[key]}</span><span class="explorer-label">${categories[key]}</span>`;
@@ -789,8 +962,6 @@ function renderSidebar() {
 function renderTitle() {
   $("pageTitle").textContent = categories[currentCategory];
   $("pageDesc").textContent = categoryDesc[currentCategory];
-  const tabLabel = $("pageTabLabel");
-  if (tabLabel) tabLabel.textContent = categories[currentCategory];
 }
 
 function renderMainMode() {
@@ -822,7 +993,7 @@ function createPill(text, active, onClick) {
 function renderFolders() {
   const row = $("folderRow");
   row.innerHTML = "";
-  if (!dataCategories.includes(currentCategory)) {
+  if (currentCategory !== "all") {
     row.classList.add("hidden");
     return;
   }
@@ -835,8 +1006,8 @@ function renderFolders() {
     currentFolderId = "__none";
     render();
   }));
-  state.folders[currentCategory].forEach((folder) => {
-    const count = state[currentCategory].filter((item) => item.folderId === folder.id).length;
+  state.folders.forEach((folder) => {
+    const count = getAllItems().filter((item) => item.folderId === folder.id).length;
     row.appendChild(createPill(`${folder.name} ${count}`, currentFolderId === folder.id, () => {
       currentFolderId = folder.id;
       render();
@@ -882,8 +1053,8 @@ function renderCards() {
   items.forEach((item) => grid.appendChild(createCard(item)));
 }
 
-function getFolderName(category, folderId) {
-  return state.folders[category]?.find((folder) => folder.id === folderId)?.name || "";
+function getFolderName(folderId) {
+  return state.folders.find((folder) => folder.id === folderId)?.name || "";
 }
 
 function cardRelationSummary(item) {
@@ -922,7 +1093,7 @@ function createCard(item) {
     <div class="card-summary">${escapeHTML(item.summary || item.body || "내용 없음")}</div>
     ${cardRelationSummary(item)}
     <div class="tags">
-      ${item.folderId ? `<span class="tag">${escapeHTML(getFolderName(item.category, item.folderId))}</span>` : ""}
+      ${item.folderId ? `<span class="tag">${escapeHTML(getFolderName(item.folderId))}</span>` : ""}
       ${(item.tags || []).slice(0, 3).map((tag) => `<span class="tag">${escapeHTML(tag)}</span>`).join("")}
     </div>
     <div class="card-actions">
@@ -980,9 +1151,9 @@ function fillCategorySelects() {
   });
 }
 
-function fillFolderSelect(category, selected = "") {
+function fillFolderSelect(selected = "") {
   $("cardFolder").innerHTML = `<option value="">폴더 없음</option>`;
-  state.folders[category].forEach((folder) => {
+  state.folders.forEach((folder) => {
     const option = new Option(folder.name, folder.id);
     option.selected = folder.id === selected;
     $("cardFolder").appendChild(option);
@@ -1008,14 +1179,45 @@ function readCardDateFields(category) {
   return result;
 }
 
+function changeItemCategory(oldCategory, id, newCategory) {
+  if (oldCategory === newCategory) return true;
+  const item = findItem(oldCategory, id);
+  if (!item) return false;
+
+  state[oldCategory] = state[oldCategory].filter((entry) => entry.id !== id);
+  item.order = state[newCategory].length;
+  state[newCategory].push(item);
+
+  dataCategories.forEach((cat) => {
+    state[cat].forEach((entry) => {
+      (entry.links || []).forEach((link) => {
+        if (link.category === oldCategory && link.id === id) link.category = newCategory;
+      });
+    });
+  });
+  state.relation.nodes.forEach((node) => {
+    if (node.sourceCategory === oldCategory && node.sourceId === id) node.sourceCategory = newCategory;
+  });
+  state.timeline.forEach((point) => {
+    if (point.sourceCategory === oldCategory && point.sourceId === id) point.sourceCategory = newCategory;
+  });
+  openTabs.forEach((tab) => {
+    if (tab.type === "file" && tab.category === oldCategory && tab.id === id) tab.category = newCategory;
+  });
+  if (activeTabKey === `file:${oldCategory}:${id}`) activeTabKey = `file:${newCategory}:${id}`;
+  if (detailTarget && detailTarget.category === oldCategory && detailTarget.id === id) {
+    detailTarget = { category: newCategory, id };
+  }
+  return true;
+}
+
 function openCardModal(category = null, id = null) {
   editingCard = category && id ? { category, id } : null;
   const item = editingCard ? findItem(category, id) : null;
   const targetCategory = item?.category || (dataCategories.includes(currentCategory) ? currentCategory : "characters");
 
   $("cardCategory").value = targetCategory;
-  $("cardCategory").disabled = Boolean(editingCard);
-  fillFolderSelect(targetCategory, item?.folderId || "");
+  fillFolderSelect(item?.folderId || "");
 
   $("cardSummary").value = item?.summary || "";
   renderCardDateFields(targetCategory, item);
@@ -1200,6 +1402,7 @@ function openDetail(category, id, mode = "preview") {
   renderSidebar();
   renderEditor();
   if ($("propsPanel")?.classList.contains("open")) openCardModal(category, id);
+  registerTab({ type: "file", category, id });
 }
 
 function closeEditor() {
@@ -1317,27 +1520,30 @@ function deleteCard(category, id) {
   });
   state.relation.nodes = state.relation.nodes.filter((node) => !(node.sourceCategory === category && node.sourceId === id));
   if (detailTarget && detailTarget.category === category && detailTarget.id === id) detailTarget = null;
+  const closingActiveTab = activeTabKey === `file:${category}:${id}`;
+  openTabs = openTabs.filter((tab) => !(tab.type === "file" && tab.category === category && tab.id === id));
+  saveOpenTabs();
   saveState();
-  render();
+  if (closingActiveTab) navigateToTab(openTabs[openTabs.length - 1]);
+  else { render(); renderTabStrip(); }
 }
 
 function openFolderModal(folderId = null) {
   editingFolder = folderId;
-  const folder = state.folders[currentCategory].find((item) => item.id === folderId);
+  const folder = state.folders.find((item) => item.id === folderId);
   $("folderName").value = folder?.name || "";
   $("deleteFolderBtn").classList.toggle("hidden", !folderId);
   openModal("folderModal");
 }
 
 function saveFolder() {
-  if (!dataCategories.includes(currentCategory)) return;
   const name = $("folderName").value.trim();
   if (!name) return;
   if (editingFolder) {
-    const folder = state.folders[currentCategory].find((item) => item.id === editingFolder);
+    const folder = state.folders.find((item) => item.id === editingFolder);
     if (folder) folder.name = name;
   } else {
-    state.folders[currentCategory].push({ id: uid(), name });
+    state.folders.push({ id: uid(), name });
   }
   saveState();
   closeModal("folderModal");
@@ -1346,9 +1552,11 @@ function saveFolder() {
 
 function deleteFolder() {
   if (!editingFolder || !confirm("폴더를 삭제할까요? 설정은 삭제되지 않습니다.")) return;
-  state.folders[currentCategory] = state.folders[currentCategory].filter((folder) => folder.id !== editingFolder);
-  state[currentCategory].forEach((item) => {
-    if (item.folderId === editingFolder) item.folderId = "";
+  state.folders = state.folders.filter((folder) => folder.id !== editingFolder);
+  dataCategories.forEach((category) => {
+    state[category].forEach((item) => {
+      if (item.folderId === editingFolder) item.folderId = "";
+    });
   });
   currentFolderId = "";
   saveState();
@@ -2192,6 +2400,27 @@ function openImportNodes() {
   openModal("importNodeModal");
 }
 
+function addRelationNodeFromItem(category, id, worldX = null, worldY = null) {
+  if (state.relation.nodes.some((node) => node.sourceCategory === category && node.sourceId === id)) {
+    showToast("이미 관계도에 있는 카드입니다.");
+    return;
+  }
+  const item = findItem(category, id);
+  if (!item) return;
+  const isOrg = category === "factions";
+  state.relation.nodes.push({
+    id: uid(),
+    sourceCategory: category,
+    sourceId: id,
+    name: item.title,
+    desc: item.summary || "",
+    x: worldX ?? (isOrg ? 80 : 100 + Math.random() * 120),
+    y: worldY ?? (isOrg ? 80 : 180 + Math.random() * 160)
+  });
+  saveState();
+  renderRelations();
+}
+
 function renderImportList() {
   const list = $("importList");
   const keyword = $("importSearch").value.trim().toLowerCase();
@@ -2206,19 +2435,8 @@ function renderImportList() {
       row.className = "import-item";
       row.innerHTML = `<div><strong>${escapeHTML(item.title)}</strong><br><small>${categories[item.category]}</small></div><button>가져오기</button>`;
       row.querySelector("button").addEventListener("click", () => {
-        const isOrg = item.category === "factions";
-        state.relation.nodes.push({
-          id: uid(),
-          sourceCategory: item.category,
-          sourceId: item.id,
-          name: item.title,
-          desc: item.summary || "",
-          x: isOrg ? 80 : 100 + Math.random() * 120,
-          y: isOrg ? 80 : 180 + Math.random() * 160
-        });
-        saveState();
+        addRelationNodeFromItem(item.category, item.id);
         closeModal("importNodeModal");
-        renderRelations();
       });
       list.appendChild(row);
     });
@@ -3644,9 +3862,7 @@ function parseFrontmatter(text) {
 }
 
 function cardToMarkdown(category, item) {
-  const folderName = item.folderId
-    ? (state.folders[category]?.find((folder) => folder.id === item.folderId)?.name || "")
-    : "";
+  const folderName = item.folderId ? getFolderName(item.folderId) : "";
   const links = normalizeLinks(item.links || []);
   const linkRefs = links
     .map((link) => {
@@ -3736,10 +3952,10 @@ function applyImportedCard(parsed, defaultCategory) {
 
   let folderId = "";
   if (parsed.folderName) {
-    let folder = state.folders[category].find((item) => item.name === parsed.folderName);
+    let folder = state.folders.find((item) => item.name === parsed.folderName);
     if (!folder) {
       folder = { id: uid(), name: parsed.folderName };
-      state.folders[category].push(folder);
+      state.folders.push(folder);
     }
     folderId = folder.id;
   }
@@ -3927,6 +4143,20 @@ function initEvents() {
   });
   on("railWriteBtn", "click", () => startNewFile());
   on("explorerAllRow", "click", () => switchCategory("all"));
+  const allRowEl = $("explorerAllRow");
+  if (allRowEl) {
+    allRowEl.addEventListener("dragover", (event) => {
+      if (event.dataTransfer.types.includes("application/x-explorer-file")) {
+        event.preventDefault();
+        allRowEl.classList.add("drop-target");
+      }
+    });
+    allRowEl.addEventListener("dragleave", () => allRowEl.classList.remove("drop-target"));
+    allRowEl.addEventListener("drop", (event) => {
+      allRowEl.classList.remove("drop-target");
+      handleExplorerDrop(event, "");
+    });
+  }
   on("sidebarSearchInput", "input", renderSidebarSearch);
 
   document.querySelectorAll("[data-close]").forEach((button) => {
@@ -3952,20 +4182,25 @@ function initEvents() {
   });
   on("exportCardBtn", "click", exportSingleCard);
 
-  on("pageTabAdd", "click", () => startNewFile());
-  on("pageTabClose", "click", () => switchCategory("all"));
-
   $("searchInput").addEventListener("input", render);
   $("sortSelect").addEventListener("change", render);
   $("emptyBox").addEventListener("click", () => startNewFile());
 
   $("cardCategory").addEventListener("change", () => {
-    fillFolderSelect($("cardCategory").value, "");
+    const newCategory = $("cardCategory").value;
+    if (editingCard) {
+      const moved = changeItemCategory(editingCard.category, editingCard.id, newCategory);
+      if (moved) editingCard = { category: newCategory, id: editingCard.id };
+    }
+    fillFolderSelect(editingCard ? findItem(editingCard.category, editingCard.id)?.folderId || "" : "");
     selectedLinks = readLinks();
-    renderLinkPicker($("cardCategory").value, editingCard?.id || null);
-    renderCardDateFields($("cardCategory").value, editingCard ? findItem(editingCard.category, editingCard.id) : null);
+    renderLinkPicker(newCategory, editingCard?.id || null);
+    renderCardDateFields(newCategory, editingCard ? findItem(editingCard.category, editingCard.id) : null);
     if (!editingCard) return; // 새 카드 생성 흐름에서는 저장하지 않고 폼만 갱신
     saveCard();
+    saveOpenTabs();
+    renderSidebar();
+    renderTabStrip();
   });
   on("closePropsBtn", "click", closePropsPanel);
   $("cardSummary").addEventListener("blur", saveCard);
@@ -4004,6 +4239,7 @@ function initEvents() {
     saveState();
     renderSidebar();
     renderTitle();
+    renderTabStrip();
   }, 350);
 
   const saveEditorBody = debounce((value) => {
@@ -4176,6 +4412,29 @@ function initEvents() {
   on("relationBoard", "pointercancel", endRelationPan);
   on("relationBoard", "mouseleave", endRelationPan);
   on("relationBoard", "wheel", handleRelationWheel);
+  const relationBoardEl = $("relationBoard");
+  if (relationBoardEl) {
+    relationBoardEl.addEventListener("dragover", (event) => {
+      if (event.dataTransfer.types.includes("application/x-explorer-file")) {
+        event.preventDefault();
+        relationBoardEl.classList.add("drop-target");
+      }
+    });
+    relationBoardEl.addEventListener("dragleave", () => relationBoardEl.classList.remove("drop-target"));
+    relationBoardEl.addEventListener("drop", (event) => {
+      relationBoardEl.classList.remove("drop-target");
+      const raw = event.dataTransfer.getData("application/x-explorer-file");
+      if (!raw) return;
+      event.preventDefault();
+      try {
+        const { category, id } = JSON.parse(raw);
+        const world = relationScreenToWorld(event.clientX, event.clientY);
+        addRelationNodeFromItem(category, id, Math.max(8, world.x - 85), Math.max(8, world.y - 30));
+      } catch {
+        // 무시
+      }
+    });
+  }
   on("timelineBoard", "wheel", handleTimelineWheel);
   on("addMapBtn", "click", addMap);
   on("renameMapBtn", "click", renameMap);
@@ -4329,8 +4588,16 @@ function init() {
   ensureMaps();
   currentMapId = state.currentMapId || state.maps[0].id;
   fillCategorySelects();
+  loadOpenTabs();
+  pruneInvalidTabs();
   initEvents();
-  render();
+  const activeTab = openTabs.find((t) => tabKey(t) === activeTabKey) || openTabs[0];
+  if (activeTab && !(activeTab.type === "view" && activeTab.key === "all")) {
+    navigateToTab(activeTab);
+  } else {
+    render();
+  }
+  renderTabStrip();
 }
 
 init();

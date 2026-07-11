@@ -3619,3 +3619,98 @@ body.tl-no-select, body.tl-no-select * {
   inset: 0;
   will-change: transform;
 }
+
+
+/* =========================================================================
+   지도 영역 색상 피커 다크모드 버그 수정 (예전 베이지 강제 규칙 무력화)
+   ========================================================================= */
+#regionColorInput {
+  background: var(--ob-bg-elevated) !important;
+  border: 1px solid var(--ob-line) !important;
+  border-radius: 8px !important;
+  padding: 3px !important;
+}
+#regionColorInput::-webkit-color-swatch-wrapper { padding: 2px; }
+#regionColorInput::-webkit-color-swatch { border: none; border-radius: 5px; }
+#regionColorInput::-moz-color-swatch { border: none; border-radius: 5px; }
+
+
+/* =========================================================================
+   사이드바 가로폭 / 글자 크기 확대
+   ========================================================================= */
+.app {
+  grid-template-columns: 50px 300px 1fr !important;
+}
+.explorer-row {
+  font-size: 14.5px !important;
+  min-height: 30px !important;
+}
+.explorer-count { font-size: 12px !important; }
+.tag-cloud-item { font-size: 13.5px !important; }
+.search-result-row { font-size: 13.5px !important; }
+@media (max-width: 980px) {
+  .app { grid-template-columns: 50px 1fr !important; }
+}
+
+
+/* =========================================================================
+   VSCode식 다중 탭
+   ========================================================================= */
+.tab-list {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  height: 100%;
+  scrollbar-width: thin;
+}
+.tab-list::-webkit-scrollbar { height: 4px; }
+.tab {
+  flex-shrink: 0;
+  max-width: 180px;
+  cursor: pointer;
+  color: var(--ob-muted) !important;
+  background: transparent !important;
+  border-color: transparent !important;
+}
+.tab span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tab:hover { background: var(--ob-bg-hover) !important; color: var(--ob-text) !important; }
+.tab.active {
+  background: var(--ob-bg-panel) !important;
+  color: var(--ob-text-strong) !important;
+  border-color: var(--ob-line) !important;
+}
+
+
+/* =========================================================================
+   진짜 탐색기: 폴더 우선 트리, 타입 배지, 드래그앤드롭
+   ========================================================================= */
+.explorer-type-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border: 1px solid;
+  border-radius: 4px;
+  font-size: 9.5px;
+  font-weight: 700;
+  opacity: .9;
+}
+.explorer-row.folder-row.drop-target,
+.explorer-row.all-row.drop-target {
+  background: var(--ob-accent-soft) !important;
+  outline: 1px dashed var(--ob-accent);
+  outline-offset: -1px;
+}
+.explorer-row.note-row { cursor: grab; }
+#relationBoard.drop-target {
+  outline: 2px dashed var(--ob-accent);
+  outline-offset: -2px;
+}
