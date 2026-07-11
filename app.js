@@ -72,6 +72,8 @@ let relationZoom = 1;
 let isRelationPanning = false;
 let relationPanStart = null;
 let timelineZoom = 1;
+let timelineCenter = Date.now();
+let timelineSearchQuery = "";
 let selectedMapPinId = null;
 let editingMapPinId = null;
 let pendingMapPinPosition = null;
@@ -794,112 +796,144 @@ function deleteFolder() {
   render();
 }
 
+function timelineTimeOf(point) {
+  if (!point) return null;
+  if (point.date) {
+    const t = new Date(point.date).getTime();
+    if (!Number.isNaN(t)) return t;
+  }
+  if (point.year) {
+    const t = new Date(point.year).getTime();
+    if (!Number.isNaN(t)) return t;
+  }
+  return null;
+}
+
+function timelineRangeMs() {
+  const baseRange = 4 * 365.25 * 24 * 60 * 60 * 1000; // ~4 years visible at 100%
+  return baseRange / timelineZoom;
+}
+
+function timelineBounds() {
+  const range = timelineRangeMs();
+  const center = timelineCenter ?? Date.now();
+  return { start: center - range / 2, end: center + range / 2, range };
+}
+
+function formatTimelineTick(ms) {
+  const d = new Date(ms);
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월`;
+}
+
+function formatTimelineFull(ms) {
+  const d = new Date(ms);
+  const hours = d.getHours();
+  const ampm = hours < 12 ? "오전" : "오후";
+  const hour12 = String(hours % 12 === 0 ? 12 : hours % 12).padStart(2, "0");
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 ${ampm} ${hour12}:${minutes}`;
+}
+
 function renderTimeline() {
   const board = $("timelineBoard");
-  board.querySelectorAll(".timeline-dot,.timeline-card,.timeline-year-line,.timeline-year-label,.timeline-zoom-spacer").forEach((el) => el.remove());
+  const axis = $("timelineAxis");
+  const eventsLayer = $("timelineEvents");
+  const emptyBox = $("timelineEmpty");
+  if (!board || !axis || !eventsLayer) return;
 
-  const zoomSpacer = document.createElement("div");
-  zoomSpacer.className = "timeline-zoom-spacer";
-  zoomSpacer.style.width = `${Math.max(board.clientWidth, Math.round(1200 * timelineZoom))}px`;
-  zoomSpacer.style.height = "1px";
-  zoomSpacer.style.pointerEvents = "none";
-  board.appendChild(zoomSpacer);
+  axis.innerHTML = "";
+  eventsLayer.innerHTML = "";
 
-  const yearMap = new Map();
-  state.timeline.forEach((point, index) => {
-    point.dotX ??= 12 + index * 14;
-    point.cardX = point.dotX;
-    point.cardY ??= index % 2 === 0 ? 28 : 60;
+  const { start, range } = timelineBounds();
+  const query = timelineSearchQuery.trim().toLowerCase();
 
-    const year = String(point.year || point.date || point.title || "").trim();
-    if (year) {
-      if (!yearMap.has(year)) yearMap.set(year, point.dotX);
-      else {
-        const fixedX = yearMap.get(year);
-        point.dotX = fixedX;
-        point.cardX = fixedX;
-      }
-    }
-  });
+  const tickCount = 6;
+  for (let i = 0; i <= tickCount; i++) {
+    const t = start + (range * i) / tickCount;
+    const x = (i / tickCount) * 100;
 
-  yearMap.forEach((x, year) => {
-    const line = document.createElement("div");
-    line.className = "timeline-year-line";
-    line.style.left = `${x}%`;
-    board.appendChild(line);
+    const gridline = document.createElement("div");
+    gridline.className = "tl-gridline";
+    gridline.style.left = `${x}%`;
+    axis.appendChild(gridline);
 
     const label = document.createElement("div");
-    label.className = "timeline-year-label";
+    label.className = "tl-tick-label";
     label.style.left = `${x}%`;
-    label.textContent = year;
-    board.appendChild(label);
-  });
+    label.textContent = formatTimelineTick(t);
+    axis.appendChild(label);
+  }
 
-  state.timeline.forEach((point) => {
+  const visiblePoints = state.timeline
+    .map((point) => ({ point, time: timelineTimeOf(point) ?? Date.now() }))
+    .filter(({ point }) => {
+      if (!query) return true;
+      return point.title.toLowerCase().includes(query) || (point.desc || "").toLowerCase().includes(query);
+    })
+    .sort((a, b) => a.time - b.time);
+
+  visiblePoints.forEach(({ point, time }, index) => {
+    const ratio = (time - start) / range;
+    if (ratio < -0.03 || ratio > 1.03) return;
+    const x = Math.min(100, Math.max(0, ratio * 100));
+    const selected = selectedTimelineId === point.id;
+
     const dot = document.createElement("div");
-    dot.className = `timeline-dot ${selectedTimelineId === point.id ? "selected" : ""}`;
-    dot.style.left = `${point.dotX}%`;
-    dot.style.top = "50%";
+    dot.className = `tl-dot ${selected ? "selected" : ""}`;
+    dot.style.left = `${x}%`;
     dot.addEventListener("click", (event) => {
       event.stopPropagation();
       selectedTimelineId = point.id;
       renderTimeline();
     });
-    makeDrag(dot, (x) => {
-      point.dotX = Math.max(4, Math.min(96, x));
-      point.cardX = point.dotX;
-      dot.style.left = `${point.dotX}%`;
-    }, true);
-    board.appendChild(dot);
+    eventsLayer.appendChild(dot);
+
+    const stem = document.createElement("div");
+    stem.className = `tl-stem ${selected ? "selected" : ""}`;
+    stem.style.left = `${x}%`;
+    eventsLayer.appendChild(stem);
 
     const card = document.createElement("div");
-    card.className = `timeline-card ${selectedTimelineId === point.id ? "selected" : ""}`;
-    card.style.left = `${point.cardX}%`;
-    card.style.top = `${point.cardY}%`;
-    card.innerHTML = `<strong>${escapeHTML(point.title)}</strong><small>${escapeHTML(point.year || "")}</small><span>${escapeHTML(point.desc || "")}</span>`;
+    card.className = `tl-card ${selected ? "selected" : ""} ${index % 2 ? "row-b" : "row-a"}`;
+    card.style.left = `${x}%`;
+    card.innerHTML = `
+      <strong>${escapeHTML(point.title)}</strong>
+      <small>${escapeHTML(formatTimelineFull(time))}</small>
+      ${point.year ? `<em>${escapeHTML(point.year)}</em>` : ""}
+      ${point.desc ? `<span>${escapeHTML(point.desc)}</span>` : ""}
+    `;
     card.addEventListener("click", (event) => {
       event.stopPropagation();
       selectedTimelineId = point.id;
       renderTimeline();
     });
-    makeDrag(card, (x, y) => {
-      point.cardY = Math.max(8, Math.min(86, y));
-      point.cardX = point.dotX;
-      card.style.left = `${point.cardX}%`;
-      card.style.top = `${point.cardY}%`;
+    card.addEventListener("dblclick", (event) => {
+      event.stopPropagation();
+      openTimelineModal(point.id);
     });
-    board.appendChild(card);
+    eventsLayer.appendChild(card);
   });
+
+  if (emptyBox) emptyBox.classList.toggle("hidden", state.timeline.length > 0);
+
+  const countLabel = $("timelineCount");
+  if (countLabel) countLabel.textContent = `${state.timeline.length}개`;
 
   const zoomLabel = $("timelineZoomResetBtn");
   if (zoomLabel) zoomLabel.textContent = `${Math.round(timelineZoom * 100)}%`;
 }
 
-function makeDrag(el, onMove, horizontalOnly = false) {
-  el.addEventListener("pointerdown", (event) => {
-    event.preventDefault();
-    const board = el.parentElement;
-    const rect = board.getBoundingClientRect();
-    el.setPointerCapture(event.pointerId);
-    const move = (e) => {
-      const x = ((e.clientX - rect.left) / rect.width) * 100;
-      const y = ((e.clientY - rect.top) / rect.height) * 100;
-      onMove(x, horizontalOnly ? 50 : y);
-    };
-    const up = () => {
-      el.removeEventListener("pointermove", move);
-      el.removeEventListener("pointerup", up);
-      saveState();
-    };
-    el.addEventListener("pointermove", move);
-    el.addEventListener("pointerup", up);
-  });
+function toDatetimeLocalValue(ms) {
+  const d = new Date(ms);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 function openTimelineModal(id = null) {
   editingTimelineId = id;
   const point = state.timeline.find((item) => item.id === id);
   $("timelineTitle").value = point?.title || "";
+  $("timelineDate").value = toDatetimeLocalValue(timelineTimeOf(point) ?? Date.now());
   $("timelineYear").value = point?.year || "";
   $("timelineDesc").value = point?.desc || "";
   openModal("timelineModal");
@@ -908,15 +942,28 @@ function openTimelineModal(id = null) {
 function saveTimeline() {
   const title = $("timelineTitle").value.trim();
   if (!title) return;
+  const dateValue = $("timelineDate").value;
+  const isoDate = dateValue ? new Date(dateValue).toISOString() : new Date().toISOString();
+
   if (editingTimelineId) {
     const point = state.timeline.find((item) => item.id === editingTimelineId);
     if (point) {
       point.title = title;
+      point.date = isoDate;
       point.year = $("timelineYear").value.trim();
       point.desc = $("timelineDesc").value.trim();
     }
   } else {
-    state.timeline.push({ id: uid(), title, year: $("timelineYear").value.trim(), desc: $("timelineDesc").value.trim(), dotX: 50, cardX: 50, cardY: 30 });
+    const point = {
+      id: uid(),
+      title,
+      date: isoDate,
+      year: $("timelineYear").value.trim(),
+      desc: $("timelineDesc").value.trim()
+    };
+    state.timeline.push(point);
+    selectedTimelineId = point.id;
+    timelineCenter = new Date(isoDate).getTime();
   }
   saveState();
   closeModal("timelineModal");
@@ -933,16 +980,18 @@ function importTimelineEvents() {
   }
 
   candidates.forEach((event, index) => {
+    const parsed = event.dateText ? new Date(event.dateText) : null;
+    const hasValidDate = parsed && !Number.isNaN(parsed.getTime());
+    const fallbackTime = Date.now() + (state.timeline.length + index) * 7 * 24 * 60 * 60 * 1000;
+
     state.timeline.push({
       id: uid(),
       sourceCategory: "events",
       sourceId: event.id,
       title: event.title,
+      date: (hasValidDate ? parsed : new Date(fallbackTime)).toISOString(),
       year: event.dateText || "",
-      desc: event.summary || event.body || "",
-      dotX: Math.min(92, 10 + (state.timeline.length + index) * 10),
-      cardX: Math.min(92, 10 + (state.timeline.length + index) * 10),
-      cardY: index % 2 === 0 ? 30 : 60
+      desc: event.summary || event.body || ""
     });
   });
 
@@ -951,50 +1000,29 @@ function importTimelineEvents() {
   showToast("사건 카드를 타임라인에 불러왔습니다.");
 }
 
-function zoomTimeline(delta, event = null) {
-  const board = $("timelineBoard");
-  const oldZoom = timelineZoom;
-  const nextZoom = Math.max(0.5, Math.min(3, Math.round((timelineZoom + delta) * 10) / 10));
-  if (nextZoom === oldZoom) return;
-
-  const rect = board?.getBoundingClientRect();
-  const anchorX = event && rect ? event.clientX - rect.left : (board?.clientWidth || 0) / 2;
-  const beforeX = board ? board.scrollLeft + anchorX : 0;
-
+function zoomTimeline(delta) {
+  const nextZoom = Math.max(0.4, Math.min(4, Math.round((timelineZoom + delta) * 10) / 10));
+  if (nextZoom === timelineZoom) return;
   timelineZoom = nextZoom;
   renderTimeline();
-  applyTimelineZoom();
+}
 
-  requestAnimationFrame(() => {
-    if (!board) return;
-    const ratio = nextZoom / oldZoom;
-    board.scrollLeft = Math.max(0, beforeX * ratio - anchorX);
-  });
+function panTimeline(direction) {
+  const { range } = timelineBounds();
+  timelineCenter = (timelineCenter ?? Date.now()) + direction * range * 0.3;
+  renderTimeline();
 }
 
 function resetTimelineZoom() {
   timelineZoom = 1;
+  timelineCenter = Date.now();
   renderTimeline();
-  applyTimelineZoom();
-}
-
-function applyTimelineZoom() {
-  const board = $("timelineBoard");
-  if (!board) return;
-  board.style.setProperty("--timeline-zoom", timelineZoom);
-  const label = $("timelineZoomResetBtn");
-  if (label) label.textContent = `${Math.round(timelineZoom * 100)}%`;
-
-  const spacer = board.querySelector(".timeline-zoom-spacer");
-  if (spacer) {
-    spacer.style.width = `${Math.max(board.clientWidth, Math.round(1200 * timelineZoom))}px`;
-  }
 }
 
 function handleTimelineWheel(event) {
   event.preventDefault();
   event.stopPropagation();
-  zoomTimeline(event.deltaY < 0 ? 0.1 : -0.1, event);
+  zoomTimeline(event.deltaY < 0 ? 0.2 : -0.2);
 }
 
 
@@ -1435,11 +1463,6 @@ function handleRelationWheel(event) {
 }
 
 
-function resetRelationZoom() {
-  relationZoom = 1;
-  renderRelations();
-}
-
 function startRelationPan(event) {
   if (event.button !== 0 && event.button !== 1) return;
   const board = $("relationBoard");
@@ -1467,12 +1490,6 @@ function endRelationPan(event) {
   relationPanStart = null;
   board?.classList.remove("panning");
   board?.releasePointerCapture?.(event.pointerId);
-}
-
-function handleRelationWheel(event) {
-  event.preventDefault();
-  event.stopPropagation();
-  zoomRelation(event.deltaY < 0 ? 0.1 : -0.1, event);
 }
 
 function applyEdgeToolbarValues() {
@@ -1673,40 +1690,6 @@ function fitMapCanvasToImage() {
 }
 
 
-function fitMapToVisibleImage() {
-  const board = $("mapBoard");
-  const canvas = $("mapCanvas");
-  const image = $("mapImage");
-  const svg = $("mapSvg");
-
-  if (!board || !canvas) return;
-
-  const viewportWidth = board.clientWidth || board.parentElement?.clientWidth || canvas.clientWidth || 1000;
-  const frameHeight = 520;
-
-  board.style.height = `${frameHeight}px`;
-  board.style.minHeight = `${frameHeight}px`;
-  board.style.padding = "0";
-  board.style.overflow = "auto";
-
-  canvas.style.width = `${Math.max(viewportWidth, Math.round(viewportWidth * mapZoom))}px`;
-  canvas.style.height = `${Math.round(frameHeight * mapZoom)}px`;
-  canvas.style.minHeight = `${Math.round(frameHeight * mapZoom)}px`;
-  canvas.style.marginLeft = "0";
-  canvas.style.marginRight = "0";
-
-  if (image && !image.classList.contains("hidden")) {
-    image.style.width = "100%";
-    image.style.height = "100%";
-  }
-
-  if (svg) {
-    svg.style.width = "100%";
-    svg.style.height = "100%";
-  }
-}
-
-
 function showEmptyMapCanvas() {
   const board = $("mapBoard");
   const canvas = $("mapCanvas");
@@ -1796,25 +1779,10 @@ function renderMap() {
 
   canvas.style.transform = "none";
 
-  const board = $("mapBoard");
-  const baseWidth = Math.max(800, board ? board.clientWidth : 800);
-  const baseHeight = 580;
-  const zoomedWidth = Math.round(baseWidth * mapZoom);
-  const zoomedHeight = Math.round(baseHeight * mapZoom);
-
-  // CSS에 이전 버전의 !important가 남아 있어도 실제 캔버스 크기가 커지도록 강제로 지정합니다.
-  canvas.style.setProperty("width", `${zoomedWidth}px`, "important");
-  canvas.style.setProperty("height", `${zoomedHeight}px`, "important");
-  canvas.style.setProperty("min-height", `${zoomedHeight}px`, "important");
-
   const zoomLabel = $("zoomResetBtn");
   if (zoomLabel) zoomLabel.textContent = `${Math.round(mapZoom * 100)}%`;
 
   if (map.image) {
-    image.onload = () => {
-      rememberMapImageAspect(map, image);
-      
-    };
     image.onload = () => {
       if (typeof rememberMapImageAspect === "function") rememberMapImageAspect(map, image);
       image.classList.remove("hidden");
@@ -2956,10 +2924,17 @@ function initEvents() {
   });
   $("saveTimelineBtn").addEventListener("click", saveTimeline);
   $("timelineBoard").addEventListener("click", (event) => {
-    if (event.target === $("timelineBoard") || event.target.classList.contains("timeline-line")) {
+    if (event.target === $("timelineBoard") || event.target.classList.contains("tl-line") || event.target.id === "timelineEvents" || event.target.id === "timelineAxis") {
       selectedTimelineId = null;
       renderTimeline();
     }
+  });
+  on("timelinePrevBtn", "click", () => panTimeline(-1));
+  on("timelineNextBtn", "click", () => panTimeline(1));
+  on("timelineResetBtn", "click", resetTimelineZoom);
+  on("timelineSearchInput", "input", (event) => {
+    timelineSearchQuery = event.target.value || "";
+    renderTimeline();
   });
 
   $("addNodeBtn").addEventListener("click", () => openNodeModal());
@@ -3011,6 +2986,7 @@ function initEvents() {
   on("relationBoard", "pointercancel", endRelationPan);
   on("relationBoard", "mouseleave", endRelationPan);
   on("relationBoard", "wheel", handleRelationWheel);
+  on("timelineBoard", "wheel", handleTimelineWheel);
   on("addMapBtn", "click", addMap);
   on("renameMapBtn", "click", renameMap);
   on("deleteMapBtn", "click", deleteMap);
@@ -3157,23 +3133,6 @@ function initEvents() {
     }
   });
 
-  on("timelineZoomInBtn", "click", () => zoomTimeline(0.1));
-  on("timelineZoomOutBtn", "click", () => zoomTimeline(-0.1));
-  on("timelineZoomResetBtn", "click", resetTimelineZoom);
-
-  const timelineBoardForZoom = $("timelineBoard");
-  if (timelineBoardForZoom) {
-    timelineBoardForZoom.addEventListener("wheel", handleTimelineWheel, { passive: false });
-  }
-
-  on("relationZoomInBtn", "click", () => zoomRelation(0.1));
-  on("relationZoomOutBtn", "click", () => zoomRelation(-0.1));
-  on("relationZoomResetBtn", "click", resetRelationZoom);
-
-  const relationBoardForZoom = $("relationBoard");
-  if (relationBoardForZoom) {
-    relationBoardForZoom.addEventListener("wheel", handleRelationWheel, { passive: false });
-  }
 }
 
 function init() {
