@@ -99,6 +99,14 @@ let isMapPanning = false;
 let mapPanStart = null;
 let selectedVertexIndex = -1;
 
+function debounce(fn, wait) {
+  let timer = null;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), wait);
+  };
+}
+
 function $(id) {
   return document.getElementById(id);
 }
@@ -386,6 +394,7 @@ function switchCategory(key) {
   selectedNodeId = null;
   selectedEdgeId = null;
   connectNodes = [];
+  detailTarget = null;
   if (dataCategories.includes(key)) expandedCategories.add(key);
   document.body.classList.remove("menu-open");
   render();
@@ -400,15 +409,102 @@ const viewIcons = {
   relations: `<svg viewBox="0 0 24 24" width="13" height="13"><circle cx="6" cy="6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="18" cy="6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="18" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8.2 7.2L11 16M15.8 7.2L13 16M8.6 6h6.8" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`,
   map: `<svg viewBox="0 0 24 24" width="13" height="13"><path d="M9 4l-6 2.2v14L9 18l6 2.2 6-2.2v-14L15 6.2 9 4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`
 };
+const fileAddIcon = `<svg viewBox="0 0 24 24" width="12" height="12"><path d="M6 2h8l4 4v16H6z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M14 2v4h4" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M9 14.5h6M12 11.5v6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const folderAddIcon = `<svg viewBox="0 0 24 24" width="12" height="12"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M12 11.5v5M9.5 14h5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+const trashIcon = `<svg viewBox="0 0 24 24" width="12" height="12"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+function insertInlineInput(parentEl, iconHTML, placeholder, onSubmit) {
+  const row = document.createElement("div");
+  row.className = "explorer-row inline-input-row";
+  row.innerHTML = `<span class="explorer-icon">${iconHTML}</span><input type="text" class="explorer-inline-input" placeholder="${placeholder}" />`;
+  parentEl.appendChild(row);
+  const input = row.querySelector("input");
+  input.focus();
+
+  let done = false;
+  const finish = (commit) => {
+    if (done) return;
+    done = true;
+    const value = input.value.trim();
+    row.remove();
+    if (commit && value) onSubmit(value);
+  };
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") finish(true);
+    else if (event.key === "Escape") finish(false);
+  });
+  input.addEventListener("blur", () => finish(true));
+}
+
+function createFileIn(category, folderId) {
+  const cleanTitle = "제목 없음";
+  const id = uid();
+  state[category].push({
+    id,
+    title: cleanTitle,
+    summary: "",
+    body: "",
+    dateText: "",
+    folderId: folderId || "",
+    tags: ["미분류"],
+    links: [],
+    image: "",
+    pinned: false,
+    order: state[category].length,
+    createdAt: now(),
+    updatedAt: now()
+  });
+  saveState();
+  currentCategory = category;
+  currentFolderId = folderId || "";
+  expandedCategories.add(category);
+  if (folderId) expandedFolders.add(folderId);
+  render();
+  openDetail(category, id);
+  requestAnimationFrame(() => {
+    const titleInput = $("editorTitleInput");
+    if (titleInput) { titleInput.select(); titleInput.focus(); }
+  });
+}
+
+function createFolderIn(category, name) {
+  const folder = { id: uid(), name };
+  state.folders[category].push(folder);
+  saveState();
+  expandedCategories.add(category);
+  renderSidebar();
+}
+
+function deleteFolderDirect(category, folderId) {
+  if (!confirm("폴더를 삭제할까요? 안의 파일은 삭제되지 않고 폴더 밖으로 나갑니다.")) return;
+  state.folders[category] = state.folders[category].filter((folder) => folder.id !== folderId);
+  state[category].forEach((item) => {
+    if (item.folderId === folderId) item.folderId = "";
+  });
+  if (currentFolderId === folderId) currentFolderId = "";
+  expandedFolders.delete(folderId);
+  saveState();
+  render();
+}
 
 function createExplorerNoteRow(item, category) {
   const row = document.createElement("div");
   row.className = "explorer-row note-row";
-  row.innerHTML = `<span class="explorer-icon file">${fileIcon}</span><span class="explorer-label">${escapeHTML(item.title)}</span>`;
-  row.addEventListener("click", () => {
+  row.innerHTML = `
+    <span class="explorer-icon file">${fileIcon}</span>
+    <span class="explorer-label">${escapeHTML(item.title)}</span>
+    <span class="explorer-actions">
+      <button class="explorer-action" type="button" title="파일 삭제">${trashIcon}</button>
+    </span>
+  `;
+  row.querySelector(".explorer-label").addEventListener("click", () => {
     currentCategory = category;
     render();
     openDetail(category, item.id);
+  });
+  row.querySelector(".explorer-action").addEventListener("click", (event) => {
+    event.stopPropagation();
+    deleteCard(category, item.id);
   });
   return row;
 }
@@ -437,8 +533,12 @@ function renderExplorerTree() {
       <span class="explorer-icon">${folderIcon}</span>
       <span class="explorer-label">${categories[category]}</span>
       <span class="explorer-count">${items.length}</span>
-      <button class="explorer-add" type="button" title="폴더 추가">${plusIcon}</button>
+      <span class="explorer-actions">
+        <button class="explorer-action" type="button" title="새 파일">${fileAddIcon}</button>
+        <button class="explorer-action" type="button" title="새 폴더">${folderAddIcon}</button>
+      </span>
     `;
+    const [fileAddBtn, folderAddBtn] = catRow.querySelectorAll(".explorer-action");
     catRow.querySelector(".explorer-label").addEventListener("click", () => switchCategory(category));
     catRow.querySelector(".chev-btn").addEventListener("click", (event) => {
       event.stopPropagation();
@@ -446,11 +546,16 @@ function renderExplorerTree() {
       else expandedCategories.add(category);
       renderExplorerTree();
     });
-    catRow.querySelector(".explorer-add").addEventListener("click", (event) => {
+    fileAddBtn.addEventListener("click", (event) => {
       event.stopPropagation();
-      currentCategory = category;
+      createFileIn(category, "");
+    });
+    folderAddBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
       expandedCategories.add(category);
-      openFolderModal();
+      if (!isOpen) renderExplorerTree();
+      const wrap = tree.querySelector(`.explorer-children[data-category="${category}"]`);
+      insertInlineInput(wrap || tree, folderAddIcon, "새 폴더 이름", (name) => createFolderIn(category, name));
     });
     tree.appendChild(catRow);
 
@@ -458,6 +563,7 @@ function renderExplorerTree() {
 
     const childWrap = document.createElement("div");
     childWrap.className = "explorer-children";
+    childWrap.dataset.category = category;
 
     state.folders[category].forEach((folder) => {
       const folderItems = items.filter((item) => item.folderId === folder.id);
@@ -469,7 +575,12 @@ function renderExplorerTree() {
         <span class="explorer-icon">${folderIcon}</span>
         <span class="explorer-label">${escapeHTML(folder.name)}</span>
         <span class="explorer-count">${folderItems.length}</span>
+        <span class="explorer-actions">
+          <button class="explorer-action" type="button" title="새 파일">${fileAddIcon}</button>
+          <button class="explorer-action" type="button" title="폴더 삭제">${trashIcon}</button>
+        </span>
       `;
+      const [folderFileAddBtn, folderDeleteBtn] = folderRow.querySelectorAll(".explorer-action");
       folderRow.querySelector(".explorer-label").addEventListener("click", () => {
         currentCategory = category;
         currentFolderId = folder.id;
@@ -482,6 +593,14 @@ function renderExplorerTree() {
         if (expandedFolders.has(folder.id)) expandedFolders.delete(folder.id);
         else expandedFolders.add(folder.id);
         renderExplorerTree();
+      });
+      folderFileAddBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        createFileIn(category, folder.id);
+      });
+      folderDeleteBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        deleteFolderDirect(category, folder.id);
       });
       childWrap.appendChild(folderRow);
 
@@ -610,13 +729,21 @@ function renderTitle() {
 }
 
 function renderMainMode() {
-  const listMode = currentCategory !== "timeline" && currentCategory !== "relations" && currentCategory !== "map";
-  $("listTools").classList.toggle("hidden", !listMode);
-  $("cardGrid").classList.toggle("hidden", !listMode);
-  $("emptyBox").classList.toggle("hidden", !listMode);
-  $("timelineView").classList.toggle("hidden", currentCategory !== "timeline");
-  $("relationView").classList.toggle("hidden", currentCategory !== "relations");
-  $("mapView").classList.toggle("hidden", currentCategory !== "map");
+  const specialView = currentCategory === "timeline" ? "timeline"
+    : currentCategory === "relations" ? "relations"
+    : currentCategory === "map" ? "map"
+    : null;
+
+  $("timelineView").classList.toggle("hidden", specialView !== "timeline");
+  $("relationView").classList.toggle("hidden", specialView !== "relations");
+  $("mapView").classList.toggle("hidden", specialView !== "map");
+
+  if (specialView) {
+    $("browseView")?.classList.add("hidden");
+    $("editorView")?.classList.add("hidden");
+  } else {
+    renderEditor();
+  }
 }
 
 function createPill(text, active, onClick) {
@@ -802,7 +929,7 @@ function openCardModal(category = null, id = null) {
   const item = editingCard ? findItem(category, id) : null;
   const targetCategory = item?.category || (dataCategories.includes(currentCategory) ? currentCategory : "characters");
 
-  $("cardModalTitle").textContent = editingCard ? "수정" : "작성";
+  $("cardModalTitle").textContent = "속성";
   $("cardCategory").value = targetCategory;
   $("cardCategory").disabled = Boolean(editingCard);
   fillFolderSelect(targetCategory, item?.folderId || "");
@@ -964,24 +1091,60 @@ function openDetail(category, id) {
   const item = findItem(category, id);
   if (!item) return;
   detailTarget = { category, id };
-  $("detailTitle").textContent = item.title;
-  $("detailMeta").textContent = `${categories[category]}${item.dateText ? " · " + item.dateText : ""}`;
-  $("detailImage").innerHTML = item.image ? `<img src="${item.image}" alt="">` : "이미지 없음";
-  $("detailSummary").textContent = item.summary || "";
-  const tagsBox = $("detailTags");
-  if (tagsBox) {
-    tagsBox.innerHTML = (item.tags || [])
-      .map((tag) => `<span class="tag-pill">#${escapeHTML(tag)}</span>`)
-      .join("");
+  currentCategory = category;
+  renderSidebar();
+  renderEditor();
+}
+
+function closeEditor() {
+  detailTarget = null;
+  renderEditor();
+}
+
+function renderEditor() {
+  const view = $("editorView");
+  const browse = $("browseView");
+  if (!view || !browse) return;
+
+  const item = detailTarget ? findItem(detailTarget.category, detailTarget.id) : null;
+  if (!item) {
+    view.classList.add("hidden");
+    browse.classList.remove("hidden");
+    return;
   }
-  $("detailBody").innerHTML = item.body ? renderMarkdownToHTML(item.body) : "<p class=\"muted\">내용 없음</p>";
-  $("pinCardBtn").textContent = item.pinned ? "고정 해제" : "고정";
+
+  browse.classList.add("hidden");
+  view.classList.remove("hidden");
+
+  const titleInput = $("editorTitleInput");
+  if (titleInput && document.activeElement !== titleInput) titleInput.value = item.title || "";
+
+  const metaBox = $("editorMeta");
+  if (metaBox) {
+    metaBox.innerHTML = `
+      <span class="editor-meta-pill">${escapeHTML(categories[detailTarget.category] || detailTarget.category)}</span>
+      ${item.dateText ? `<span class="editor-meta-pill">${escapeHTML(item.dateText)}</span>` : ""}
+      ${(item.tags || []).map((tag) => `<span class="tag-pill">#${escapeHTML(tag)}</span>`).join("")}
+    `;
+  }
+
+  const textarea = $("editorTextarea");
+  if (textarea && document.activeElement !== textarea) textarea.value = item.body || "";
+
+  const preview = $("editorPreview");
+  if (preview && !preview.classList.contains("hidden")) {
+    preview.innerHTML = item.body ? renderMarkdownToHTML(item.body) : "<p class=\"muted\">내용 없음</p>";
+  }
+
+  const pinBtn = $("editorPinBtn");
+  if (pinBtn) pinBtn.textContent = item.pinned ? "고정 해제" : "고정";
+
   renderDetailLinks(item);
-  openModal("detailModal");
 }
 
 function renderDetailLinks(item) {
-  const box = $("detailLinks");
+  const box = $("editorLinks");
+  if (!box) return;
   box.innerHTML = "";
   const links = normalizeLinks(item.links || []);
   if (!links.length) return;
@@ -1011,8 +1174,8 @@ function deleteCard(category, id) {
     state[cat].forEach((item) => item.links = (item.links || []).filter((link) => !(link.category === category && link.id === id)));
   });
   state.relation.nodes = state.relation.nodes.filter((node) => !(node.sourceCategory === category && node.sourceId === id));
+  if (detailTarget && detailTarget.category === category && detailTarget.id === id) detailTarget = null;
   saveState();
-  closeModal("detailModal");
   render();
 }
 
@@ -3333,6 +3496,12 @@ async function importData(fileList) {
   showToast(`노트 ${created.length}개를 가져왔습니다.`);
 }
 
+function startNewFile() {
+  const category = dataCategories.includes(currentCategory) ? currentCategory : "characters";
+  const folderId = dataCategories.includes(currentCategory) && currentFolderId && currentFolderId !== "__none" ? currentFolderId : "";
+  createFileIn(category, folderId);
+}
+
 function initEvents() {
   $("drawerBackdrop").addEventListener("click", () => document.body.classList.remove("menu-open"));
   $("closeDrawerBtn").addEventListener("click", () => document.body.classList.remove("menu-open"));
@@ -3354,7 +3523,7 @@ function initEvents() {
   document.querySelectorAll(".rail-btn[data-view]").forEach((btn) => {
     btn.addEventListener("click", () => switchCategory(btn.dataset.view));
   });
-  on("railWriteBtn", "click", () => openCardModal());
+  on("railWriteBtn", "click", () => startNewFile());
   on("explorerAllRow", "click", () => switchCategory("all"));
   on("sidebarSearchInput", "input", renderSidebarSearch);
 
@@ -3367,7 +3536,7 @@ function initEvents() {
     });
   });
 
-  $("writeBtn").addEventListener("click", () => openCardModal());
+  $("writeBtn").addEventListener("click", () => startNewFile());
   $("saveBtn").addEventListener("click", () => {
     saveState();
     showToast("저장했습니다.");
@@ -3381,12 +3550,12 @@ function initEvents() {
   });
   on("exportCardBtn", "click", exportSingleCard);
 
-  on("pageTabAdd", "click", () => openCardModal());
+  on("pageTabAdd", "click", () => startNewFile());
   on("pageTabClose", "click", () => switchCategory("all"));
 
   $("searchInput").addEventListener("input", render);
   $("sortSelect").addEventListener("change", render);
-  $("emptyBox").addEventListener("click", () => openCardModal());
+  $("emptyBox").addEventListener("click", () => startNewFile());
 
   $("cardCategory").addEventListener("change", () => {
     fillFolderSelect($("cardCategory").value, "");
@@ -3410,17 +3579,67 @@ function initEvents() {
     renderImagePreview();
   });
 
-  $("editCardBtn").addEventListener("click", () => {
+  const saveEditorTitle = debounce((value) => {
     if (!detailTarget) return;
-    const target = { ...detailTarget };
-    closeModal("detailModal");
-    openCardModal(target.category, target.id);
+    const item = findItem(detailTarget.category, detailTarget.id);
+    if (!item) return;
+    item.title = value.trim() || "제목 없음";
+    item.updatedAt = now();
+    saveState();
+    renderSidebar();
+    renderTitle();
+  }, 350);
+
+  const saveEditorBody = debounce((value) => {
+    if (!detailTarget) return;
+    const item = findItem(detailTarget.category, detailTarget.id);
+    if (!item) return;
+    item.body = value;
+    item.updatedAt = now();
+    saveState();
+  }, 350);
+
+  on("editorTitleInput", "input", (event) => saveEditorTitle(event.target.value));
+  on("editorTextarea", "input", (event) => saveEditorBody(event.target.value));
+
+  on("editorPreviewToggle", "click", () => {
+    if (!detailTarget) return;
+    const item = findItem(detailTarget.category, detailTarget.id);
+    const textarea = $("editorTextarea");
+    const preview = $("editorPreview");
+    const showingPreview = !preview.classList.contains("hidden");
+    if (showingPreview) {
+      preview.classList.add("hidden");
+      textarea.classList.remove("hidden");
+      $("editorPreviewToggle").textContent = "미리보기";
+    } else {
+      preview.innerHTML = item?.body ? renderMarkdownToHTML(item.body) : "<p class=\"muted\">내용 없음</p>";
+      preview.classList.remove("hidden");
+      textarea.classList.add("hidden");
+      $("editorPreviewToggle").textContent = "편집";
+    }
   });
-  $("deleteCardBtn").addEventListener("click", () => detailTarget && deleteCard(detailTarget.category, detailTarget.id));
-  $("pinCardBtn").addEventListener("click", () => {
+
+  on("editorPropsBtn", "click", () => {
+    if (!detailTarget) return;
+    const item = findItem(detailTarget.category, detailTarget.id);
+    if (item) {
+      const titleVal = $("editorTitleInput")?.value;
+      const bodyVal = $("editorTextarea")?.value;
+      if (typeof titleVal === "string") item.title = titleVal.trim() || "제목 없음";
+      if (typeof bodyVal === "string") item.body = bodyVal;
+    }
+    openCardModal(detailTarget.category, detailTarget.id);
+  });
+  on("editorPinBtn", "click", () => {
     if (!detailTarget) return;
     togglePin(detailTarget.category, detailTarget.id);
     openDetail(detailTarget.category, detailTarget.id);
+  });
+  on("editorExportBtn", "click", exportSingleCard);
+  on("editorDeleteBtn", "click", () => {
+    if (!detailTarget) return;
+    deleteCard(detailTarget.category, detailTarget.id);
   });
 
   $("saveFolderBtn").addEventListener("click", saveFolder);

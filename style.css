@@ -2571,10 +2571,10 @@ button.primary,
   --ob-text: #d9d8de;
   --ob-text-strong: #f4f3f7;
   --ob-muted: #8d8b96;
-  --ob-accent: #8875e6;
-  --ob-accent-strong: #ab9cf2;
-  --ob-accent-soft: rgba(136, 117, 230, .16);
-  --ob-accent-text: #cabdfa;
+  --ob-accent: #ac7f5e;
+  --ob-accent-strong: #c39875;
+  --ob-accent-soft: rgba(172, 127, 94, .18);
+  --ob-accent-text: #e0b791;
   --ob-danger: #e0707d;
   --ob-danger-soft: rgba(224, 112, 125, .14);
   --ob-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Pretendard", "Noto Sans KR", ui-sans-serif, sans-serif;
@@ -3184,4 +3184,217 @@ input:focus, select:focus, textarea:focus { outline: none !important; border-col
     pointer-events: auto !important;
     transform: translateX(0) !important;
   }
+}
+
+
+/* =========================================================================
+   타이틀바 제거 + md 편집기 + 트리 인라인 입력/액션 아이콘
+   ========================================================================= */
+.app {
+  grid-template-columns: 50px 250px 1fr !important;
+  grid-template-rows: 40px 1fr !important;
+  grid-template-areas:
+    "rail tabs tabs"
+    "rail sidepanel main" !important;
+}
+
+.tab-strip {
+  align-items: center !important;
+}
+.tab-strip-spacer { flex: 1; }
+.tab-strip .ghost-btn.small {
+  min-height: 26px !important;
+  padding: 0 12px !important;
+  border-radius: 6px !important;
+  background: var(--ob-bg-elevated) !important;
+  border: 1px solid var(--ob-line) !important;
+  color: var(--ob-text) !important;
+  font-size: 12px !important;
+  margin-bottom: 6px;
+}
+.tab-strip .ghost-btn.small:hover { background: var(--ob-bg-hover) !important; }
+
+/* ---------- md 편집기 (VSCode/옵시디언 라이트 프리뷰 방식) ---------- */
+#editorView.hidden, #browseView.hidden { display: none !important; }
+.editor-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 880px;
+}
+.editor-topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--ob-line);
+  margin-bottom: 14px;
+}
+.editor-title-input {
+  flex: 1;
+  min-width: 160px;
+  border: 0 !important;
+  background: transparent !important;
+  font-size: 30px !important;
+  font-weight: 800 !important;
+  color: var(--ob-text-strong) !important;
+  padding: 4px 2px !important;
+  min-height: 0 !important;
+}
+.editor-title-input:focus { outline: none !important; }
+.editor-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.editor-actions button {
+  min-height: 30px !important;
+  padding: 0 12px !important;
+  font-size: 12.5px !important;
+  border-radius: 7px !important;
+}
+.editor-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.editor-meta-pill {
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--ob-bg-elevated);
+  border: 1px solid var(--ob-line);
+  color: var(--ob-muted);
+  font-size: 12px;
+}
+.editor-textarea {
+  flex: 1;
+  width: 100%;
+  min-height: 420px;
+  resize: vertical;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--ob-text) !important;
+  font-family: var(--ob-mono) !important;
+  font-size: 14.5px !important;
+  line-height: 1.7;
+  padding: 0 2px !important;
+}
+.editor-textarea:focus { outline: none !important; }
+.editor-preview {
+  flex: 1;
+  min-height: 420px;
+  padding: 2px;
+  color: var(--ob-text);
+  font-size: 15px;
+  line-height: 1.75;
+  overflow: auto;
+}
+.editor-preview h1, .editor-preview h2, .editor-preview h3, .editor-preview h4 {
+  color: var(--ob-text-strong); font-weight: 800; margin: 20px 0 8px;
+}
+.editor-preview blockquote {
+  margin: 12px 0; padding: 4px 0 4px 16px;
+  border-left: 3px solid var(--ob-accent); color: var(--ob-muted);
+}
+.editor-preview code {
+  background: var(--ob-bg-elevated); border: 1px solid var(--ob-line);
+  border-radius: 4px; padding: 1px 6px; font-family: var(--ob-mono); font-size: .9em;
+}
+.editor-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--ob-line); }
+.editor-links:empty { display: none; border: 0; padding: 0; margin: 0; }
+.editor-links button {
+  background: var(--ob-bg-elevated) !important; border: 1px solid var(--ob-line) !important;
+  color: var(--ob-text) !important; border-radius: 8px !important; min-height: 30px !important; font-size: 12.5px !important;
+}
+.editor-links button:hover { border-color: var(--ob-accent) !important; }
+
+/* ---------- 트리 인라인 입력 (새 파일 / 새 폴더 이름 입력) ---------- */
+.inline-input-row { padding: 0 6px !important; }
+.explorer-inline-input {
+  flex: 1;
+  min-height: 22px !important;
+  padding: 2px 6px !important;
+  border: 1px solid var(--ob-accent) !important;
+  border-radius: 4px !important;
+  background: var(--ob-bg-panel) !important;
+  color: var(--ob-text) !important;
+  font-size: 12.5px !important;
+}
+.explorer-inline-input:focus { outline: none !important; }
+
+/* ---------- 폴더/파일 호버 액션 아이콘 ---------- */
+.explorer-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; opacity: 0; }
+.explorer-row:hover .explorer-actions { opacity: 1; }
+.explorer-action {
+  display: inline-flex !important;
+  align-items: center; justify-content: center;
+  width: 18px; height: 18px; min-height: 0 !important; padding: 0 !important;
+  border: 0 !important; border-radius: 4px;
+  background: transparent !important; color: var(--ob-muted);
+}
+.explorer-action:hover { background: var(--ob-bg-active) !important; color: var(--ob-text-strong); }
+
+@media (max-width: 980px) {
+  .app {
+    grid-template-columns: 50px 1fr !important;
+    grid-template-rows: 40px 1fr !important;
+    grid-template-areas:
+      "rail tabs"
+      "rail main" !important;
+  }
+}
+
+
+/* =========================================================================
+   다크모드 누락분 마무리 패치
+   ========================================================================= */
+.modal-head { background: transparent !important; }
+.image-preview, .detail-image {
+  background: var(--ob-bg-panel) !important;
+  border-color: var(--ob-line) !important;
+  color: var(--ob-muted) !important;
+}
+.file-btn {
+  background: var(--ob-bg-elevated) !important;
+  border-color: var(--ob-line) !important;
+  color: var(--ob-text) !important;
+}
+.link-picker {
+  background: var(--ob-bg-panel) !important;
+  border-color: var(--ob-line) !important;
+}
+.link-group-title { color: var(--ob-accent-text) !important; }
+
+.map-canvas, .map-canvas.no-map-image {
+  background: var(--ob-bg-panel) !important;
+}
+.map-empty { color: var(--ob-muted) !important; }
+.map-bottom-bar, .relation-bottom-bar, .timeline-bottom-bar {
+  background: var(--ob-bg-elevated) !important;
+  border-color: var(--ob-line) !important;
+  box-shadow: none !important;
+}
+.relation-legend {
+  background: var(--ob-bg-elevated) !important;
+  color: var(--ob-muted) !important;
+  border: 1px solid var(--ob-line);
+}
+
+.tl-count { background: var(--ob-bg-panel) !important; border: 1px solid var(--ob-line) !important; }
+
+button.danger,
+.danger,
+#deleteMapBtn,
+#deleteLineBtn,
+#deleteMapPinBtn,
+#relEdgeDeleteBtn,
+#relCardDeleteBtn,
+#relOrgDeleteBtn,
+#editorDeleteBtn,
+#deleteFolderBtn,
+#deleteCardBtn {
+  background: var(--ob-danger-soft) !important;
+  color: var(--ob-danger) !important;
+  border-color: transparent !important;
+}
+
+button.active,
+.map-tabs button.active,
+.file-action.primary {
+  background: var(--ob-accent) !important;
+  color: #ffffff !important;
+  border-color: var(--ob-accent) !important;
 }
