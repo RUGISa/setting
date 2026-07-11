@@ -108,7 +108,6 @@ let selectedEraId = null;
 let editingEraId = null;
 let isTimelineDragging = false;
 let timelineDragStart = null;
-let timelineDragFrame = null;
 let selectedNodeId = null;
 let selectedEdgeId = null;
 let connectNodes = [];
@@ -1762,30 +1761,29 @@ function startTimelineDrag(event) {
 function moveTimelineDrag(event) {
   if (!isTimelineDragging || !timelineDragStart) return;
   event.preventDefault();
-  const { range } = timelineBounds();
   const deltaPx = event.clientX - timelineDragStart.x;
-  timelineCenter = timelineDragStart.center - (deltaPx / timelineDragStart.width) * range;
-
-  if (timelineDragFrame) return;
-  timelineDragFrame = requestAnimationFrame(() => {
-    timelineDragFrame = null;
-    renderTimeline();
-  });
+  const content = $("timelineContent");
+  if (content) content.style.transform = `translateX(${deltaPx}px)`;
 }
 
 function endTimelineDrag(event) {
   if (!isTimelineDragging) return;
   isTimelineDragging = false;
-  timelineDragStart = null;
-  if (timelineDragFrame) {
-    cancelAnimationFrame(timelineDragFrame);
-    timelineDragFrame = null;
-    renderTimeline();
-  }
+
   const board = $("timelineBoard");
+  const content = $("timelineContent");
+  if (content && timelineDragStart) {
+    const deltaPx = event.clientX - timelineDragStart.x;
+    const { range } = timelineBounds();
+    timelineCenter = timelineDragStart.center - (deltaPx / timelineDragStart.width) * range;
+    content.style.transform = "none";
+  }
+  timelineDragStart = null;
+
   board?.classList.remove("dragging");
   document.body.classList.remove("tl-no-select");
   board?.releasePointerCapture?.(event.pointerId);
+  renderTimeline();
 }
 
 
