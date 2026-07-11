@@ -432,7 +432,20 @@ function render() {
   }
 }
 
+function flushEditorEdits() {
+  if (!detailTarget) return;
+  const item = findItem(detailTarget.category, detailTarget.id);
+  if (!item) return;
+  const titleVal = $("editorTitleInput")?.value;
+  const bodyVal = $("editorTextarea")?.value;
+  if (typeof titleVal === "string") item.title = titleVal.trim() || "제목 없음";
+  if (typeof bodyVal === "string") item.body = bodyVal;
+  item.updatedAt = now();
+  saveState();
+}
+
 function switchCategory(key) {
+  flushEditorEdits();
   currentCategory = key;
   currentFolderId = "";
   currentTag = "";
@@ -1128,6 +1141,7 @@ function inlineMarkdown(text) {
     .replace(/\*(.+?)\*/g, "<em>$1</em>")
     .replace(/`(.+?)`/g, "<code>$1</code>")
     .replace(/\[\[(.+?)\]\]/g, '<span class="wikilink">$1</span>')
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a class="md-link" href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
     .replace(/(^|\s)#([\w가-힣_-]+)/g, '$1<span class="md-tag">#$2</span>');
 }
 
@@ -1179,6 +1193,7 @@ function renderMarkdownToHTML(markdown) {
 function openDetail(category, id, mode = "preview") {
   const item = findItem(category, id);
   if (!item) return;
+  if (detailTarget && (detailTarget.category !== category || detailTarget.id !== id)) flushEditorEdits();
   detailTarget = { category, id };
   currentCategory = category;
   editorMode = mode;
@@ -1188,6 +1203,7 @@ function openDetail(category, id, mode = "preview") {
 }
 
 function closeEditor() {
+  flushEditorEdits();
   detailTarget = null;
   closePropsPanel();
   renderEditor();
@@ -1233,18 +1249,39 @@ function renderEditor() {
   const isEditing = editorMode === "edit";
   if (textarea) textarea.classList.toggle("hidden", !isEditing);
   if (preview) preview.classList.toggle("hidden", isEditing);
-  if (toggleBtn) toggleBtn.textContent = isEditing ? "완료" : "편집";
+  if (toggleBtn) {
+    toggleBtn.classList.toggle("active", isEditing);
+    toggleBtn.title = isEditing ? "완료" : "편집";
+    toggleBtn.setAttribute("aria-label", isEditing ? "완료" : "편집");
+  }
 
   if (preview && !isEditing) {
     preview.innerHTML = item.body
       ? renderMarkdownToHTML(item.body)
-      : "<p class=\"editor-empty-hint\">내용이 없습니다. 클릭해서 마크다운으로 작성하세요.</p>";
+      : "<p class=\"editor-empty-hint\">아직 내용이 없습니다. 연필 아이콘을 눌러 작성해보세요.</p>";
+    bindPreviewLinks(preview);
   }
 
   const pinBtn = $("editorPinBtn");
-  if (pinBtn) pinBtn.textContent = item.pinned ? "고정 해제" : "고정";
+  if (pinBtn) {
+    pinBtn.classList.toggle("active", !!item.pinned);
+    pinBtn.title = item.pinned ? "고정 해제" : "고정";
+    pinBtn.setAttribute("aria-label", item.pinned ? "고정 해제" : "고정");
+  }
 
   renderDetailLinks(item);
+}
+
+function bindPreviewLinks(preview) {
+  preview.querySelectorAll(".wikilink").forEach((el) => {
+    el.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const title = el.textContent.trim();
+      const target = getAllItems().find((item) => item.title === title);
+      if (target) openDetail(target.category, target.id);
+      else showToast("연결된 문서를 찾을 수 없습니다.");
+    });
+  });
 }
 
 function renderDetailLinks(item) {
@@ -1742,6 +1779,16 @@ function resetTimelineZoom() {
 function handleTimelineWheel(event) {
   event.preventDefault();
   event.stopPropagation();
+
+  if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+    const board = $("timelineBoard");
+    const width = board?.clientWidth || 900;
+    const { range } = timelineBounds();
+    timelineCenter = (timelineCenter || 0) + (event.deltaX / width) * range;
+    renderTimeline();
+    return;
+  }
+
   zoomTimeline(event.deltaY < 0 ? 0.2 : -0.2, event.clientX);
 }
 
@@ -3968,18 +4015,6 @@ function initEvents() {
     saveState();
   }, 350);
 
-  function flushEditorEdits() {
-    if (!detailTarget) return;
-    const item = findItem(detailTarget.category, detailTarget.id);
-    if (!item) return;
-    const titleVal = $("editorTitleInput")?.value;
-    const bodyVal = $("editorTextarea")?.value;
-    if (typeof titleVal === "string") item.title = titleVal.trim() || "제목 없음";
-    if (typeof bodyVal === "string") item.body = bodyVal;
-    item.updatedAt = now();
-    saveState();
-  }
-
   on("editorTitleInput", "input", (event) => saveEditorTitle(event.target.value));
   on("editorTextarea", "input", (event) => saveEditorBody(event.target.value));
 
@@ -4000,19 +4035,6 @@ function initEvents() {
     renderSidebar();
     renderEditor();
     syncEditorScroll(textarea, $("editorPreview"));
-  });
-
-  on("editorPreview", "click", () => {
-    if (!detailTarget) return;
-    const preview = $("editorPreview");
-    editorMode = "edit";
-    renderEditor();
-    const textarea = $("editorTextarea");
-    if (textarea) {
-      syncEditorScroll(preview, textarea);
-      textarea.focus();
-      textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-    }
   });
 
   on("editorPreviewToggle", "click", () => {
@@ -4095,6 +4117,8 @@ function initEvents() {
   $("timelineBoard").addEventListener("pointermove", moveTimelineDrag);
   $("timelineBoard").addEventListener("pointerup", endTimelineDrag);
   $("timelineBoard").addEventListener("pointercancel", endTimelineDrag);
+  window.addEventListener("pointermove", moveTimelineDrag);
+  window.addEventListener("pointerup", endTimelineDrag);
   on("timelinePrevBtn", "click", () => panTimeline(-1));
   on("timelineNextBtn", "click", () => panTimeline(1));
   on("timelineResetBtn", "click", resetTimelineZoom);

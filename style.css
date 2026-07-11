@@ -3244,13 +3244,24 @@ input:focus, select:focus, textarea:focus { outline: none !important; border-col
   min-height: 0 !important;
 }
 .editor-title-input:focus { outline: none !important; }
-.editor-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.editor-actions { display: flex; gap: 4px; flex-wrap: wrap; }
 .editor-actions button {
-  min-height: 30px !important;
-  padding: 0 12px !important;
-  font-size: 12.5px !important;
-  border-radius: 7px !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 32px !important;
+  height: 32px !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border-radius: 8px !important;
+  color: var(--ob-muted) !important;
 }
+.editor-actions button.active {
+  background: var(--ob-accent) !important;
+  border-color: var(--ob-accent) !important;
+  color: #fff !important;
+}
+.editor-actions button.danger { color: var(--ob-danger) !important; }
 .editor-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
 .editor-meta-pill {
   padding: 4px 10px;
@@ -3425,7 +3436,9 @@ button.primary:hover, .primary:hover, .tab-add:hover, .rail-btn#railWriteBtn:hov
 .tl-add-btn:hover { background: var(--ob-accent-press) !important; }
 
 /* ---------- 옵시디언 스타일 읽기/편집 전환 (읽을 땐 렌더링, 클릭하면 편집) ---------- */
-.editor-preview { cursor: text; }
+.editor-preview { cursor: auto; }
+.editor-preview .wikilink, .editor-preview .md-link { cursor: pointer; }
+.md-link { color: var(--ob-accent-text); text-decoration: underline; text-underline-offset: 2px; }
 .editor-preview:empty::after,
 .editor-preview .editor-empty-hint {
   content: "";
