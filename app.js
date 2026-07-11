@@ -1043,8 +1043,9 @@ function saveCard() {
 
 function inlineMarkdown(text) {
   return text
+    .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
     .replace(/`(.+?)`/g, "<code>$1</code>")
     .replace(/\[\[(.+?)\]\]/g, '<span class="wikilink">$1</span>')
     .replace(/(^|\s)#([\w가-힣_-]+)/g, '$1<span class="md-tag">#$2</span>');

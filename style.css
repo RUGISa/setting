@@ -3417,3 +3417,32 @@ button.primary:hover, .primary:hover, .tab-add:hover, .rail-btn#railWriteBtn:hov
   content: "";
 }
 .editor-empty-hint { color: var(--ob-muted); }
+
+
+/* =========================================================================
+   글쓰기 영역은 호버해도 색이 바뀌면 안 됨 + 다크 텍스트 선택 색상
+   ========================================================================= */
+input:hover, input:focus,
+textarea:hover, textarea:focus,
+select:hover, select:focus {
+  background: var(--ob-bg-elevated) !important;
+  color: var(--ob-text) !important;
+}
+
+.editor-title-input:hover, .editor-title-input:focus,
+.editor-title-input,
+.editor-textarea:hover, .editor-textarea:focus,
+.editor-textarea {
+  background: transparent !important;
+}
+.editor-title-input:focus, .editor-textarea:focus { border-color: transparent !important; }
+
+.editor-preview,
+.editor-preview:hover {
+  background: transparent !important;
+}
+
+::selection {
+  background: var(--ob-accent-soft);
+  color: var(--ob-text-strong);
+}
