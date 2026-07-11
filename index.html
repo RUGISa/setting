@@ -198,13 +198,15 @@
 
           <div class="tl-toolrow">
             <button id="importTimelineBtn" type="button">사건 불러오기</button>
+            <button id="addEraBtn" type="button">시대 추가</button>
             <button id="editTimelineBtn" type="button">수정</button>
             <button id="deleteTimelineBtn" type="button">삭제</button>
           </div>
 
           <div class="tl-board" id="timelineBoard">
+            <div class="tl-era-lane" id="timelineEras"></div>
             <div class="tl-axis" id="timelineAxis"></div>
-            <div class="tl-line"></div>
+            <div class="tl-line" id="timelineLine"></div>
             <div class="tl-events" id="timelineEvents"></div>
             <div class="tl-empty hidden" id="timelineEmpty">등록된 사건이 없습니다. 사건을 추가해보세요.</div>
           </div>
@@ -351,8 +353,8 @@
     <section class="modal small">
       <header class="modal-head">
         <div>
-          <h2>타임라인 점</h2>
-          <p>가운데 선 위에 사건을 배치합니다.</p>
+          <h2>사건</h2>
+          <p>연·월·일 숫자로 시점을 입력합니다. (달력 아님, 임의의 연호도 가능)</p>
         </div>
         <button data-close="timelineModal" type="button">닫기</button>
       </header>
@@ -360,11 +362,12 @@
         <label>제목
           <input id="timelineTitle" type="text" placeholder="예: 중요한 사건" />
         </label>
-        <label>날짜 / 시간
-          <input id="timelineDate" type="datetime-local" />
-        </label>
-        <label>시대 / 메모 (선택)
-          <input id="timelineYear" type="text" placeholder="예: 1막, 과거" />
+        <label>날짜
+          <div class="ymd-row">
+            <input id="timelineYear" type="number" step="1" placeholder="년" />
+            <input id="timelineMonth" type="number" step="1" min="1" max="12" placeholder="월" />
+            <input id="timelineDay" type="number" step="1" min="1" max="31" placeholder="일" />
+          </div>
         </label>
         <label>설명
           <textarea id="timelineDesc"></textarea>
@@ -372,6 +375,40 @@
       </div>
       <div class="modal-actions">
         <button class="primary" id="saveTimelineBtn" type="button">저장</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="modal-bg" id="eraModal">
+    <section class="modal small">
+      <header class="modal-head">
+        <div>
+          <h2>시대</h2>
+          <p>긴 기간을 날짜 축 위쪽에 막대로 표시합니다.</p>
+        </div>
+        <button data-close="eraModal" type="button">닫기</button>
+      </header>
+      <div class="form">
+        <label>이름
+          <input id="eraTitle" type="text" placeholder="예: 대전쟁 시대" />
+        </label>
+        <label>시작
+          <div class="ymd-row">
+            <input id="eraStartYear" type="number" step="1" placeholder="년" />
+            <input id="eraStartMonth" type="number" step="1" min="1" max="12" placeholder="월" />
+            <input id="eraStartDay" type="number" step="1" min="1" max="31" placeholder="일" />
+          </div>
+        </label>
+        <label>종료
+          <div class="ymd-row">
+            <input id="eraEndYear" type="number" step="1" placeholder="년" />
+            <input id="eraEndMonth" type="number" step="1" min="1" max="12" placeholder="월" />
+            <input id="eraEndDay" type="number" step="1" min="1" max="31" placeholder="일" />
+          </div>
+        </label>
+      </div>
+      <div class="modal-actions">
+        <button class="primary" id="saveEraBtn" type="button">저장</button>
       </div>
     </section>
   </div>

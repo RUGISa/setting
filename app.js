@@ -46,6 +46,7 @@ const emptyState = {
   abilities: [],
   folders: structuredClone(emptyFolders),
   timeline: [],
+  timelineEras: [],
   relation: {
     nodes: [],
     edges: []
@@ -68,6 +69,10 @@ let formImage = "";
 let selectedLinks = [];
 let selectedTimelineId = null;
 let editingTimelineId = null;
+let selectedEraId = null;
+let editingEraId = null;
+let isTimelineDragging = false;
+let timelineDragStart = null;
 let selectedNodeId = null;
 let selectedEdgeId = null;
 let connectNodes = [];
@@ -78,7 +83,7 @@ let relationPanY = 0;
 let isRelationPanning = false;
 let relationPanStart = null;
 let timelineZoom = 1;
-let timelineCenter = Date.now();
+let timelineCenter = 0;
 let timelineSearchQuery = "";
 let selectedMapPinId = null;
 let editingMapPinId = null;
@@ -163,6 +168,8 @@ function normalizeState(data) {
     });
   });
   if (!Array.isArray(merged.timeline)) merged.timeline = [];
+  merged.timeline.forEach((point) => migrateTimelinePoint(point));
+  if (!Array.isArray(merged.timelineEras)) merged.timelineEras = [];
   if (!merged.relation) merged.relation = { nodes: [], edges: [] };
   if (!Array.isArray(merged.relation.nodes)) merged.relation.nodes = [];
   if (!Array.isArray(merged.relation.edges)) merged.relation.edges = [];
@@ -1242,56 +1249,148 @@ function deleteFolder() {
   render();
 }
 
-function timelineTimeOf(point) {
-  if (!point) return null;
-  if (point.date) {
-    const t = new Date(point.date).getTime();
-    if (!Number.isNaN(t)) return t;
-  }
-  if (point.year) {
-    const t = new Date(point.year).getTime();
-    if (!Number.isNaN(t)) return t;
-  }
-  return null;
+function ymdToOrdinal(y, m, d) {
+  const year = Number(y) || 0;
+  const month = Math.min(12, Math.max(1, Number(m) || 1));
+  const day = Math.min(31, Math.max(1, Number(d) || 1));
+  return year * 372 + (month - 1) * 31 + (day - 1);
 }
 
-function timelineRangeMs() {
-  const baseRange = 4 * 365.25 * 24 * 60 * 60 * 1000; // ~4 years visible at 100%
+function ordinalToYMD(ordinal) {
+  const ord = Math.round(ordinal);
+  let year = Math.floor(ord / 372);
+  let rem = ord - year * 372;
+  if (rem < 0) { rem += 372; year -= 1; }
+  const month = Math.floor(rem / 31) + 1;
+  const day = (rem % 31) + 1;
+  return { year, month, day };
+}
+
+function migrateTimelinePoint(point) {
+  if (typeof point.year === "number") return point;
+  let y, m, d;
+  if (point.date) {
+    const parsedDate = new Date(point.date);
+    if (!Number.isNaN(parsedDate.getTime())) {
+      y = parsedDate.getFullYear();
+      m = parsedDate.getMonth() + 1;
+      d = parsedDate.getDate();
+    }
+  }
+  if (y === undefined && typeof point.year === "string") {
+    const parsedYear = parseInt(point.year, 10);
+    if (!Number.isNaN(parsedYear)) y = parsedYear;
+  }
+  point.year = y ?? 0;
+  point.month = m ?? 1;
+  point.day = d ?? 1;
+  delete point.date;
+  return point;
+}
+
+function timelinePointOrdinal(point) {
+  if (!point) return null;
+  migrateTimelinePoint(point);
+  return ymdToOrdinal(point.year, point.month, point.day);
+}
+
+function timelineRangeDays() {
+  const baseRange = 4 * 372; // 100% 배율에서 대략 4년치가 보이도록
   return baseRange / timelineZoom;
 }
 
 function timelineBounds() {
-  const range = timelineRangeMs();
-  const center = timelineCenter ?? Date.now();
+  const range = timelineRangeDays();
+  const center = timelineCenter || 0;
   return { start: center - range / 2, end: center + range / 2, range };
 }
 
-function formatTimelineTick(ms) {
-  const d = new Date(ms);
-  return `${d.getFullYear()}년 ${d.getMonth() + 1}월`;
+function formatTimelineTick(ordinal) {
+  const { year, month } = ordinalToYMD(ordinal);
+  return `${year}년 ${month}월`;
 }
 
-function formatTimelineFull(ms) {
-  const d = new Date(ms);
-  const hours = d.getHours();
-  const ampm = hours < 12 ? "오전" : "오후";
-  const hour12 = String(hours % 12 === 0 ? 12 : hours % 12).padStart(2, "0");
-  const minutes = String(d.getMinutes()).padStart(2, "0");
-  return `${d.getFullYear()}년 ${d.getMonth() + 1}월 ${d.getDate()}일 ${ampm} ${hour12}:${minutes}`;
+function formatTimelineFull(point) {
+  return `${point.year}년 ${point.month}월 ${point.day}일`;
+}
+
+function eraOrdinalRange(era) {
+  return {
+    start: ymdToOrdinal(era.startYear, era.startMonth, era.startDay),
+    end: ymdToOrdinal(era.endYear, era.endMonth, era.endDay)
+  };
+}
+
+function assignEraLanes(eras) {
+  const sorted = eras
+    .map((era) => ({ era, range: eraOrdinalRange(era) }))
+    .sort((a, b) => a.range.start - b.range.start);
+  const laneEnds = [];
+  return sorted.map(({ era, range }) => {
+    let lane = laneEnds.findIndex((end) => end <= range.start);
+    if (lane === -1) {
+      lane = laneEnds.length;
+      laneEnds.push(range.end);
+    } else {
+      laneEnds[lane] = range.end;
+    }
+    return { era, range, lane };
+  });
 }
 
 function renderTimeline() {
   const board = $("timelineBoard");
   const axis = $("timelineAxis");
   const eventsLayer = $("timelineEvents");
+  const eraLayer = $("timelineEras");
+  const lineEl = $("timelineLine");
   const emptyBox = $("timelineEmpty");
-  if (!board || !axis || !eventsLayer) return;
+  if (!board || !axis || !eventsLayer || !eraLayer || !lineEl) return;
 
   axis.innerHTML = "";
   eventsLayer.innerHTML = "";
+  eraLayer.innerHTML = "";
 
   const { start, range } = timelineBounds();
   const query = timelineSearchQuery.trim().toLowerCase();
+
+  const laneInfo = assignEraLanes(state.timelineEras || []);
+  const laneCount = laneInfo.length ? Math.max(...laneInfo.map((entry) => entry.lane)) + 1 : 0;
+  const eraAreaHeight = laneCount ? laneCount * 26 + 8 : 0;
+  const axisHeight = 40;
+  const lineTop = eraAreaHeight + axisHeight + 90;
+  const boardHeight = lineTop + 170;
+
+  board.style.height = `${boardHeight}px`;
+  eraLayer.style.height = `${eraAreaHeight}px`;
+  axis.style.top = `${eraAreaHeight}px`;
+  lineEl.style.top = `${lineTop}px`;
+  eventsLayer.style.top = "0";
+
+  laneInfo.forEach(({ era, range: eraRange, lane }) => {
+    const left = ((eraRange.start - start) / range) * 100;
+    const width = ((eraRange.end - eraRange.start) / range) * 100;
+    if (left + width < -5 || left > 105) return;
+    const bar = document.createElement("div");
+    const selected = selectedEraId === era.id;
+    bar.className = `tl-era-bar ${selected ? "selected" : ""}`;
+    bar.style.left = `${Math.max(-20, left)}%`;
+    bar.style.width = `${Math.max(2, width)}%`;
+    bar.style.top = `${lane * 26}px`;
+    bar.textContent = era.title;
+    bar.title = era.title;
+    bar.addEventListener("click", (event) => {
+      event.stopPropagation();
+      selectedEraId = era.id;
+      selectedTimelineId = null;
+      renderTimeline();
+    });
+    bar.addEventListener("dblclick", (event) => {
+      event.stopPropagation();
+      openEraModal(era.id);
+    });
+    eraLayer.appendChild(bar);
+  });
 
   const tickCount = 6;
   for (let i = 0; i <= tickCount; i++) {
@@ -1301,6 +1400,8 @@ function renderTimeline() {
     const gridline = document.createElement("div");
     gridline.className = "tl-gridline";
     gridline.style.left = `${x}%`;
+    gridline.style.top = `-${eraAreaHeight}px`;
+    gridline.style.height = `${boardHeight - eraAreaHeight}px`;
     axis.appendChild(gridline);
 
     const label = document.createElement("div");
@@ -1311,15 +1412,15 @@ function renderTimeline() {
   }
 
   const visiblePoints = state.timeline
-    .map((point) => ({ point, time: timelineTimeOf(point) ?? Date.now() }))
+    .map((point) => ({ point, ordinal: timelinePointOrdinal(point) ?? 0 }))
     .filter(({ point }) => {
       if (!query) return true;
       return point.title.toLowerCase().includes(query) || (point.desc || "").toLowerCase().includes(query);
     })
-    .sort((a, b) => a.time - b.time);
+    .sort((a, b) => a.ordinal - b.ordinal);
 
-  visiblePoints.forEach(({ point, time }, index) => {
-    const ratio = (time - start) / range;
+  visiblePoints.forEach(({ point, ordinal }, index) => {
+    const ratio = (ordinal - start) / range;
     if (ratio < -0.03 || ratio > 1.03) return;
     const x = Math.min(100, Math.max(0, ratio * 100));
     const selected = selectedTimelineId === point.id;
@@ -1327,9 +1428,11 @@ function renderTimeline() {
     const dot = document.createElement("div");
     dot.className = `tl-dot ${selected ? "selected" : ""}`;
     dot.style.left = `${x}%`;
+    dot.style.top = `${lineTop}px`;
     dot.addEventListener("click", (event) => {
       event.stopPropagation();
       selectedTimelineId = point.id;
+      selectedEraId = null;
       renderTimeline();
     });
     eventsLayer.appendChild(dot);
@@ -1337,20 +1440,23 @@ function renderTimeline() {
     const stem = document.createElement("div");
     stem.className = `tl-stem ${selected ? "selected" : ""}`;
     stem.style.left = `${x}%`;
+    stem.style.top = `${lineTop}px`;
+    stem.style.height = "50px";
     eventsLayer.appendChild(stem);
 
     const card = document.createElement("div");
     card.className = `tl-card ${selected ? "selected" : ""} ${index % 2 ? "row-b" : "row-a"}`;
     card.style.left = `${x}%`;
+    card.style.top = `${lineTop + 50}px`;
     card.innerHTML = `
       <strong>${escapeHTML(point.title)}</strong>
-      <small>${escapeHTML(formatTimelineFull(time))}</small>
-      ${point.year ? `<em>${escapeHTML(point.year)}</em>` : ""}
+      <small>${escapeHTML(formatTimelineFull(point))}</small>
       ${point.desc ? `<span>${escapeHTML(point.desc)}</span>` : ""}
     `;
     card.addEventListener("click", (event) => {
       event.stopPropagation();
       selectedTimelineId = point.id;
+      selectedEraId = null;
       renderTimeline();
     });
     card.addEventListener("dblclick", (event) => {
@@ -1369,18 +1475,14 @@ function renderTimeline() {
   if (zoomLabel) zoomLabel.textContent = `${Math.round(timelineZoom * 100)}%`;
 }
 
-function toDatetimeLocalValue(ms) {
-  const d = new Date(ms);
-  const pad = (n) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
 function openTimelineModal(id = null) {
   editingTimelineId = id;
-  const point = state.timeline.find((item) => item.id === id);
+  const point = id ? state.timeline.find((item) => item.id === id) : null;
+  if (point) migrateTimelinePoint(point);
   $("timelineTitle").value = point?.title || "";
-  $("timelineDate").value = toDatetimeLocalValue(timelineTimeOf(point) ?? Date.now());
-  $("timelineYear").value = point?.year || "";
+  $("timelineYear").value = point ? point.year : ordinalToYMD(timelineCenter || 0).year;
+  $("timelineMonth").value = point ? point.month : 1;
+  $("timelineDay").value = point ? point.day : 1;
   $("timelineDesc").value = point?.desc || "";
   openModal("timelineModal");
 }
@@ -1388,31 +1490,95 @@ function openTimelineModal(id = null) {
 function saveTimeline() {
   const title = $("timelineTitle").value.trim();
   if (!title) return;
-  const dateValue = $("timelineDate").value;
-  const isoDate = dateValue ? new Date(dateValue).toISOString() : new Date().toISOString();
+  const year = parseInt($("timelineYear").value, 10) || 0;
+  const month = Math.min(12, Math.max(1, parseInt($("timelineMonth").value, 10) || 1));
+  const day = Math.min(31, Math.max(1, parseInt($("timelineDay").value, 10) || 1));
 
   if (editingTimelineId) {
     const point = state.timeline.find((item) => item.id === editingTimelineId);
     if (point) {
       point.title = title;
-      point.date = isoDate;
-      point.year = $("timelineYear").value.trim();
+      point.year = year;
+      point.month = month;
+      point.day = day;
       point.desc = $("timelineDesc").value.trim();
     }
   } else {
     const point = {
       id: uid(),
       title,
-      date: isoDate,
-      year: $("timelineYear").value.trim(),
+      year,
+      month,
+      day,
       desc: $("timelineDesc").value.trim()
     };
     state.timeline.push(point);
     selectedTimelineId = point.id;
-    timelineCenter = new Date(isoDate).getTime();
+    timelineCenter = ymdToOrdinal(year, month, day);
   }
   saveState();
   closeModal("timelineModal");
+  renderTimeline();
+}
+
+function openEraModal(id = null) {
+  editingEraId = id;
+  const era = id ? state.timelineEras.find((item) => item.id === id) : null;
+  $("eraTitle").value = era?.title || "";
+  const base = ordinalToYMD(timelineCenter || 0);
+  $("eraStartYear").value = era ? era.startYear : base.year;
+  $("eraStartMonth").value = era ? era.startMonth : 1;
+  $("eraStartDay").value = era ? era.startDay : 1;
+  $("eraEndYear").value = era ? era.endYear : base.year + 1;
+  $("eraEndMonth").value = era ? era.endMonth : 1;
+  $("eraEndDay").value = era ? era.endDay : 1;
+  openModal("eraModal");
+}
+
+function saveEra() {
+  const title = $("eraTitle").value.trim();
+  if (!title) return;
+
+  const readYMD = (prefix) => ({
+    [`${prefix}Year`]: parseInt($(`${prefix}Year`).value, 10) || 0,
+    [`${prefix}Month`]: Math.min(12, Math.max(1, parseInt($(`${prefix}Month`).value, 10) || 1)),
+    [`${prefix}Day`]: Math.min(31, Math.max(1, parseInt($(`${prefix}Day`).value, 10) || 1))
+  });
+
+  let data = { title, ...readYMD("eraStart"), ...readYMD("eraEnd") };
+  data = {
+    title,
+    startYear: data.eraStartYear,
+    startMonth: data.eraStartMonth,
+    startDay: data.eraStartDay,
+    endYear: data.eraEndYear,
+    endMonth: data.eraEndMonth,
+    endDay: data.eraEndDay
+  };
+
+  if (ymdToOrdinal(data.startYear, data.startMonth, data.startDay) > ymdToOrdinal(data.endYear, data.endMonth, data.endDay)) {
+    showToast("종료 시점이 시작보다 빨라요.");
+    return;
+  }
+
+  if (editingEraId) {
+    const era = state.timelineEras.find((item) => item.id === editingEraId);
+    if (era) Object.assign(era, data);
+  } else {
+    const era = { id: uid(), ...data };
+    state.timelineEras.push(era);
+    selectedEraId = era.id;
+  }
+  saveState();
+  closeModal("eraModal");
+  renderTimeline();
+}
+
+function deleteEra(id) {
+  if (!confirm("이 시대를 삭제할까요?")) return;
+  state.timelineEras = state.timelineEras.filter((item) => item.id !== id);
+  if (selectedEraId === id) selectedEraId = null;
+  saveState();
   renderTimeline();
 }
 
@@ -1425,18 +1591,17 @@ function importTimelineEvents() {
     return;
   }
 
+  const base = ordinalToYMD(timelineCenter || 0);
   candidates.forEach((event, index) => {
-    const parsed = event.dateText ? new Date(event.dateText) : null;
-    const hasValidDate = parsed && !Number.isNaN(parsed.getTime());
-    const fallbackTime = Date.now() + (state.timeline.length + index) * 7 * 24 * 60 * 60 * 1000;
-
+    const parsedYear = event.dateText ? parseInt(event.dateText, 10) : NaN;
     state.timeline.push({
       id: uid(),
       sourceCategory: "events",
       sourceId: event.id,
       title: event.title,
-      date: (hasValidDate ? parsed : new Date(fallbackTime)).toISOString(),
-      year: event.dateText || "",
+      year: Number.isNaN(parsedYear) ? base.year : parsedYear,
+      month: 1,
+      day: 1 + ((state.timeline.length + index) % 28),
       desc: event.summary || event.body || ""
     });
   });
@@ -1447,7 +1612,7 @@ function importTimelineEvents() {
 }
 
 function zoomTimeline(delta) {
-  const nextZoom = Math.max(0.4, Math.min(4, Math.round((timelineZoom + delta) * 10) / 10));
+  const nextZoom = Math.max(0.4, Math.min(8, Math.round((timelineZoom + delta) * 10) / 10));
   if (nextZoom === timelineZoom) return;
   timelineZoom = nextZoom;
   renderTimeline();
@@ -1455,13 +1620,13 @@ function zoomTimeline(delta) {
 
 function panTimeline(direction) {
   const { range } = timelineBounds();
-  timelineCenter = (timelineCenter ?? Date.now()) + direction * range * 0.3;
+  timelineCenter = (timelineCenter || 0) + direction * range * 0.3;
   renderTimeline();
 }
 
 function resetTimelineZoom() {
   timelineZoom = 1;
-  timelineCenter = Date.now();
+  timelineCenter = 0;
   renderTimeline();
 }
 
@@ -1469,6 +1634,34 @@ function handleTimelineWheel(event) {
   event.preventDefault();
   event.stopPropagation();
   zoomTimeline(event.deltaY < 0 ? 0.2 : -0.2);
+}
+
+function startTimelineDrag(event) {
+  if (event.button !== 0) return;
+  if (event.target.closest(".tl-dot, .tl-card, .tl-era-bar")) return;
+  const board = $("timelineBoard");
+  if (!board) return;
+  isTimelineDragging = true;
+  timelineDragStart = { x: event.clientX, center: timelineCenter || 0, width: board.clientWidth };
+  board.classList.add("dragging");
+  board.setPointerCapture?.(event.pointerId);
+}
+
+function moveTimelineDrag(event) {
+  if (!isTimelineDragging || !timelineDragStart) return;
+  const { range } = timelineBounds();
+  const deltaPx = event.clientX - timelineDragStart.x;
+  timelineCenter = timelineDragStart.center - (deltaPx / timelineDragStart.width) * range;
+  renderTimeline();
+}
+
+function endTimelineDrag(event) {
+  if (!isTimelineDragging) return;
+  isTimelineDragging = false;
+  timelineDragStart = null;
+  const board = $("timelineBoard");
+  board?.classList.remove("dragging");
+  board?.releasePointerCapture?.(event.pointerId);
 }
 
 
@@ -3732,21 +3925,39 @@ function initEvents() {
   $("deleteFolderBtn").addEventListener("click", deleteFolder);
 
   $("addTimelineBtn").addEventListener("click", () => openTimelineModal());
-  $("editTimelineBtn").addEventListener("click", () => selectedTimelineId ? openTimelineModal(selectedTimelineId) : showToast("수정할 점을 선택해주세요."));
+  $("editTimelineBtn").addEventListener("click", () => {
+    if (selectedTimelineId) return openTimelineModal(selectedTimelineId);
+    if (selectedEraId) return openEraModal(selectedEraId);
+    showToast("수정할 항목을 선택해주세요.");
+  });
   $("deleteTimelineBtn").addEventListener("click", () => {
-    if (!selectedTimelineId) return showToast("삭제할 점을 선택해주세요.");
-    state.timeline = state.timeline.filter((item) => item.id !== selectedTimelineId);
-    selectedTimelineId = null;
-    saveState();
-    renderTimeline();
+    if (selectedTimelineId) {
+      state.timeline = state.timeline.filter((item) => item.id !== selectedTimelineId);
+      selectedTimelineId = null;
+      saveState();
+      renderTimeline();
+      return;
+    }
+    if (selectedEraId) {
+      deleteEra(selectedEraId);
+      return;
+    }
+    showToast("삭제할 항목을 선택해주세요.");
   });
   $("saveTimelineBtn").addEventListener("click", saveTimeline);
+  on("addEraBtn", "click", () => openEraModal());
+  on("saveEraBtn", "click", saveEra);
   $("timelineBoard").addEventListener("click", (event) => {
-    if (event.target === $("timelineBoard") || event.target.classList.contains("tl-line") || event.target.id === "timelineEvents" || event.target.id === "timelineAxis") {
+    if (event.target === $("timelineBoard") || event.target.classList.contains("tl-line") || event.target.id === "timelineEvents" || event.target.id === "timelineAxis" || event.target.id === "timelineEras") {
       selectedTimelineId = null;
+      selectedEraId = null;
       renderTimeline();
     }
   });
+  $("timelineBoard").addEventListener("pointerdown", startTimelineDrag);
+  $("timelineBoard").addEventListener("pointermove", moveTimelineDrag);
+  $("timelineBoard").addEventListener("pointerup", endTimelineDrag);
+  $("timelineBoard").addEventListener("pointercancel", endTimelineDrag);
   on("timelinePrevBtn", "click", () => panTimeline(-1));
   on("timelineNextBtn", "click", () => panTimeline(1));
   on("timelineResetBtn", "click", resetTimelineZoom);

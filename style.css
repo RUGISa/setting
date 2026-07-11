@@ -3526,3 +3526,46 @@ select:hover, select:focus {
   }
   .props-panel-body { width: 100%; max-height: none; }
 }
+
+
+/* =========================================================================
+   스토리플러터식 타임라인: 시대 막대 + 드래그 이동 + 숫자 날짜 입력
+   ========================================================================= */
+.tl-board { cursor: grab; touch-action: none; }
+.tl-board.dragging { cursor: grabbing; }
+.tl-era-lane {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 4;
+}
+.tl-era-bar {
+  position: absolute;
+  height: 20px;
+  line-height: 20px;
+  padding: 0 8px;
+  border-radius: 5px;
+  background: var(--ob-accent-soft, rgba(172,127,94,.18));
+  color: var(--ob-accent-text, #e0b791);
+  border: 1px solid var(--ob-accent, #ac7f5e);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.tl-era-bar.selected {
+  background: var(--ob-accent, #ac7f5e);
+  color: #fff;
+}
+.tl-gridline { pointer-events: none; }
+
+.ymd-row { display: flex; gap: 8px; margin-top: 5px; }
+.ymd-row input {
+  width: 100%;
+  min-width: 0;
+  text-align: center;
+}
