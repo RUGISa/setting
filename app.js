@@ -57,6 +57,9 @@ let state = loadState();
 let currentCategory = "all";
 let currentFolderId = "";
 let currentTag = "";
+let sidebarPanel = "explorer";
+let expandedCategories = new Set();
+let expandedFolders = new Set();
 let editingCard = null;
 let detailTarget = null;
 let editingFolder = null;
@@ -359,7 +362,7 @@ function getVisibleItems() {
 
 function render() {
   try {
-    renderNav();
+    renderSidebar();
     renderTitle();
     renderMainMode();
     renderFolders();
@@ -375,34 +378,227 @@ function render() {
   }
 }
 
-function renderNav() {
-  const nav = $("categoryNav");
-  nav.innerHTML = "";
-  Object.entries(categories).forEach(([key, label]) => {
-    const button = document.createElement("button");
-    button.className = key === currentCategory ? "active" : "";
-    const count = key === "all"
-      ? getAllItems().length
-      : dataCategories.includes(key)
-        ? state[key].length
-        : key === "timeline"
-          ? state.timeline.length
-          : key === "relations"
-            ? state.relation.nodes.length
-            : (state.maps?.length || 1);
-    button.innerHTML = `<span>${label}</span><span>${count}</span>`;
-    button.addEventListener("click", () => {
-      currentCategory = key;
-      currentFolderId = "";
-      currentTag = "";
-      selectedTimelineId = null;
-      selectedNodeId = null;
-      selectedEdgeId = null;
-      connectNodes = [];
-      document.body.classList.remove("menu-open");
-      render();
+function switchCategory(key) {
+  currentCategory = key;
+  currentFolderId = "";
+  currentTag = "";
+  selectedTimelineId = null;
+  selectedNodeId = null;
+  selectedEdgeId = null;
+  connectNodes = [];
+  if (dataCategories.includes(key)) expandedCategories.add(key);
+  document.body.classList.remove("menu-open");
+  render();
+}
+
+const chevronIcon = (open) => `<svg class="chev ${open ? "open" : ""}" viewBox="0 0 24 24" width="11" height="11"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const folderIcon = `<svg viewBox="0 0 24 24" width="13" height="13"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" fill="currentColor"/></svg>`;
+const fileIcon = `<svg viewBox="0 0 24 24" width="12" height="12"><path d="M6 2h8l4 4v16H6z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M14 2v4h4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>`;
+const plusIcon = `<svg viewBox="0 0 24 24" width="12" height="12"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>`;
+const viewIcons = {
+  timeline: `<svg viewBox="0 0 24 24" width="13" height="13"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  relations: `<svg viewBox="0 0 24 24" width="13" height="13"><circle cx="6" cy="6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="18" cy="6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="18" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8.2 7.2L11 16M15.8 7.2L13 16M8.6 6h6.8" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>`,
+  map: `<svg viewBox="0 0 24 24" width="13" height="13"><path d="M9 4l-6 2.2v14L9 18l6 2.2 6-2.2v-14L15 6.2 9 4z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>`
+};
+
+function createExplorerNoteRow(item, category) {
+  const row = document.createElement("div");
+  row.className = "explorer-row note-row";
+  row.innerHTML = `<span class="explorer-icon file">${fileIcon}</span><span class="explorer-label">${escapeHTML(item.title)}</span>`;
+  row.addEventListener("click", () => {
+    currentCategory = category;
+    render();
+    openDetail(category, item.id);
+  });
+  return row;
+}
+
+function renderExplorerAll() {
+  const row = $("explorerAllRow");
+  const count = $("explorerAllCount");
+  if (!row || !count) return;
+  count.textContent = getAllItems().length;
+  row.classList.toggle("active", currentCategory === "all");
+}
+
+function renderExplorerTree() {
+  const tree = $("explorerTree");
+  if (!tree) return;
+  tree.innerHTML = "";
+
+  dataCategories.forEach((category) => {
+    const items = state[category];
+    const isOpen = expandedCategories.has(category);
+
+    const catRow = document.createElement("div");
+    catRow.className = `explorer-row cat-row ${currentCategory === category ? "active" : ""}`;
+    catRow.innerHTML = `
+      <button class="chev-btn" type="button">${chevronIcon(isOpen)}</button>
+      <span class="explorer-icon">${folderIcon}</span>
+      <span class="explorer-label">${categories[category]}</span>
+      <span class="explorer-count">${items.length}</span>
+      <button class="explorer-add" type="button" title="폴더 추가">${plusIcon}</button>
+    `;
+    catRow.querySelector(".explorer-label").addEventListener("click", () => switchCategory(category));
+    catRow.querySelector(".chev-btn").addEventListener("click", (event) => {
+      event.stopPropagation();
+      if (expandedCategories.has(category)) expandedCategories.delete(category);
+      else expandedCategories.add(category);
+      renderExplorerTree();
     });
-    nav.appendChild(button);
+    catRow.querySelector(".explorer-add").addEventListener("click", (event) => {
+      event.stopPropagation();
+      currentCategory = category;
+      expandedCategories.add(category);
+      openFolderModal();
+    });
+    tree.appendChild(catRow);
+
+    if (!isOpen) return;
+
+    const childWrap = document.createElement("div");
+    childWrap.className = "explorer-children";
+
+    state.folders[category].forEach((folder) => {
+      const folderItems = items.filter((item) => item.folderId === folder.id);
+      const folderOpen = expandedFolders.has(folder.id);
+      const folderRow = document.createElement("div");
+      folderRow.className = `explorer-row folder-row ${currentCategory === category && currentFolderId === folder.id ? "active" : ""}`;
+      folderRow.innerHTML = `
+        <button class="chev-btn" type="button">${chevronIcon(folderOpen)}</button>
+        <span class="explorer-icon">${folderIcon}</span>
+        <span class="explorer-label">${escapeHTML(folder.name)}</span>
+        <span class="explorer-count">${folderItems.length}</span>
+      `;
+      folderRow.querySelector(".explorer-label").addEventListener("click", () => {
+        currentCategory = category;
+        currentFolderId = folder.id;
+        currentTag = "";
+        expandedFolders.add(folder.id);
+        render();
+      });
+      folderRow.querySelector(".chev-btn").addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (expandedFolders.has(folder.id)) expandedFolders.delete(folder.id);
+        else expandedFolders.add(folder.id);
+        renderExplorerTree();
+      });
+      childWrap.appendChild(folderRow);
+
+      if (folderOpen) {
+        folderItems.forEach((item) => childWrap.appendChild(createExplorerNoteRow(item, category)));
+      }
+    });
+
+    items.filter((item) => !item.folderId).forEach((item) => {
+      childWrap.appendChild(createExplorerNoteRow(item, category));
+    });
+
+    tree.appendChild(childWrap);
+  });
+
+  const sep = document.createElement("div");
+  sep.className = "explorer-sep";
+  tree.appendChild(sep);
+
+  ["timeline", "relations", "map"].forEach((key) => {
+    const row = document.createElement("div");
+    row.className = `explorer-row view-row ${currentCategory === key ? "active" : ""}`;
+    row.innerHTML = `<span class="explorer-icon">${viewIcons[key]}</span><span class="explorer-label">${categories[key]}</span>`;
+    row.addEventListener("click", () => switchCategory(key));
+    tree.appendChild(row);
+  });
+}
+
+function renderSidebarSearch() {
+  const input = $("sidebarSearchInput");
+  const results = $("sidebarSearchResults");
+  if (!input || !results) return;
+  const keyword = input.value.trim().toLowerCase();
+  results.innerHTML = "";
+  if (!keyword) return;
+
+  const matches = [];
+  dataCategories.forEach((category) => {
+    state[category].forEach((item) => {
+      const haystack = [item.title, item.summary, item.body, item.tags.join(" ")].join(" ").toLowerCase();
+      if (haystack.includes(keyword)) matches.push({ category, item });
+    });
+  });
+
+  if (!matches.length) {
+    results.innerHTML = `<div class="search-empty">검색 결과가 없습니다.</div>`;
+    return;
+  }
+
+  matches.slice(0, 80).forEach(({ category, item }) => {
+    const row = document.createElement("div");
+    row.className = "search-result-row";
+    row.innerHTML = `
+      <span class="explorer-icon file">${fileIcon}</span>
+      <span class="search-result-title">${escapeHTML(item.title)}</span>
+      <span class="search-result-cat">${categories[category]}</span>
+    `;
+    row.addEventListener("click", () => {
+      currentCategory = category;
+      render();
+      openDetail(category, item.id);
+    });
+    results.appendChild(row);
+  });
+}
+
+function renderTagCloud() {
+  const box = $("tagCloud");
+  if (!box) return;
+  box.innerHTML = "";
+
+  const counts = new Map();
+  dataCategories.forEach((category) => {
+    state[category].forEach((item) => {
+      item.tags.forEach((tag) => counts.set(tag, (counts.get(tag) || 0) + 1));
+    });
+  });
+
+  if (!counts.size) {
+    box.innerHTML = `<div class="search-empty">태그가 없습니다.</div>`;
+    return;
+  }
+
+  Array.from(counts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .forEach(([tag, count]) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = `tag-cloud-item ${currentTag === tag ? "active" : ""}`;
+      row.innerHTML = `<span>#${escapeHTML(tag)}</span><span class="tag-cloud-count">${count}</span>`;
+      row.addEventListener("click", () => {
+        currentCategory = "all";
+        currentTag = tag;
+        render();
+      });
+      box.appendChild(row);
+    });
+}
+
+function renderSidebar() {
+  renderExplorerAll();
+  renderExplorerTree();
+  renderSidebarSearch();
+  renderTagCloud();
+
+  const titleEl = $("sidePanelTitle");
+  if (titleEl) titleEl.textContent = sidebarPanel === "search" ? "검색" : sidebarPanel === "tags" ? "태그" : "탐색기";
+
+  $("explorerPanel")?.classList.toggle("hidden", sidebarPanel !== "explorer");
+  $("searchPanel")?.classList.toggle("hidden", sidebarPanel !== "search");
+  $("tagsPanel")?.classList.toggle("hidden", sidebarPanel !== "tags");
+
+  document.querySelectorAll(".rail-btn[data-panel]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.panel === sidebarPanel);
+  });
+  document.querySelectorAll(".rail-btn[data-view]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.view === currentCategory);
   });
 }
 
@@ -3138,9 +3334,29 @@ async function importData(fileList) {
 }
 
 function initEvents() {
-  $("menuBtn").addEventListener("click", () => document.body.classList.toggle("menu-open"));
   $("drawerBackdrop").addEventListener("click", () => document.body.classList.remove("menu-open"));
   $("closeDrawerBtn").addEventListener("click", () => document.body.classList.remove("menu-open"));
+
+  document.querySelectorAll(".rail-btn[data-panel]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const panel = btn.dataset.panel;
+      const isMobile = window.matchMedia("(max-width: 980px)").matches;
+      if (isMobile && sidebarPanel === panel && document.body.classList.contains("menu-open")) {
+        document.body.classList.remove("menu-open");
+        return;
+      }
+      sidebarPanel = panel;
+      if (isMobile) document.body.classList.add("menu-open");
+      renderSidebar();
+      if (panel === "search") $("sidebarSearchInput")?.focus();
+    });
+  });
+  document.querySelectorAll(".rail-btn[data-view]").forEach((btn) => {
+    btn.addEventListener("click", () => switchCategory(btn.dataset.view));
+  });
+  on("railWriteBtn", "click", () => openCardModal());
+  on("explorerAllRow", "click", () => switchCategory("all"));
+  on("sidebarSearchInput", "input", renderSidebarSearch);
 
   document.querySelectorAll("[data-close]").forEach((button) => {
     button.addEventListener("click", () => closeModal(button.dataset.close));
@@ -3166,26 +3382,7 @@ function initEvents() {
   on("exportCardBtn", "click", exportSingleCard);
 
   on("pageTabAdd", "click", () => openCardModal());
-  on("pageTabClose", "click", () => {
-    currentCategory = "all";
-    currentFolderId = "";
-    currentTag = "";
-    render();
-  });
-  on("quickSearchBtn", "click", () => {
-    if (!dataCategories.includes(currentCategory)) {
-      currentCategory = "all";
-      render();
-    }
-    $("searchInput")?.focus();
-  });
-  on("quickTagBtn", "click", () => {
-    if (!dataCategories.includes(currentCategory) && currentCategory !== "all") {
-      currentCategory = "all";
-      render();
-    }
-    $("tagRow")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  });
+  on("pageTabClose", "click", () => switchCategory("all"));
 
   $("searchInput").addEventListener("input", render);
   $("sortSelect").addEventListener("change", render);

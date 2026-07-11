@@ -8,18 +8,33 @@
 </head>
 <body>
   <div class="app">
+    <nav class="icon-rail" id="iconRail">
+      <button class="rail-btn active" id="mobileMenuBtn" data-panel="explorer" type="button" title="탐색기" aria-label="탐색기">
+        <svg viewBox="0 0 24 24" width="19" height="19"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="rail-btn" data-panel="search" type="button" title="검색" aria-label="검색">
+        <svg viewBox="0 0 24 24" width="19" height="19"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.7"/><line x1="16.2" y1="16.2" x2="21" y2="21" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </button>
+      <button class="rail-btn" data-panel="tags" type="button" title="태그" aria-label="태그">
+        <svg viewBox="0 0 24 24" width="19" height="19"><path d="M20 12l-8 8-9-9V4h7l10 10z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="7.5" cy="7.5" r="1.4" fill="currentColor"/></svg>
+      </button>
+      <div class="rail-sep"></div>
+      <button class="rail-btn" data-view="relations" type="button" title="관계도" aria-label="관계도">
+        <svg viewBox="0 0 24 24" width="19" height="19"><circle cx="6" cy="6" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="18" cy="6" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="12" cy="18" r="2.6" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M8.2 7.2L11 16M15.8 7.2L13 16M8.6 6h6.8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+      </button>
+      <button class="rail-btn" data-view="timeline" type="button" title="타임라인" aria-label="타임라인">
+        <svg viewBox="0 0 24 24" width="19" height="19"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 7v5l3.5 2" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="rail-btn" data-view="map" type="button" title="지도" aria-label="지도">
+        <svg viewBox="0 0 24 24" width="19" height="19"><path d="M9 4l-6 2.2v14L9 18l6 2.2 6-2.2v-14L15 6.2 9 4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 4v14M15 6.2v14" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+      </button>
+      <div class="rail-flex-spacer"></div>
+      <button class="rail-btn" id="railWriteBtn" type="button" title="새 설정 작성" aria-label="새 설정 작성">
+        <svg viewBox="0 0 24 24" width="19" height="19"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+      </button>
+    </nav>
+
     <header class="app-header">
-      <div class="titlebar-icons">
-        <button class="icon-btn" id="menuBtn" type="button" aria-label="메뉴 열기" title="탐색기">
-          <svg viewBox="0 0 24 24" width="17" height="17"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
-        </button>
-        <button class="icon-btn" id="quickSearchBtn" type="button" aria-label="검색" title="빠른 검색">
-          <svg viewBox="0 0 24 24" width="17" height="17"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.7"/><line x1="16.2" y1="16.2" x2="21" y2="21" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-        </button>
-        <button class="icon-btn" id="quickTagBtn" type="button" aria-label="태그" title="태그">
-          <svg viewBox="0 0 24 24" width="17" height="17"><path d="M20 12l-8 8-9-9V4h7l10 10z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="7.5" cy="7.5" r="1.4" fill="currentColor"/></svg>
-        </button>
-      </div>
       <h1>설정서랍</h1>
       <button class="ghost-btn small" id="saveBtn" type="button">저장</button>
     </header>
@@ -35,10 +50,29 @@
     <div class="drawer-backdrop" id="drawerBackdrop"></div>
     <aside class="drawer" id="drawer">
       <div class="drawer-head">
-        <strong>서랍 선택</strong>
+        <strong id="sidePanelTitle">탐색기</strong>
         <button class="ghost-btn small" id="closeDrawerBtn" type="button">닫기</button>
       </div>
-      <nav class="drawer-nav" id="categoryNav"></nav>
+
+      <div class="side-panel-body" id="explorerPanel">
+        <div class="explorer-row all-row" id="explorerAllRow">
+          <span class="explorer-label">전체</span>
+          <span class="explorer-count" id="explorerAllCount">0</span>
+        </div>
+        <div class="explorer-tree" id="explorerTree"></div>
+      </div>
+
+      <div class="side-panel-body hidden" id="searchPanel">
+        <label class="search sidebar-search">
+          <span>⌕</span>
+          <input id="sidebarSearchInput" type="search" placeholder="모든 서랍에서 검색" />
+        </label>
+        <div class="search-results" id="sidebarSearchResults"></div>
+      </div>
+
+      <div class="side-panel-body hidden" id="tagsPanel">
+        <div class="tag-cloud" id="tagCloud"></div>
+      </div>
     </aside>
 
     <main class="screen">
