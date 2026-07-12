@@ -675,21 +675,39 @@ function deleteFolderDirect(folderId) {
 }
 
 const categoryBadge = {
-  characters: { label: "캐", color: "#8fb3ff" },
-  places: { label: "지", color: "#7fd4a8" },
-  factions: { label: "조", color: "#e0b791" },
-  events: { label: "사", color: "#f0a5c0" },
-  items: { label: "아", color: "#e0c85a" },
-  abilities: { label: "능", color: "#c3a0f5" }
+  characters: {
+    color: "#8fb3ff",
+    icon: `<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 20c0-4.4 3.6-7 8-7s8 2.6 8 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`
+  },
+  places: {
+    color: "#7fd4a8",
+    icon: `<svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.4" fill="none" stroke="currentColor" stroke-width="2"/></svg>`
+  },
+  factions: {
+    color: "#e0b791",
+    icon: `<svg viewBox="0 0 24 24" width="14" height="14"><path d="M5 3v18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M5 4h11l-2.5 3.5L16 11H5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>`
+  },
+  events: {
+    color: "#f0a5c0",
+    icon: `<svg viewBox="0 0 24 24" width="14" height="14"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>`
+  },
+  items: {
+    color: "#e0c85a",
+    icon: `<svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 2 3 7v10l9 5 9-5V7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M3 7l9 5 9-5M12 12v10" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>`
+  },
+  abilities: {
+    color: "#c3a0f5",
+    icon: `<svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 3l2.2 5.6L20 11l-5.8 2.4L12 19l-2.2-5.6L4 11l5.8-2.4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>`
+  }
 };
 
 function createExplorerNoteRow(item, category) {
   const row = document.createElement("div");
   row.className = "explorer-row note-row";
   row.draggable = true;
-  const badge = categoryBadge[category] || { label: "?", color: "#999" };
+  const badge = categoryBadge[category] || { icon: fileIcon, color: "#999" };
   row.innerHTML = `
-    <span class="explorer-type-badge" style="color:${badge.color};border-color:${badge.color}">${badge.label}</span>
+    <span class="explorer-type-badge" style="color:${badge.color}" title="${escapeHTML(categories[category] || category)}">${badge.icon}</span>
     <span class="explorer-label">${escapeHTML(item.title)}</span>
     <span class="explorer-actions">
       <button class="explorer-action" type="button" title="파일 삭제">${trashIcon}</button>
@@ -1045,12 +1063,68 @@ function renderTags() {
   });
 }
 
+const folderTileIcon = `<svg viewBox="0 0 24 24" width="34" height="34"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" fill="currentColor" opacity=".9"/></svg>`;
+const backTileIcon = `<svg viewBox="0 0 24 24" width="30" height="30"><path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+function createFolderTile(folder, count) {
+  const tile = document.createElement("article");
+  tile.className = "card folder-tile";
+  tile.innerHTML = `
+    <div class="folder-tile-icon">${folderTileIcon}</div>
+    <h3>${escapeHTML(folder.name)}</h3>
+    <p class="card-summary">${count}개 항목</p>
+  `;
+  tile.addEventListener("click", () => {
+    currentFolderId = folder.id;
+    expandedFolders.add(folder.id);
+    render();
+  });
+  tile.addEventListener("dragover", (event) => {
+    if (event.dataTransfer.types.includes("application/x-explorer-file")) {
+      event.preventDefault();
+      tile.classList.add("drop-target");
+    }
+  });
+  tile.addEventListener("dragleave", () => tile.classList.remove("drop-target"));
+  tile.addEventListener("drop", (event) => {
+    tile.classList.remove("drop-target");
+    handleExplorerDrop(event, folder.id);
+  });
+  return tile;
+}
+
+function createBackTile() {
+  const tile = document.createElement("article");
+  tile.className = "card folder-tile back-tile";
+  tile.innerHTML = `
+    <div class="folder-tile-icon">${backTileIcon}</div>
+    <h3>상위 폴더</h3>
+    <p class="card-summary">전체로 돌아가기</p>
+  `;
+  tile.addEventListener("click", () => {
+    currentFolderId = "";
+    render();
+  });
+  return tile;
+}
+
 function renderCards() {
   const grid = $("cardGrid");
   const items = getVisibleItems();
   grid.innerHTML = "";
-  $("emptyBox").classList.toggle("hidden", items.length !== 0);
+
+  const keyword = $("searchInput").value.trim();
+  const isRoot = currentCategory === "all" && !currentFolderId && !keyword && !currentTag;
+  const insideFolder = currentCategory === "all" && currentFolderId && currentFolderId !== "__none" && !keyword && !currentTag;
+
+  if (insideFolder) grid.appendChild(createBackTile());
+  if (isRoot) state.folders.forEach((folder) => {
+    const count = getAllItems().filter((item) => item.folderId === folder.id).length;
+    grid.appendChild(createFolderTile(folder, count));
+  });
+
   items.forEach((item) => grid.appendChild(createCard(item)));
+  $("emptyBox").classList.toggle("hidden", items.length !== 0 || (isRoot && state.folders.length > 0));
 }
 
 function getFolderName(folderId) {
@@ -2070,7 +2144,7 @@ function renderRelations() {
   svg.innerHTML = `
     <defs>
       <marker id="arrow-brown" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
-        <path d="M0,0 L9,4.5 L0,9 Z" fill="rgba(92,64,36,.75)"></path>
+        <path d="M0,0 L9,4.5 L0,9 Z" fill="#c39875"></path>
       </marker>
     </defs>
   `;
@@ -2288,6 +2362,7 @@ function handleNodeClick(id) {
 function dragNode(el, node) {
   el.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) return;
+    event.preventDefault();
 
     const startX = event.clientX;
     const startY = event.clientY;

@@ -3697,11 +3697,7 @@ body.tl-no-select, body.tl-no-select * {
   width: 16px;
   height: 16px;
   flex-shrink: 0;
-  border: 1px solid;
-  border-radius: 4px;
-  font-size: 9.5px;
-  font-weight: 700;
-  opacity: .9;
+  opacity: .95;
 }
 .explorer-row.folder-row.drop-target,
 .explorer-row.all-row.drop-target {
@@ -3714,3 +3710,47 @@ body.tl-no-select, body.tl-no-select * {
   outline: 2px dashed var(--ob-accent);
   outline-offset: -2px;
 }
+
+
+/* =========================================================================
+   관계도 노드: 드래그 안정화 + 이름 줄바꿈 방지 (방어적 강제 규칙)
+   ========================================================================= */
+.relation-node,
+.relation-node * {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+.relation-node strong,
+.relation-node .org-title {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  display: block !important;
+  max-width: 100%;
+  writing-mode: horizontal-tb !important;
+}
+
+
+/* =========================================================================
+   윈도우즈 탐색기 스타일 폴더 타일 (메인 화면)
+   ========================================================================= */
+.folder-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  cursor: pointer;
+  padding: 18px 16px !important;
+}
+.folder-tile-icon {
+  color: var(--ob-accent-text);
+  margin-bottom: 6px;
+}
+.folder-tile h3 { margin: 0; font-size: 15px; }
+.folder-tile .card-summary { margin: 0; }
+.folder-tile:hover { border-color: var(--ob-accent) !important; }
+.folder-tile.drop-target {
+  border-color: var(--ob-accent) !important;
+  background: var(--ob-accent-soft) !important;
+}
+.folder-tile.back-tile .folder-tile-icon { color: var(--ob-muted); }
