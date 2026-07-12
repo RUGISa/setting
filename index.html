@@ -29,6 +29,10 @@
         <svg viewBox="0 0 24 24" width="19" height="19"><path d="M9 4l-6 2.2v14L9 18l6 2.2 6-2.2v-14L15 6.2 9 4z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 4v14M15 6.2v14" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
       </button>
       <div class="rail-flex-spacer"></div>
+      <button class="rail-btn theme-toggle-btn" id="themeToggleBtn" type="button" title="테마 전환" aria-label="테마 전환">
+        <svg class="icon-moon" viewBox="0 0 24 24" width="19" height="19"><path d="M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a7 7 0 0 0 11 11z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" width="19" height="19"><circle cx="12" cy="12" r="4.3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5 5l2.1 2.1M16.9 16.9L19 19M19 5l-2.1 2.1M7.1 16.9L5 19" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+      </button>
       <button class="rail-btn" id="railWriteBtn" type="button" title="새 파일" aria-label="새 파일">
         <svg viewBox="0 0 24 24" width="19" height="19"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
       </button>
@@ -236,11 +240,20 @@
           <button class="primary" id="addNodeBtn" type="button">카드 생성</button>
           <button id="importNodeBtn" type="button">카드 불러오기</button>
         </div>
-        <p class="hint">아카이브형 관계도입니다. 카드를 가져오고, 카드 2개를 선택한 뒤 선 생성을 누르세요. 조직은 큰 영역 박스로 표시됩니다.</p>
-        <div class="relation-board" id="relationBoard">
-          <div class="relation-canvas" id="relationCanvas">
-            <svg id="relationSvg"></svg>
+        <p class="hint">아카이브형 관계도입니다. 카드를 가져오거나 탐색기에서 파일을 끌어다 놓아보세요. 카드 2개를 선택한 뒤 선 생성을 누르면 연결됩니다.</p>
+        <div class="relation-board-row">
+          <div class="relation-board" id="relationBoard">
+            <div class="relation-canvas" id="relationCanvas">
+              <svg id="relationSvg"></svg>
+            </div>
           </div>
+          <aside class="relation-style-panel" id="relationStylePanel">
+            <div class="props-panel-head">
+              <strong id="relationStyleTitle">스타일</strong>
+              <button id="closeRelationStyleBtn" type="button" aria-label="닫기">×</button>
+            </div>
+            <div class="props-panel-body" id="relationStyleBody"></div>
+          </aside>
         </div>
         <div class="relation-bottom-bar">
           <div class="relation-tool-group">
@@ -252,15 +265,7 @@
           <div class="relation-tool-group">
             <strong>연결</strong>
             <button id="relEdgeCreateBtn" type="button">선 생성</button>
-            <button id="relEdgeEditBtn" type="button">선 수정</button>
             <button id="relEdgeDeleteBtn" type="button">선 삭제</button>
-            <input id="relEdgeColorInput" type="color" value="#6d5038" title="선 색상" />
-            <select id="relEdgeDirectionSelect" title="화살표 방향">
-              <option value="forward">→</option>
-              <option value="back">←</option>
-              <option value="both">↔</option>
-              <option value="none">선만</option>
-            </select>
           </div>
           <div class="relation-tool-group">
             <strong>조직</strong>
@@ -463,37 +468,6 @@
         <select id="importCategory"></select>
       </div>
       <div class="import-list" id="importList"></div>
-    </section>
-  </div>
-
-  <div class="modal-bg" id="edgeModal">
-    <section class="modal small">
-      <header class="modal-head">
-        <div>
-          <h2>선 이름</h2>
-          <p>관계의 의미를 적어주세요.</p>
-        </div>
-        <button data-close="edgeModal" type="button">닫기</button>
-      </header>
-      <div class="form">
-        <label>관계 이름
-          <input id="edgeName" type="text" placeholder="예: 의존, 적대, 가족" />
-        </label>
-        <label>선 색상
-          <input id="edgeColor" type="color" value="#6d5038" />
-        </label>
-        <label>방향
-          <select id="edgeDirection">
-            <option value="forward">첫 번째 카드 → 두 번째 카드</option>
-            <option value="back">첫 번째 카드 ← 두 번째 카드</option>
-            <option value="both">양방향</option>
-            <option value="none">화살표 없음</option>
-          </select>
-        </label>
-      </div>
-      <div class="modal-actions">
-        <button class="primary" id="saveEdgeBtn" type="button">저장</button>
-      </div>
     </section>
   </div>
 

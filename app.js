@@ -413,6 +413,8 @@ function getVisibleItems() {
 
   if (currentFolderId) {
     items = items.filter((item) => currentFolderId === "__none" ? !item.folderId : item.folderId === currentFolderId);
+  } else if (currentCategory === "all" && !keyword && !currentTag) {
+    items = items.filter((item) => !item.folderId);
   }
   if (keyword) {
     items = items.filter((item) => {
@@ -868,18 +870,6 @@ function renderExplorerTree() {
   loose
     .sort((a, b) => a.item.title.localeCompare(b.item.title))
     .forEach(({ item, category }) => tree.appendChild(createExplorerNoteRow(item, category)));
-
-  const sep = document.createElement("div");
-  sep.className = "explorer-sep";
-  tree.appendChild(sep);
-
-  ["relations", "timeline", "map"].forEach((key) => {
-    const row = document.createElement("div");
-    row.className = `explorer-row view-row ${currentCategory === key ? "active" : ""}`;
-    row.innerHTML = `<span class="explorer-icon">${viewIcons[key]}</span><span class="explorer-label">${categories[key]}</span>`;
-    row.addEventListener("click", () => switchCategory(key));
-    tree.appendChild(row);
-  });
 }
 
 function renderSidebarSearch() {
@@ -2178,20 +2168,24 @@ function renderRelations() {
     .forEach((node) => {
       const source = node.sourceId ? findItem(node.sourceCategory, node.sourceId) : null;
       const title = source?.title || node.name || "이름 없음";
-      const desc = source?.summary || source?.body || node.desc || "";
       const category = source ? node.sourceCategory : "custom";
       const isOrg = node.sourceCategory === "factions";
 
       if (isOrg) {
         node.x ??= 80;
         node.y ??= 70;
+        node.width ??= 360;
+        node.height ??= 240;
+        node.color ??= "#c27322";
+        node.opacity ??= 0.2;
       }
 
       const el = document.createElement("div");
+      const selected = selectedNodeId === node.id;
       el.className = [
         "relation-node",
         `node-${category}`,
-        selectedNodeId === node.id ? "selected" : "",
+        selected ? "selected" : "",
         connectNodes.includes(node.id) ? "pick" : "",
         isOrg ? "organization" : ""
       ].join(" ").trim();
@@ -2200,18 +2194,22 @@ function renderRelations() {
       el.style.left = `${node.x ?? 100}px`;
       el.style.top = `${node.y ?? 120}px`;
 
-      el.innerHTML = isOrg
-        ? `
+      if (isOrg) {
+        el.style.width = `${node.width}px`;
+        el.style.height = `${node.height}px`;
+        el.style.setProperty("--org-bg", hexToRgba(node.color, node.opacity));
+        el.style.setProperty("--org-border", node.color);
+        el.innerHTML = `
           <div class="org-title">${escapeHTML(title)}</div>
-          <span>${escapeHTML(desc || "조직 영역")}</span>
           <em>${categories[category] || "조직"}</em>
-        `
-        : `
+          ${selected ? `<div class="org-resize-handle" title="크기 조절"></div>` : ""}
+        `;
+      } else {
+        el.innerHTML = `
           <i>${escapeHTML(categories[category] || "직접")}</i>
           <strong>${escapeHTML(title)}</strong>
-          <span>${escapeHTML(desc || "설명 없음")}</span>
-          <em>${source ? categories[category] : "직접 카드"}</em>
         `;
+      }
 
       el.addEventListener("click", (event) => {
         event.stopPropagation();
@@ -2223,14 +2221,172 @@ function renderRelations() {
       });
 
       dragNode(el, node);
+      if (isOrg && selected) {
+        const handle = el.querySelector(".org-resize-handle");
+        if (handle) resizeOrgNode(handle, node);
+      }
       canvas.appendChild(el);
     });
+
+  renderRelationStylePanel();
 
   requestAnimationFrame(() => {
     svg.querySelectorAll("path:not(defs path)").forEach((path) => path.remove());
     canvas.querySelectorAll(".edge-label,.edge-control-point").forEach((label) => label.remove());
     state.relation.edges.forEach((edge) => drawEdge(edge));
   });
+}
+
+function hexToRgba(hex, alpha) {
+  const clean = String(hex || "#c27322").replace("#", "");
+  const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
+  const r = parseInt(full.slice(0, 2), 16) || 0;
+  const g = parseInt(full.slice(2, 4), 16) || 0;
+  const b = parseInt(full.slice(4, 6), 16) || 0;
+  return `rgba(${r}, ${g}, ${b}, ${alpha ?? 0.2})`;
+}
+
+function resizeOrgNode(handle, node) {
+  handle.addEventListener("pointerdown", (event) => {
+    event.stopPropagation();
+    event.preventDefault();
+    handle.setPointerCapture(event.pointerId);
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startWidth = node.width;
+    const startHeight = node.height;
+
+    const move = (e) => {
+      node.width = Math.max(160, startWidth + (e.clientX - startX) / relationZoom);
+      node.height = Math.max(120, startHeight + (e.clientY - startY) / relationZoom);
+      const el = handle.closest(".relation-node");
+      if (el) {
+        el.style.width = `${node.width}px`;
+        el.style.height = `${node.height}px`;
+      }
+      redrawEdgesOnly();
+    };
+    const up = () => {
+      handle.removeEventListener("pointermove", move);
+      handle.removeEventListener("pointerup", up);
+      saveState();
+    };
+    handle.addEventListener("pointermove", move);
+    handle.addEventListener("pointerup", up);
+  });
+}
+
+function redrawEdgesOnly() {
+  $("relationSvg").querySelectorAll("path:not(defs path)").forEach((path) => path.remove());
+  $("relationCanvas").querySelectorAll(".edge-label,.edge-control-point").forEach((el) => el.remove());
+  state.relation.edges.forEach((edge) => drawEdge(edge));
+}
+
+let lastStyleTarget = null;
+
+function renderRelationStylePanel() {
+  const panel = $("relationStylePanel");
+  const body = $("relationStyleBody");
+  const title = $("relationStyleTitle");
+  if (!panel || !body || !title) return;
+
+  const edge = selectedEdgeId ? state.relation.edges.find((item) => item.id === selectedEdgeId) : null;
+  const node = (!edge && selectedNodeId) ? state.relation.nodes.find((item) => item.id === selectedNodeId) : null;
+  const isOrgNode = node && node.sourceCategory === "factions";
+
+  const targetKey = edge ? `edge:${edge.id}` : isOrgNode ? `org:${node.id}` : null;
+
+  if (!targetKey) {
+    panel.classList.remove("open");
+    lastStyleTarget = null;
+    return;
+  }
+
+  panel.classList.add("open");
+  if (targetKey === lastStyleTarget) return; // 같은 대상이면 다시 그리지 않음 (입력 중 포커스 유지)
+  lastStyleTarget = targetKey;
+
+  if (edge) {
+    title.textContent = "선 스타일";
+    body.innerHTML = `
+      <label>이름
+        <input id="styleEdgeLabel" type="text" placeholder="예: 의존" />
+      </label>
+      <label>색상
+        <input id="styleEdgeColor" type="color" />
+      </label>
+      <label>방향
+        <select id="styleEdgeDirection">
+          <option value="forward">→ 정방향</option>
+          <option value="back">← 역방향</option>
+          <option value="both">↔ 양방향</option>
+          <option value="none">— 선만</option>
+        </select>
+      </label>
+    `;
+    $("styleEdgeLabel").value = edge.label || "";
+    $("styleEdgeColor").value = edge.color || "#6d5038";
+    $("styleEdgeDirection").value = edge.direction || "forward";
+
+    const debouncedLabel = debounce((value) => {
+      edge.label = value.trim();
+      saveState();
+      redrawEdgesOnly();
+    }, 300);
+    $("styleEdgeLabel").addEventListener("input", (event) => debouncedLabel(event.target.value));
+    $("styleEdgeColor").addEventListener("input", (event) => {
+      edge.color = event.target.value;
+      saveState();
+      redrawEdgesOnly();
+    });
+    $("styleEdgeDirection").addEventListener("change", (event) => {
+      edge.direction = event.target.value;
+      saveState();
+      redrawEdgesOnly();
+    });
+  } else {
+    title.textContent = "조직 스타일";
+    const opacityPct = Math.round((node.opacity ?? 0.2) * 100);
+    body.innerHTML = `
+      <label>이름
+        <input id="styleOrgName" type="text" />
+      </label>
+      <label>색상
+        <input id="styleOrgColor" type="color" />
+      </label>
+      <label>투명도 <span id="styleOrgOpacityValue">${opacityPct}%</span>
+        <input id="styleOrgOpacity" type="range" min="5" max="80" step="5" />
+      </label>
+      <p class="style-panel-hint">테두리를 드래그하면 크기를 바꿀 수 있어요.</p>
+    `;
+    $("styleOrgName").value = node.name || "";
+    $("styleOrgColor").value = node.color || "#c27322";
+    $("styleOrgOpacity").value = opacityPct;
+
+    const debouncedName = debounce((value) => {
+      node.name = value.trim() || "조직";
+      const titleEl = document.querySelector(`.relation-node[data-id="${node.id}"] .org-title`);
+      if (titleEl) titleEl.textContent = node.name;
+      saveState();
+    }, 300);
+    $("styleOrgName").addEventListener("input", (event) => debouncedName(event.target.value));
+    $("styleOrgColor").addEventListener("input", (event) => {
+      node.color = event.target.value;
+      const el = document.querySelector(`.relation-node[data-id="${node.id}"]`);
+      if (el) {
+        el.style.setProperty("--org-bg", hexToRgba(node.color, node.opacity));
+        el.style.setProperty("--org-border", node.color);
+      }
+      saveState();
+    });
+    $("styleOrgOpacity").addEventListener("input", (event) => {
+      node.opacity = Number(event.target.value) / 100;
+      $("styleOrgOpacityValue").textContent = `${event.target.value}%`;
+      const el = document.querySelector(`.relation-node[data-id="${node.id}"]`);
+      if (el) el.style.setProperty("--org-bg", hexToRgba(node.color, node.opacity));
+      saveState();
+    });
+  }
 }
 
 function nodeCenter(id) {
@@ -2276,7 +2432,6 @@ function drawEdge(edge) {
     selectedEdgeId = edge.id;
     selectedNodeId = null;
     connectNodes = [];
-    syncEdgeControls(edge);
     renderRelations();
   });
 
@@ -2291,7 +2446,8 @@ function drawEdge(edge) {
     label.addEventListener("click", (event) => {
       event.stopPropagation();
       selectedEdgeId = edge.id;
-      syncEdgeControls(edge);
+      selectedNodeId = null;
+      connectNodes = [];
       renderRelations();
     });
     $("relationCanvas").appendChild(label);
@@ -2312,15 +2468,14 @@ function drawEdge(edge) {
 function dragEdgeControl(control, edge, horizontal) {
   control.addEventListener("pointerdown", (event) => {
     event.stopPropagation();
+    event.preventDefault();
     control.setPointerCapture(event.pointerId);
 
     const move = (e) => {
       const world = relationScreenToWorld(e.clientX, e.clientY);
       edge.midX = world.x;
       edge.midY = world.y;
-      $("relationSvg").querySelectorAll("path:not(defs path)").forEach((path) => path.remove());
-      $("relationCanvas").querySelectorAll(".edge-label,.edge-control-point").forEach((el) => el.remove());
-      state.relation.edges.forEach((item) => drawEdge(item));
+      redrawEdgesOnly();
     };
 
     const up = () => {
@@ -2333,17 +2488,6 @@ function dragEdgeControl(control, edge, horizontal) {
     control.addEventListener("pointermove", move);
     control.addEventListener("pointerup", up);
   });
-}
-
-function syncEdgeControls(edge) {
-  if (!edge) return;
-  const color = $("relEdgeColorInput");
-  const direction = $("relEdgeDirectionSelect");
-  if (color) color.value = edge.color || "#6d5038";
-  if (direction) direction.value = edge.direction || "forward";
-  if ($("edgeColor")) $("edgeColor").value = edge.color || "#6d5038";
-  if ($("edgeDirection")) $("edgeDirection").value = edge.direction || "forward";
-  if ($("edgeName")) $("edgeName").value = edge.label || "";
 }
 
 function handleNodeClick(id) {
@@ -2430,25 +2574,12 @@ function connectNodesNow() {
   const [from, to] = connectNodes;
   const exists = state.relation.edges.some((edge) => (edge.from === from && edge.to === to) || (edge.from === to && edge.to === from));
   if (exists) return showToast("이미 연결된 노드입니다.");
-  const edge = { id: uid(), from, to, label: "", color: $("relEdgeColorInput")?.value || "#6d5038", direction: $("relEdgeDirectionSelect")?.value || "forward" };
+  const edge = { id: uid(), from, to, label: "", color: "#6d5038", direction: "forward" };
   state.relation.edges.push(edge);
   selectedEdgeId = edge.id;
+  selectedNodeId = null;
   connectNodes = [];
   saveState();
-  $("edgeName").value = "";
-  syncEdgeControls(edge);
-  renderRelations();
-  openModal("edgeModal");
-}
-
-function saveEdgeName() {
-  const edge = state.relation.edges.find((item) => item.id === selectedEdgeId);
-  if (!edge) return;
-  edge.label = $("edgeName").value.trim();
-  edge.color = $("edgeColor")?.value || $("relEdgeColorInput")?.value || edge.color || "#6d5038";
-  edge.direction = $("edgeDirection")?.value || $("relEdgeDirectionSelect")?.value || edge.direction || "forward";
-  saveState();
-  closeModal("edgeModal");
   renderRelations();
 }
 
@@ -2598,15 +2729,6 @@ function endRelationPan(event) {
   relationPanStart = null;
   board?.classList.remove("panning");
   board?.releasePointerCapture?.(event.pointerId);
-}
-
-function applyEdgeToolbarValues() {
-  const edge = state.relation.edges.find((item) => item.id === selectedEdgeId);
-  if (!edge) return;
-  edge.color = $("relEdgeColorInput")?.value || edge.color || "#6d5038";
-  edge.direction = $("relEdgeDirectionSelect")?.value || edge.direction || "forward";
-  saveState();
-  renderRelations();
 }
 
 function ensureMaps() {
@@ -4217,6 +4339,7 @@ function initEvents() {
     btn.addEventListener("click", () => switchCategory(btn.dataset.view));
   });
   on("railWriteBtn", "click", () => startNewFile());
+  on("themeToggleBtn", "click", toggleTheme);
   on("explorerAllRow", "click", () => switchCategory("all"));
   const allRowEl = $("explorerAllRow");
   if (allRowEl) {
@@ -4444,13 +4567,6 @@ function initEvents() {
   $("importSearch").addEventListener("input", renderImportList);
   $("importCategory").addEventListener("change", renderImportList);
   on("connectBtn", "click", connectNodesNow);
-  on("edgeNameBtn", "click", () => {
-    if (!selectedEdgeId) return showToast("선 하나를 선택해주세요.");
-    const edge = state.relation.edges.find((item) => item.id === selectedEdgeId);
-    $("edgeName").value = edge?.label || "";
-    openModal("edgeModal");
-  });
-  $("saveEdgeBtn").addEventListener("click", saveEdgeName);
   on("deleteEdgeBtn", "click", deleteSelectedEdge);
   on("deleteNodeBtn", "click", deleteSelectedNode);
   on("organizeBtn", "click", organizeMembers);
@@ -4463,17 +4579,16 @@ function initEvents() {
   on("relCardImportBtn", "click", openImportNodes);
   on("relCardDeleteBtn", "click", deleteSelectedNode);
   on("relEdgeCreateBtn", "click", connectNodesNow);
-  on("relEdgeEditBtn", "click", () => {
-    const edge = state.relation.edges.find((item) => item.id === selectedEdgeId);
-    if (!edge) return showToast("수정할 선을 선택해주세요.");
-    syncEdgeControls(edge);
-    openModal("edgeModal");
-  });
   on("relEdgeDeleteBtn", "click", deleteSelectedEdge);
-  on("relEdgeColorInput", "input", applyEdgeToolbarValues);
-  on("relEdgeDirectionSelect", "change", applyEdgeToolbarValues);
+  on("closeRelationStyleBtn", "click", () => {
+    selectedEdgeId = null;
+    selectedNodeId = null;
+    renderRelations();
+  });
   on("relOrgCreateBtn", "click", () => {
-    state.relation.nodes.push({ id: uid(), name: "조직", desc: "", sourceCategory: "factions", x: 70, y: 70 });
+    const node = { id: uid(), name: "조직", desc: "", sourceCategory: "factions", x: 70, y: 70, width: 360, height: 240, color: "#c27322", opacity: 0.2 };
+    state.relation.nodes.push(node);
+    selectedNodeId = node.id;
     saveState();
     renderRelations();
   });
@@ -4659,7 +4774,20 @@ function initEvents() {
 
 }
 
+function loadTheme() {
+  const saved = localStorage.getItem(`${STORAGE_KEY}-theme`);
+  const theme = saved === "light" ? "light" : "dark";
+  document.documentElement.dataset.theme = theme;
+}
+
+function toggleTheme() {
+  const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
+  document.documentElement.dataset.theme = next;
+  localStorage.setItem(`${STORAGE_KEY}-theme`, next);
+}
+
 function init() {
+  loadTheme();
   ensureMaps();
   currentMapId = state.currentMapId || state.maps[0].id;
   fillCategorySelects();
