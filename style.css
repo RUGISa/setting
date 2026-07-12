@@ -3846,17 +3846,17 @@ body.tl-no-select, body.tl-no-select * {
   --ob-text: #2c2c33;
   --ob-text-strong: #101014;
   --ob-muted: #75747d;
-  --ob-accent: #ac7f5e;
-  --ob-accent-strong: #96684a;
-  --ob-accent-press: #7d5638;
-  --ob-accent-soft: rgba(172, 127, 94, .13);
-  --ob-accent-text: #8a5f40;
+  --ob-accent: #b78a66;
+  --ob-accent-strong: #c69a76;
+  --ob-accent-press: #9c7050;
+  --ob-accent-soft: rgba(183, 138, 102, .13);
+  --ob-accent-text: #8f6748;
   --ob-danger: #c94a5c;
   --ob-danger-soft: rgba(201, 74, 92, .10);
 }
 :root[data-theme="light"] body {
   background:
-    radial-gradient(circle at 20% -10%, rgba(172, 127, 94, .06), transparent 45%),
+    radial-gradient(circle at 20% -10%, rgba(183, 138, 102, .06), transparent 45%),
     var(--ob-bg-outer) !important;
 }
 :root[data-theme="light"] .app {
