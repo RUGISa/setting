@@ -4479,3 +4479,148 @@ body.map-view-active .screen {
   border-color: #1473e6;
   transform: scale(1.05);
 }
+
+
+/* =========================================================================
+   지도 편집기 라이트 모드 (앱 테마가 라이트일 때 함께 전환)
+   ========================================================================= */
+:root[data-theme="light"] #wmeRoot {
+  --bg: #f4f4f6;
+  --panel: #ffffff;
+  --line: #dcdce0;
+  --soft: #eeeef1;
+  --text: #2c2c33;
+  --muted: #7a7a82;
+  --accent: #1473e6;
+  --shadow: 0 20px 55px rgba(30,30,40,.14);
+}
+:root[data-theme="light"] #wmeRoot .topbar {
+  background: #ffffff !important;
+  border-bottom: 1px solid var(--line) !important;
+}
+:root[data-theme="light"] #wmeRoot .brand { color: #232329 !important; }
+:root[data-theme="light"] #wmeRoot .logo { border-color: #c7c7cf !important; color: #232329 !important; }
+
+:root[data-theme="light"] #wmeRoot .btn {
+  background: #f0f0f3 !important;
+  border-color: #d3d3d9 !important;
+  color: #303038 !important;
+}
+:root[data-theme="light"] #wmeRoot .btn:hover { background: #e6e6ea !important; }
+:root[data-theme="light"] #wmeRoot .btn.primary {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+}
+
+:root[data-theme="light"] #wmeRoot .panel { background: #fafafb !important; }
+:root[data-theme="light"] #wmeRoot .left { border-right: 1px solid var(--line) !important; }
+:root[data-theme="light"] #wmeRoot .right { border-left: 1px solid var(--line) !important; }
+:root[data-theme="light"] #wmeRoot .panel-head {
+  border-bottom: 1px solid var(--line) !important;
+  color: #232329 !important;
+}
+:root[data-theme="light"] #wmeRoot .section { border-bottom: 1px solid #ececef !important; }
+:root[data-theme="light"] #wmeRoot .section-title { color: #303038 !important; }
+:root[data-theme="light"] #wmeRoot .muted { color: var(--muted) !important; }
+:root[data-theme="light"] #wmeRoot .row label { color: #6e6e76 !important; }
+:root[data-theme="light"] #wmeRoot .num { color: #6e6e76 !important; }
+
+:root[data-theme="light"] #wmeRoot .upload {
+  background: #f4f4f6 !important;
+  border-color: #cfcfd6 !important;
+  color: #55555d !important;
+}
+:root[data-theme="light"] #wmeRoot .upload:hover { background: #ececef !important; }
+
+:root[data-theme="light"] #wmeRoot .mode-card {
+  background: #f0f0f3 !important;
+  border-color: #d3d3d9 !important;
+}
+:root[data-theme="light"] #wmeRoot .mode-card:hover { background: #e6e6ea !important; }
+:root[data-theme="light"] #wmeRoot .mode-card.active {
+  background: rgba(20,115,230,.10) !important;
+  border-color: var(--accent) !important;
+}
+:root[data-theme="light"] #wmeRoot .mode-icon { color: #303038 !important; }
+:root[data-theme="light"] #wmeRoot .mode-card.active .mode-icon { color: var(--accent) !important; }
+:root[data-theme="light"] #wmeRoot .mode-text strong { color: #303038 !important; }
+:root[data-theme="light"] #wmeRoot .mode-card.active .mode-text strong { color: #0e5bb8 !important; }
+
+:root[data-theme="light"] #wmeRoot .segment { background: #ececef !important; border-color: var(--line) !important; }
+:root[data-theme="light"] #wmeRoot .segment button { color: #55555d !important; }
+:root[data-theme="light"] #wmeRoot .segment button.active { background: #fff !important; color: #232329 !important; }
+
+:root[data-theme="light"] #wmeRoot .asset { background: #f0f0f3 !important; border-color: #d3d3d9 !important; }
+:root[data-theme="light"] #wmeRoot .asset img { filter: none; }
+
+:root[data-theme="light"] #wmeRoot .layer { color: #303038 !important; }
+:root[data-theme="light"] #wmeRoot .layer.active {
+  background: rgba(20,115,230,.10) !important;
+  border-color: var(--accent) !important;
+}
+:root[data-theme="light"] #wmeRoot .layer-eye,
+:root[data-theme="light"] #wmeRoot .layer-lock,
+:root[data-theme="light"] #wmeRoot .layer-delete {
+  background: #f0f0f3 !important;
+  border-color: #d3d3d9 !important;
+  color: #303038 !important;
+}
+:root[data-theme="light"] #wmeRoot .layer-name[contenteditable=true] {
+  background: #fff !important;
+  outline-color: var(--accent) !important;
+  color: #232329 !important;
+}
+
+:root[data-theme="light"] #wmeRoot .help {
+  background: #fafafb !important;
+  border-color: var(--line) !important;
+  color: #6e6e76 !important;
+}
+
+:root[data-theme="light"] #wmeRoot .zoom {
+  background: rgba(255,255,255,.96) !important;
+  border-color: var(--line) !important;
+}
+:root[data-theme="light"] #wmeRoot .zoom button { color: #303038 !important; }
+:root[data-theme="light"] #wmeRoot .zoom button:hover { background: #ececef !important; }
+:root[data-theme="light"] #wmeRoot .zoom span { color: #303038 !important; }
+
+:root[data-theme="light"] #wmeRoot input[type="text"],
+:root[data-theme="light"] #wmeRoot input[type="color"] {
+  background: #fff !important;
+  border: 1px solid #d3d3d9 !important;
+  color: #303038 !important;
+}
+
+:root[data-theme="light"] #wmeRoot .terrain-row:hover { background: #ececef !important; }
+:root[data-theme="light"] #wmeRoot .terrain-row.active {
+  background: rgba(20,115,230,.10) !important;
+  border-color: var(--accent) !important;
+}
+:root[data-theme="light"] #wmeRoot .terrain-key { background: #e2e2e6 !important; color: #6e6e76 !important; }
+:root[data-theme="light"] #wmeRoot .terrain-row.active .terrain-key { background: var(--accent) !important; color: #fff !important; }
+:root[data-theme="light"] #wmeRoot .terrain-name { color: #303038 !important; }
+:root[data-theme="light"] #wmeRoot .terrain-type {
+  background: #fff !important;
+  border-color: #d3d3d9 !important;
+  color: #55555d !important;
+}
+:root[data-theme="light"] #wmeRoot .preset-swatch { border-color: #d3d3d9 !important; }
+
+:root[data-theme="light"] #wmeRoot .stage { background: #d6d6da !important; }
+:root[data-theme="light"] #wmeRoot .canvas-holder {
+  box-shadow: 0 0 0 1px rgba(0,0,0,.12), 0 20px 50px rgba(30,30,40,.20) !important;
+}
+:root[data-theme="light"] #wmeRoot .workspace { background: transparent !important; }
+
+
+/* =========================================================================
+   확대/축소/맞춤, 스탬프 방식 버튼 아이콘화
+   ========================================================================= */
+#wmeRoot .zoom button,
+#wmeRoot .segment.three button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

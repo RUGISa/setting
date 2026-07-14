@@ -4808,6 +4808,7 @@ function toggleSidebarCollapsed() {
 function activateMapEditorFit() {
   if (typeof window.wmeActivate !== "function") return;
   requestAnimationFrame(() => requestAnimationFrame(() => window.wmeActivate()));
+  [0, 60, 150, 350].forEach((delay) => setTimeout(() => window.wmeActivate?.(), delay));
 }
 
 function init() {

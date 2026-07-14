@@ -953,16 +953,22 @@ pushHistory();
 
 window.wmeActivate=function(){ fitView(); };
 
-let lastWrapW=0, lastWrapH=0;
 if(typeof ResizeObserver!=='undefined'){
   const ro=new ResizeObserver(()=>{
-    const w=wrap.clientWidth, h=wrap.clientHeight;
-    if(!w||!h)return;
-    if(w===lastWrapW&&h===lastWrapH)return;
-    lastWrapW=w;lastWrapH=h;
+    if(!wrap.clientWidth||!wrap.clientHeight)return;
     fitView();
   });
   ro.observe(wrap);
+  ro.observe(wmeRoot);
+}
+const mapViewEl=document.getElementById('mapView');
+if(mapViewEl&&typeof MutationObserver!=='undefined'){
+  const mo=new MutationObserver(()=>{
+    if(!mapViewEl.classList.contains('hidden')){
+      [0,60,150,350].forEach(delay=>setTimeout(fitView,delay));
+    }
+  });
+  mo.observe(mapViewEl,{attributes:true,attributeFilter:['class']});
 }
 
 })();
