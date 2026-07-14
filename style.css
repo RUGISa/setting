@@ -4093,3 +4093,25 @@ body.tl-no-select, body.tl-no-select * {
       "rail main" !important;
   }
 }
+
+
+/* =========================================================================
+   탐색 바 접기/펴기 (아이콘 레일 최상단 버튼)
+   ========================================================================= */
+.rail-btn#sidebarCollapseBtn.active {
+  background: var(--ob-accent-soft) !important;
+  color: var(--ob-accent-text) !important;
+}
+
+@media (min-width: 981px) {
+  body.sidebar-collapsed .app {
+    grid-template-columns: 50px 0 1fr !important;
+  }
+  body.sidebar-collapsed .drawer {
+    width: 0 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    border-right: 0 !important;
+  }
+}

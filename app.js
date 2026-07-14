@@ -4344,6 +4344,7 @@ function initEvents() {
   });
   on("railWriteBtn", "click", () => startNewFile());
   on("themeToggleBtn", "click", toggleTheme);
+  on("sidebarCollapseBtn", "click", toggleSidebarCollapsed);
   on("explorerAllRow", "click", () => switchCategory("all"));
   const allRowEl = $("explorerAllRow");
   if (allRowEl) {
@@ -4790,8 +4791,22 @@ function toggleTheme() {
   localStorage.setItem(`${STORAGE_KEY}-theme`, next);
 }
 
+function loadSidebarCollapsed() {
+  const collapsed = localStorage.getItem(`${STORAGE_KEY}-sidebar-collapsed`) === "1";
+  document.body.classList.toggle("sidebar-collapsed", collapsed);
+  $("sidebarCollapseBtn")?.classList.toggle("active", collapsed);
+}
+
+function toggleSidebarCollapsed() {
+  const collapsed = !document.body.classList.contains("sidebar-collapsed");
+  document.body.classList.toggle("sidebar-collapsed", collapsed);
+  $("sidebarCollapseBtn")?.classList.toggle("active", collapsed);
+  localStorage.setItem(`${STORAGE_KEY}-sidebar-collapsed`, collapsed ? "1" : "0");
+}
+
 function init() {
   loadTheme();
+  loadSidebarCollapsed();
   ensureMaps();
   currentMapId = state.currentMapId || state.maps[0].id;
   fillCategorySelects();
