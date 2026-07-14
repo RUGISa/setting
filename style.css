@@ -4381,3 +4381,17 @@ body {
     max-height: 100vh !important;
   }
 }
+
+
+/* =========================================================================
+   지도 편집기: 화면 안쪽 여백/둥근 모서리 완전히 제거 (진짜 끝까지 꽉 차게)
+   ========================================================================= */
+body.map-view-active .screen {
+  padding: 0 !important;
+}
+#wmeRoot {
+  border-radius: 0 !important;
+}
+#wmeRoot .wme-app {
+  border-radius: 0 !important;
+}

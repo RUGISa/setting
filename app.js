@@ -981,6 +981,7 @@ function renderMainMode() {
   $("timelineView").classList.toggle("hidden", specialView !== "timeline");
   $("relationView").classList.toggle("hidden", specialView !== "relations");
   $("mapView").classList.toggle("hidden", specialView !== "map");
+  document.body.classList.toggle("map-view-active", specialView === "map");
 
   if (specialView === "map") {
     activateMapEditorFit();
