@@ -69,7 +69,16 @@ function waterColor(){return state.terrains[0].color}
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2)}
 function makeCanvas(){const c=document.createElement('canvas');c.width=canvas.width;c.height=canvas.height;return c}
-function makeLayer(name,{locked=false}={}){return {id:uid(),name,visible:true,locked,terrain:makeCanvas(),art:makeCanvas()}}
+function makeLayer(name,{locked=false}={}){
+  const masks={};
+  state.terrains.forEach(t=>{masks[t.id]=makeCanvas();});
+  return {id:uid(),name,visible:true,locked,masks,art:makeCanvas()};
+}
+function ensureLayerMasks(layer){
+  state.terrains.forEach(t=>{
+    if(!layer.masks[t.id])layer.masks[t.id]=makeCanvas();
+  });
+}
 function activeLayer(){return state.layers.find(l=>l.id===state.activeLayerId)}
 function editableLayer(){
   const layer=activeLayer();
@@ -104,8 +113,20 @@ function rgba(hex,a){
   const {r,g,b}=hexToRgb(hex);
   return `rgba(${r},${g},${b},${a})`;
 }
-function tintMask(source,color){
-  const t=makeCanvas(),c=t.getContext('2d');
+const scratchPool=[];
+function getScratch(i){
+  let t=scratchPool[i];
+  if(!t){t=makeCanvas();scratchPool[i]=t;}
+  else if(t.width!==canvas.width||t.height!==canvas.height){
+    t.width=canvas.width;t.height=canvas.height;
+  }else{
+    t.getContext('2d').clearRect(0,0,t.width,t.height);
+  }
+  return t;
+}
+function tintMask(source,color,scratchIndex){
+  const t=scratchIndex!=null?getScratch(scratchIndex):makeCanvas();
+  const c=t.getContext('2d');
   c.fillStyle=color;c.fillRect(0,0,t.width,t.height);
   c.globalCompositeOperation='destination-in';
   c.drawImage(source,0,0);
@@ -144,8 +165,20 @@ function drawOcean(){
   ctx.restore();
 }
 const coastGlowRings=[{r:3,a:.16},{r:5,a:.09},{r:7.5,a:.05}];
-function drawTerrain(mask){
-  const coast=tintMask(mask,state.coastColor);
+function combinedMask(layer,predicate,scratchIndex){
+  const out=scratchIndex!=null?getScratch(scratchIndex):makeCanvas();
+  const c=out.getContext('2d');
+  state.terrains.forEach(t=>{
+    if(predicate&&!predicate(t))return;
+    const m=layer.masks[t.id];
+    if(m)c.drawImage(m,0,0);
+  });
+  return out;
+}
+function drawLayerTerrain(layer){
+  ensureLayerMasks(layer);
+  const landUnion=combinedMask(layer,t=>t.type==='Land',0);
+  const coast=tintMask(landUnion,state.coastColor,1);
 
   ctx.save();
   ctx.globalAlpha=.16;
@@ -169,7 +202,13 @@ function drawTerrain(mask){
   ctx.globalAlpha=.48;
   outlineOffsets.forEach(([x,y])=>ctx.drawImage(coast,x,y));
   ctx.restore();
-  ctx.drawImage(mask,0,0);
+
+  // 각 지형을 현재 색상으로 실시간 채색해서 그림 (프리셋 바뀌면 이미 칠한 부분도 같이 바뀜)
+  state.terrains.forEach(t=>{
+    const m=layer.masks[t.id];
+    if(!m)return;
+    ctx.drawImage(tintMask(m,t.color,2),0,0);
+  });
 
   ctx.save();
   ctx.globalCompositeOperation='source-atop';
@@ -235,12 +274,18 @@ function drawPaperTexture(){
   ctx.fillRect(0,0,canvas.width,canvas.height);
   ctx.restore();
 }
+let compositeScheduled=false;
+function scheduleComposite(){
+  if(compositeScheduled)return;
+  compositeScheduled=true;
+  requestAnimationFrame(()=>{compositeScheduled=false;composite();});
+}
 function composite(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   drawOcean();
   state.layers.forEach(layer=>{
     if(!layer.visible||layer.locked)return;
-    drawTerrain(layer.terrain);
+    drawLayerTerrain(layer);
     ctx.drawImage(layer.art,0,0);
   });
   drawPaperTexture();
@@ -391,7 +436,8 @@ function serialize(){
     stampColor:state.stampColor,stampMode:state.stampMode,stampSize:state.stampSize,stampGap:state.stampGap,
     layers:state.layers.map(l=>({
       id:l.id,name:l.name,visible:l.visible,locked:l.locked,
-      terrain:l.terrain.toDataURL(),art:l.art.toDataURL()
+      masks:Object.fromEntries(Object.entries(l.masks).map(([id,c])=>[id,c.toDataURL()])),
+      art:l.art.toDataURL()
     })),
     customStamps:state.customStamps.map(s=>({name:s.name,src:s.src}))
   };
@@ -425,7 +471,16 @@ async function restore(s){
     const l=makeLayer(item.name,{locked:item.locked});
     l.id=item.id;
     l.visible=item.visible;
-    l.terrain.getContext('2d').drawImage(await loadImage(item.terrain),0,0);
+    if(item.masks){
+      for(const [tid,src] of Object.entries(item.masks)){
+        if(!l.masks[tid])l.masks[tid]=makeCanvas();
+        l.masks[tid].getContext('2d').drawImage(await loadImage(src),0,0);
+      }
+    }else if(item.terrain){
+      // 예전 저장 파일(지형 하나로 합쳐진 캔버스) 호환: 육지 지형 마스크로 불러옵니다.
+      const fallbackId=state.terrains.find(t=>t.type==='Land')?.id||state.terrains[1].id;
+      l.masks[fallbackId].getContext('2d').drawImage(await loadImage(item.terrain),0,0);
+    }
     l.art.getContext('2d').drawImage(await loadImage(item.art),0,0);
     state.layers.push(l);
   }
@@ -586,6 +641,7 @@ function drawBrushStampOnContext(c, item, x, y, size){
 }
 function drawBrush(x,y){
   const layer=editableLayer(); if(!layer)return;
+  ensureLayerMasks(layer);
 
   if(state.tool==='eraser'){
     const eraseOne = (canvas2d)=>{
@@ -599,39 +655,56 @@ function drawBrush(x,y){
       }
       c.restore();
     };
-    eraseOne(layer.terrain);
+    state.terrains.forEach(t=>eraseOne(layer.masks[t.id]));
     eraseOne(layer.art);
-    composite();
+    scheduleComposite();
     return;
   }
 
-  const c=layer.terrain.getContext('2d'),s=state.size;
-  const col=hexToRgb(activeTerrain().color);
+  const activeId=state.activeTerrainId;
+  const s=state.size;
+  const eraseShapeFrom=(canvas2d)=>{
+    const c=canvas2d.getContext('2d');
+    c.save();
+    c.globalCompositeOperation='destination-out';
+    if(state.shape==='round'){
+      c.beginPath();c.arc(x,y,s/2,0,Math.PI*2);c.fill();
+    }else{
+      c.fillRect(x-s/2,y-s/2,s,s);
+    }
+    c.restore();
+  };
+  // 다른 지형 마스크와 겹치지 않도록, 칠하기 전에 같은 자리를 다른 지형에서 지워둡니다.
+  state.terrains.forEach(t=>{
+    if(t.id!==activeId)eraseShapeFrom(layer.masks[t.id]);
+  });
+
+  const c=layer.masks[activeId].getContext('2d');
   c.save();
   c.globalAlpha=state.opacity;
   if(state.shape==='round'){
     if(state.softness>0){
       const g=c.createRadialGradient(x,y,s*.08,x,y,s/2);
-      g.addColorStop(0,`rgba(${col.r},${col.g},${col.b},1)`);
-      g.addColorStop(Math.max(.08,1-state.softness),`rgba(${col.r},${col.g},${col.b},1)`);
-      g.addColorStop(1,`rgba(${col.r},${col.g},${col.b},0)`);
+      g.addColorStop(0,'rgba(255,255,255,1)');
+      g.addColorStop(Math.max(.08,1-state.softness),'rgba(255,255,255,1)');
+      g.addColorStop(1,'rgba(255,255,255,0)');
       c.fillStyle=g;
     }else{
-      c.fillStyle=activeTerrain().color;
+      c.fillStyle='#fff';
     }
     c.beginPath();c.arc(x,y,s/2,0,Math.PI*2);c.fill();
   }else{
-    c.fillStyle=activeTerrain().color;
+    c.fillStyle='#fff';
     c.fillRect(x-s/2,y-s/2,s,s);
   }
   c.restore();
-  composite();
+  scheduleComposite();
 }
 function drawSingleStamp(x,y){
   const layer=editableLayer(); if(!layer)return;
   const c=layer.art.getContext('2d');
   drawBrushStampOnContext(c,currentStamp(),x,y,state.stampSize);
-  composite();
+  scheduleComposite();
 }
 function drawIrregularCell(c, cx, cy, r, seed){
   c.beginPath();
@@ -650,8 +723,14 @@ function combinedLandAlpha(x,y){
   let alpha=0;
   for(const layer of state.layers){
     if(!layer.visible||layer.locked)continue;
-    const d=layer.terrain.getContext('2d').getImageData(sx,sy,1,1).data[3];
-    alpha=Math.max(alpha,d);
+    ensureLayerMasks(layer);
+    state.terrains.forEach(t=>{
+      if(t.type!=='Land')return;
+      const mask=layer.masks[t.id];
+      if(!mask)return;
+      const d=mask.getContext('2d').getImageData(sx,sy,1,1).data[3];
+      alpha=Math.max(alpha,d);
+    });
   }
   return alpha/255;
 }
@@ -724,7 +803,7 @@ function drawRegionStamp(x,y,drawGuides){
     drawBrushStampOnContext(c,item,cell.x,cell.y,iconSize);
   }
   c.restore();
-  composite();
+  scheduleComposite();
 }
 
 let drag=null,last=null,lastStamp=null,changed=false;
@@ -766,7 +845,8 @@ window.onpointermove=e=>{
   }
   const p=localPoint(e);
   if(drag.type==='paint'){
-    const d=Math.hypot(p.x-last.x,p.y-last.y),step=Math.max(1.2,state.size*.06);
+    const d=Math.hypot(p.x-last.x,p.y-last.y);
+    const step=Math.max(1.2,state.size*.06,d/40);
     for(let i=step;i<=d;i+=step){const t=i/d;drawBrush(last.x+(p.x-last.x)*t,last.y+(p.y-last.y)*t)}
     last=p;
   }else if(drag.type==='stamp'){
@@ -846,8 +926,11 @@ $('#addLayerBtn').onclick=()=>{
 };
 $('#duplicateLayerBtn').onclick=()=>{
   const src=editableLayer(); if(!src)return;
+  ensureLayerMasks(src);
   const l=makeLayer(src.name+' 복사');
-  l.terrain.getContext('2d').drawImage(src.terrain,0,0);
+  state.terrains.forEach(t=>{
+    if(src.masks[t.id])l.masks[t.id].getContext('2d').drawImage(src.masks[t.id],0,0);
+  });
   l.art.getContext('2d').drawImage(src.art,0,0);
   state.layers.push(l);
   state.activeLayerId=l.id;

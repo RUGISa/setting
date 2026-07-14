@@ -4610,6 +4610,7 @@ body.map-view-active .screen {
 
 :root[data-theme="light"] #wmeRoot .stage { background: #d6d6da !important; }
 :root[data-theme="light"] #wmeRoot .canvas-holder {
+  background: #e4e4e8 !important;
   box-shadow: 0 0 0 1px rgba(0,0,0,.12), 0 20px 50px rgba(30,30,40,.20) !important;
 }
 :root[data-theme="light"] #wmeRoot .workspace { background: transparent !important; }
