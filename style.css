@@ -4185,3 +4185,18 @@ body.tl-no-select, body.tl-no-select * {
 #wmeRoot .brand {
   font-size: 12.5px !important;
 }
+
+
+/* =========================================================================
+   지도 편집기 캔버스 배경을 다크 테마에 맞춰 (밝은 회색과 바다색이 비슷해서
+   "캔버스가 두 개로 쪼개진 것처럼" 보이던 문제 수정) + 포토샵식 캔버스 그림자
+   ========================================================================= */
+#wmeRoot .stage {
+  background: #1c1c1e !important;
+}
+#wmeRoot .canvas-wrap {
+  background: transparent !important;
+}
+#wmeRoot .canvas-holder {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, .4), 0 25px 70px rgba(0, 0, 0, .55) !important;
+}

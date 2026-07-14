@@ -347,7 +347,7 @@ function setView(){
 }
 function fitView(){
   if(!wrap.clientWidth||!wrap.clientHeight)return;
-  const p=70;
+  const p=24;
   state.scale=Math.min(1,(wrap.clientWidth-p)/canvas.width,(wrap.clientHeight-p)/canvas.height);
   state.viewX=(wrap.clientWidth-canvas.width*state.scale)/2;
   state.viewY=(wrap.clientHeight-canvas.height*state.scale)/2;
