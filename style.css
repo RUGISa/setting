@@ -4200,3 +4200,184 @@ body.tl-no-select, body.tl-no-select * {
 #wmeRoot .canvas-holder {
   box-shadow: 0 0 0 1px rgba(0, 0, 0, .4), 0 25px 70px rgba(0, 0, 0, .55) !important;
 }
+
+
+/* =========================================================================
+   지도 편집기 진짜 포토샵식 다크 UI로 전면 재구성
+   ========================================================================= */
+#wmeRoot {
+  --bg: #1e1e1e;
+  --panel: #2b2b2b;
+  --line: #050505;
+  --soft: #323232;
+  --text: #cfcfcf;
+  --muted: #8f8f8f;
+  --accent: #1473e6;
+  --shadow: 0 20px 55px rgba(0,0,0,.5);
+}
+#wmeRoot { color: var(--text) !important; }
+#wmeRoot .topbar {
+  background: #262626 !important;
+  border-bottom: 1px solid var(--line) !important;
+}
+#wmeRoot .brand { color: #e8e8e8 !important; }
+#wmeRoot .logo { border-color: #555 !important; color: #e8e8e8 !important; }
+
+#wmeRoot .btn {
+  background: #3a3a3a !important;
+  border-color: #161616 !important;
+  color: #d8d8d8 !important;
+}
+#wmeRoot .btn:hover { background: #454545 !important; }
+#wmeRoot .btn.primary {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+}
+#wmeRoot .btn.primary:hover { background: #2c85ee !important; }
+
+#wmeRoot .panel { background: #262626 !important; }
+#wmeRoot .left { border-right: 1px solid var(--line) !important; }
+#wmeRoot .right { border-left: 1px solid var(--line) !important; }
+#wmeRoot .panel-head {
+  border-bottom: 1px solid var(--line) !important;
+  color: #e8e8e8 !important;
+}
+#wmeRoot .section { border-bottom: 1px solid #1c1c1c !important; }
+#wmeRoot .section-title { color: #d8d8d8 !important; }
+#wmeRoot .muted { color: var(--muted) !important; }
+#wmeRoot .row label { color: #9a9a9a !important; }
+#wmeRoot .num { color: #aaa !important; }
+
+#wmeRoot .upload {
+  background: #303030 !important;
+  border-color: #4a4a4a !important;
+  color: #b8b8b8 !important;
+}
+#wmeRoot .upload:hover { background: #383838 !important; }
+
+/* 브러시 선택: 세로 아이콘 전용 툴바 (포토샵 왼쪽 도구상자 스타일) */
+#wmeRoot .tool-selector {
+  grid-template-columns: repeat(4, 1fr) !important;
+  gap: 4px !important;
+}
+#wmeRoot .mode-card {
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 40px !important;
+  padding: 4px !important;
+  gap: 2px !important;
+  background: #303030 !important;
+  border-color: #161616 !important;
+}
+#wmeRoot .mode-card:hover { background: #3a3a3a !important; }
+#wmeRoot .mode-card.active {
+  background: rgba(20,115,230,.18) !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 1px var(--accent) inset !important;
+}
+#wmeRoot .mode-icon {
+  background: transparent !important;
+  color: #cfcfcf !important;
+  width: 20px !important;
+  height: 20px !important;
+  font-size: 13px !important;
+}
+#wmeRoot .mode-card.active .mode-icon { color: var(--accent) !important; background: transparent !important; }
+#wmeRoot .mode-text { text-align: center; }
+#wmeRoot .mode-text strong {
+  font-size: 9px !important;
+  font-weight: 600 !important;
+  color: #cfcfcf !important;
+}
+#wmeRoot .mode-card.active .mode-text strong { color: #bcdcff !important; }
+
+#wmeRoot .segment {
+  background: #1c1c1c !important;
+  border-color: var(--line) !important;
+}
+#wmeRoot .segment button { color: #b8b8b8 !important; }
+#wmeRoot .segment button.active {
+  background: #454545 !important;
+  color: #fff !important;
+  box-shadow: none !important;
+}
+
+#wmeRoot .asset {
+  background: #303030 !important;
+  border-color: #161616 !important;
+}
+#wmeRoot .asset.active { outline-color: var(--accent) !important; }
+#wmeRoot .asset img { filter: invert(0.85) brightness(1.3); }
+
+#wmeRoot .layer { color: #cfcfcf !important; }
+#wmeRoot .layer.active {
+  background: rgba(20,115,230,.16) !important;
+  border-color: var(--accent) !important;
+}
+#wmeRoot .layer-eye, #wmeRoot .layer-lock, #wmeRoot .layer-delete {
+  background: #3a3a3a !important;
+  border-color: #161616 !important;
+  color: #cfcfcf !important;
+}
+#wmeRoot .layer-name[contenteditable=true] {
+  background: #1c1c1c !important;
+  outline-color: var(--accent) !important;
+  color: #fff !important;
+}
+
+#wmeRoot .help {
+  background: #262626 !important;
+  border-color: var(--line) !important;
+  color: #a0a0a0 !important;
+}
+
+#wmeRoot .zoom {
+  background: rgba(38, 38, 38, .96) !important;
+  border-color: var(--line) !important;
+}
+#wmeRoot .zoom button { color: #cfcfcf !important; }
+#wmeRoot .zoom button:hover { background: #3a3a3a !important; }
+#wmeRoot .zoom span { color: #cfcfcf !important; }
+
+#wmeRoot input[type="range"] { accent-color: var(--accent); }
+#wmeRoot input[type="text"], #wmeRoot input[type="color"] {
+  background: #1c1c1c !important;
+  border: 1px solid #161616 !important;
+  color: #cfcfcf !important;
+  border-radius: 6px !important;
+}
+
+#wmeRoot .swatch {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .18) !important;
+}
+#wmeRoot .swatch.active {
+  box-shadow: 0 0 0 2px rgba(20, 115, 230, .35) !important;
+}
+
+#wmeRoot .workspace { background: transparent !important; }
+#wmeRoot .canvas-holder { background: #2b2b2b !important; }
+
+
+/* =========================================================================
+   앱 전체를 화면 끝까지 꽉 채우기 (창처럼 여백 두지 않음)
+   ========================================================================= */
+body {
+  padding: 0 !important;
+}
+.app {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  border: 0 !important;
+}
+@media (max-width: 980px) {
+  .app {
+    height: 100vh !important;
+    max-height: 100vh !important;
+  }
+}
