@@ -143,6 +143,7 @@ function drawOcean(){
   }
   ctx.restore();
 }
+const coastGlowRings=[{r:3,a:.16},{r:5,a:.09},{r:7.5,a:.05}];
 function drawTerrain(mask){
   const coast=tintMask(mask,state.coastColor);
 
@@ -150,6 +151,18 @@ function drawTerrain(mask){
   ctx.globalAlpha=.16;
   ctx.filter='blur(5px)';
   ctx.drawImage(coast,0,3);
+  ctx.restore();
+
+  // 부드럽게 번지는 해안선 (안쪽은 진하고 밖으로 갈수록 옅어짐)
+  ctx.save();
+  coastGlowRings.forEach(({r,a})=>{
+    ctx.globalAlpha=a;
+    const steps=Math.max(10,Math.round(r*5));
+    for(let i=0;i<steps;i++){
+      const angle=(i/steps)*Math.PI*2;
+      ctx.drawImage(coast,Math.cos(angle)*r,Math.sin(angle)*r);
+    }
+  });
   ctx.restore();
 
   ctx.save();
@@ -183,6 +196,45 @@ function drawTerrain(mask){
   }
   ctx.restore();
 }
+let paperTextureCanvas=null;
+function buildPaperTexture(){
+  const t=document.createElement('canvas');
+  t.width=300;t.height=300;
+  const c=t.getContext('2d');
+  const img=c.createImageData(300,300);
+  for(let i=0;i<img.data.length;i+=4){
+    const n=195+Math.random()*60;
+    img.data[i]=n;img.data[i+1]=n;img.data[i+2]=n;img.data[i+3]=255;
+  }
+  c.putImageData(img,0,0);
+  c.globalAlpha=.06;
+  c.strokeStyle='#000';
+  c.lineWidth=1;
+  for(let i=0;i<50;i++){
+    const y=Math.random()*300;
+    c.beginPath();
+    c.moveTo(0,y);
+    c.bezierCurveTo(90,y+Math.random()*24-12,210,y+Math.random()*24-12,300,y);
+    c.stroke();
+  }
+  paperTextureCanvas=t;
+}
+function drawPaperTexture(){
+  if(!paperTextureCanvas)buildPaperTexture();
+  ctx.save();
+  ctx.globalCompositeOperation='multiply';
+  ctx.globalAlpha=.14;
+  ctx.fillStyle=ctx.createPattern(paperTextureCanvas,'repeat');
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.restore();
+  ctx.save();
+  const vg=ctx.createRadialGradient(canvas.width/2,canvas.height/2,canvas.height*.35,canvas.width/2,canvas.height/2,canvas.height*.78);
+  vg.addColorStop(0,'rgba(0,0,0,0)');
+  vg.addColorStop(1,'rgba(20,15,8,.14)');
+  ctx.fillStyle=vg;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.restore();
+}
 function composite(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   drawOcean();
@@ -191,6 +243,7 @@ function composite(){
     drawTerrain(layer.terrain);
     ctx.drawImage(layer.art,0,0);
   });
+  drawPaperTexture();
 }
 function renderStylePresets(){
   $('#stylePresets').innerHTML=STYLE_PRESETS.map((p,i)=>`
