@@ -452,7 +452,7 @@ function render() {
 
     if (currentCategory === "timeline") renderTimeline();
     else if (currentCategory === "relations") renderRelations();
-    else if (currentCategory === "map") renderMap();
+    else if (currentCategory === "map") { /* 지도 편집기는 자체적으로 렌더링을 관리합니다 */ }
     else renderCards();
   } catch (error) {
     console.error(error);
@@ -981,6 +981,10 @@ function renderMainMode() {
   $("timelineView").classList.toggle("hidden", specialView !== "timeline");
   $("relationView").classList.toggle("hidden", specialView !== "relations");
   $("mapView").classList.toggle("hidden", specialView !== "map");
+
+  if (specialView === "map" && typeof window.wmeActivate === "function") {
+    requestAnimationFrame(() => window.wmeActivate());
+  }
 
   if (specialView) {
     $("browseView")?.classList.add("hidden");

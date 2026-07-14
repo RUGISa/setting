@@ -281,64 +281,148 @@
       </section>
 
       <section class="map-view hidden" id="mapView">
-        <div class="map-tabs-row">
-          <div class="map-tabs" id="mapTabs"></div>
-          <div class="map-tab-actions">
-            <button id="addMapBtn" type="button">지도 추가</button>
-            <button id="renameMapBtn" type="button">지도 이름</button>
-            <button class="danger" id="deleteMapBtn" type="button">지도 삭제</button>
+<div id="wmeRoot">
+<div class="wme-app">
+  <header class="topbar">
+    <div class="brand"><div class="logo">✦</div>월드맵 편집기</div>
+    <div class="top-actions">
+      <button class="btn" id="newBtn">새 지도</button>
+      <button class="btn" id="loadBtn">불러오기</button>
+      <button class="btn" id="saveBtn">프로젝트 저장</button>
+      <button class="btn primary" id="exportBtn">PNG 내보내기</button>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <aside class="panel left">
+      <div class="panel-head">도구</div>
+
+      <div class="section">
+        <div class="section-title"><span>브러시 선택</span></div>
+        <div class="tool-selector">
+          <button class="mode-card active" data-tool="brush">
+            <span class="mode-icon">●</span>
+            <span class="mode-text"><strong>육지</strong><span>섬과 대륙 그리기</span></span>
+          </button>
+          <button class="mode-card" data-tool="eraser">
+            <span class="mode-icon">⌫</span>
+            <span class="mode-text"><strong>지우개</strong><span>육지와 스탬프 지우기</span></span>
+          </button>
+          <button class="mode-card" data-tool="stamp">
+            <span class="mode-icon">✦</span>
+            <span class="mode-text"><strong>스탬프</strong><span>아이콘 배치</span></span>
+          </button>
+          <button class="mode-card" data-tool="pan">
+            <span class="mode-icon">✋</span>
+            <span class="mode-text"><strong>이동</strong><span>캔버스 움직이기</span></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title"><span>지도 색상</span></div>
+        <div class="row"><label>바다</label><input id="waterColor" type="color" value="#afbcc0"></div>
+        <div class="row"><label>육지</label><input id="landColor" type="color" value="#b7a481"></div>
+        <div class="row"><label>해안선</label><input id="coastColor" type="color" value="#75654e"></div>
+        <div class="swatches" id="landSwatches"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title"><span>브러시 설정</span></div>
+        <div class="row"><label>크기</label><input id="sizeRange" type="range" min="6" max="220" value="72"><span class="num" id="sizeNum">72</span></div>
+        <div class="row"><label>불투명도</label><input id="opacityRange" type="range" min="10" max="100" value="100"><span class="num" id="opacityNum">100</span></div>
+        <div class="row"><label>부드러움</label><input id="softRange" type="range" min="0" max="100" value="35"><span class="num" id="softNum">35</span></div>
+        <div class="segment">
+          <button class="active" data-shape="round">원형</button>
+          <button data-shape="square">사각</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title"><span>실행 기록</span></div>
+        <div style="display:flex;gap:7px">
+          <button class="btn" id="undoBtn" style="flex:1">↶ 실행 취소</button>
+          <button class="btn" id="redoBtn" style="flex:1">↷ 다시 실행</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <label class="upload" for="backgroundInput">배경 이미지 불러오기</label>
+      </div>
+    </aside>
+
+    <main class="stage">
+      <div id="canvasWrap" class="canvas-wrap">
+        <div id="canvasHolder" class="canvas-holder">
+          <canvas id="mapCanvas" width="1400" height="900"></canvas>
+        </div>
+      </div>
+      <div id="cursorPreview" class="cursor-preview">
+        <div id="cursorStampPreview" class="cursor-stamp-preview"></div>
+        <div id="cursorLabel" class="cursor-label">72px</div>
+      </div>
+      <div class="zoom">
+        <button id="zoomOut">−</button><span id="zoomText">100%</span><button id="zoomIn">＋</button>
+        <button id="fitBtn">맞춤</button>
+      </div>
+      <div id="status" class="status"></div>
+    </main>
+
+    <aside class="panel right">
+      <div class="panel-head">스탬프와 레이어</div>
+
+      <div class="section">
+        <div class="section-title"><span>기본 스탬프</span></div>
+        <div class="asset-grid" id="defaultAssets"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title"><span>내 이미지</span></div>
+        <label class="upload" for="stampInput">스탬프 이미지 추가</label>
+        <div style="height:8px"></div>
+        <div class="asset-grid" id="customAssets"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title"><span>스탬프 설정</span></div>
+        <div class="row"><label>방식</label>
+          <div class="segment three" style="flex:1">
+            <button id="stampModeSingleBtn" data-stamp-mode="single">일반</button>
+            <button id="stampModeRegionBtn" class="active" data-stamp-mode="region">구역 채우기</button>
+            <button id="stampModeGuideBtn" data-stamp-mode="guide">구역선 포함</button>
           </div>
         </div>
+        <div class="row"><label>크기</label><input id="stampSize" type="range" min="14" max="110" value="34"><span class="num" id="stampSizeNum">34</span></div>
+        <div class="row"><label>간격</label><input id="stampGap" type="range" min="8" max="120" value="22"><span class="num" id="stampGapNum">22</span></div>
+        <div class="row"><label>색상</label><input id="stampColor" type="color" value="#6f6454"></div>
+      </div>
 
-        <div class="sub-tools map-tools">
-          <label class="primary file-action" id="mapImageBtn" for="mapImageInput">배경 이미지 추가</label>
-          <input class="visually-hidden-file" id="mapImageInput" type="file" accept="image/*" />
+      <div class="section">
+        <div class="section-title"><span>레이어</span><span class="muted">포토샵 방식</span></div>
+        <div class="layer-toolbar">
+          <button class="btn" id="addLayerBtn">＋ 새 레이어</button>
+          <button class="btn" id="duplicateLayerBtn">복제</button>
         </div>
-        <p class="hint" id="mapHint">기존 지도 이미지를 넣고, 점을 찍어 영역과 국경을 나눌 수 있습니다.</p>
-        <div class="map-board" id="mapBoard">
-          <div class="map-canvas" id="mapCanvas">
-            <div class="map-empty" id="mapEmpty">
-              <strong>지도 이미지가 없습니다.</strong>
-              <span>배경 이미지 추가 버튼을 눌러 기존 지도 사진을 넣어주세요.</span>
-            </div>
-            <img id="mapImage" class="hidden" alt="세계지도" />
-            <svg id="mapSvg" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
-          </div>
+        <div class="layer-list" id="layerList"></div>
+      </div>
+
+      <div class="section">
+        <div class="help">
+          브러시 크기는 커서로 바로 보입니다.<br>
+          자동 구역 스탬프는 자동으로 작은 구역을 나누고,
+          아이콘이 그 구역 중심에 들어가도록 배치됩니다.
         </div>
-      
-        <div class="map-bottom-bar">
-          <div class="tool-strip tool-panel" id="toolHomePanel">
-            <button id="toolPinBtn" type="button">핀</button>
-            <button id="toolRegionBtn" type="button">영역</button>
-          </div>
+      </div>
+    </aside>
+  </div>
+</div>
 
-          <div class="tool-strip tool-panel hidden" id="pinToolPanel">
-            <button class="toolBackBtn" type="button">뒤로가기</button>
-            <button id="quickPinBtn" type="button">핀 추가</button>
-            <button id="editMapPinBtn" type="button">핀 수정</button>
-            <button id="deleteMapPinBtn" type="button">핀 삭제</button>
-          </div>
+<input id="backgroundInput" type="file" accept="image/*">
+<input id="stampInput" type="file" accept="image/*" multiple>
+<input id="projectInput" type="file" accept=".json,application/json">
 
-          <div class="tool-strip tool-panel hidden" id="regionToolPanel">
-            <button class="toolBackBtn" type="button">뒤로가기</button>
-            <input id="regionColorInput" type="color" value="#d8b674" title="영역 색상" />
-            <input id="regionHexInput" type="text" value="#d8b674" maxlength="7" title="HEX 색상" />
-            <select id="regionLinkSelect" title="영역에 배정할 지역 카드"></select>
-            <button id="startPolygonBtn" type="button">영역 그리기</button>
-            <button id="editLineBtn" type="button">영역 수정</button>
-            <button id="addPointBtn" type="button">점 추가</button>
-            <button id="moveRegionBtn" type="button">영역 이동</button>
-            <button id="assignRegionBtn" type="button">영역 배정</button>
-            <button id="deleteLineBtn" type="button">영역 삭제</button>
-          </div>
-
-          <div class="zoom-strip">
-            <button id="zoomInBtn" type="button">+</button>
-            <button id="zoomOutBtn" type="button">-</button>
-            <button id="zoomResetBtn" type="button">100%</button>
-          </div>
-        </div>
-</section>
+</div>
+      </section>
     </main>
   </div>
 
@@ -504,6 +588,7 @@
 
   <div class="toast" id="toast">저장했습니다.</div>
   <script src="jszip.min.js"></script>
+  <script src="map-editor.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
