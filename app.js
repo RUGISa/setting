@@ -982,8 +982,8 @@ function renderMainMode() {
   $("relationView").classList.toggle("hidden", specialView !== "relations");
   $("mapView").classList.toggle("hidden", specialView !== "map");
 
-  if (specialView === "map" && typeof window.wmeActivate === "function") {
-    requestAnimationFrame(() => window.wmeActivate());
+  if (specialView === "map") {
+    activateMapEditorFit();
   }
 
   if (specialView) {
@@ -4798,10 +4798,15 @@ function loadSidebarCollapsed() {
 }
 
 function toggleSidebarCollapsed() {
-  const collapsed = !document.body.classList.contains("sidebar-collapsed");
-  document.body.classList.toggle("sidebar-collapsed", collapsed);
+  const collapsed = document.body.classList.toggle("sidebar-collapsed");
   $("sidebarCollapseBtn")?.classList.toggle("active", collapsed);
   localStorage.setItem(`${STORAGE_KEY}-sidebar-collapsed`, collapsed ? "1" : "0");
+  activateMapEditorFit();
+}
+
+function activateMapEditorFit() {
+  if (typeof window.wmeActivate !== "function") return;
+  requestAnimationFrame(() => requestAnimationFrame(() => window.wmeActivate()));
 }
 
 function init() {
