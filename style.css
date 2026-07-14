@@ -4395,3 +4395,87 @@ body.map-view-active .screen {
 #wmeRoot .wme-app {
   border-radius: 0 !important;
 }
+
+
+/* =========================================================================
+   지도 편집기: 다중 지형 시스템 + 스타일 프리셋 UI
+   ========================================================================= */
+#wmeRoot .terrain-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#wmeRoot .terrain-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+#wmeRoot .terrain-row:hover { background: #303030; }
+#wmeRoot .terrain-row.active {
+  background: rgba(20, 115, 230, .16);
+  border-color: #1473e6;
+}
+#wmeRoot .terrain-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  background: #1c1c1c;
+  color: #999;
+  font-size: 9px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+#wmeRoot .terrain-row.active .terrain-key {
+  background: #1473e6;
+  color: #fff;
+}
+#wmeRoot .terrain-color {
+  width: 22px !important;
+  height: 22px !important;
+  padding: 1px !important;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+#wmeRoot .terrain-name {
+  flex: 1;
+  font-size: 11px;
+  color: #d8d8d8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#wmeRoot .terrain-type {
+  width: 56px !important;
+  min-height: 22px !important;
+  height: 22px !important;
+  padding: 0 4px !important;
+  font-size: 10px !important;
+  background: #1c1c1c !important;
+  border: 1px solid #161616 !important;
+  color: #b8b8b8 !important;
+  border-radius: 5px !important;
+}
+
+#wmeRoot .preset-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+}
+#wmeRoot .preset-swatch {
+  aspect-ratio: 1;
+  border-radius: 6px;
+  border: 1px solid #161616;
+  cursor: pointer;
+  padding: 0;
+}
+#wmeRoot .preset-swatch:hover {
+  border-color: #1473e6;
+  transform: scale(1.05);
+}
