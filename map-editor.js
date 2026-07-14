@@ -827,4 +827,16 @@ pushHistory();
 
 window.wmeActivate=function(){ fitView(); };
 
+let lastWrapW=0, lastWrapH=0;
+if(typeof ResizeObserver!=='undefined'){
+  const ro=new ResizeObserver(()=>{
+    const w=wrap.clientWidth, h=wrap.clientHeight;
+    if(!w||!h)return;
+    if(w===lastWrapW&&h===lastWrapH)return;
+    lastWrapW=w;lastWrapH=h;
+    fitView();
+  });
+  ro.observe(wrap);
+}
+
 })();
