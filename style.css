@@ -3884,7 +3884,24 @@ body.tl-no-select, body.tl-no-select * {
   --text:#202020; --muted:#787873; --accent:#2868d8; --shadow:0 12px 36px rgba(0,0,0,.08);
 }
 #wmeRoot * {box-sizing:border-box}
-#wmeRoot {width:100%;height:78vh;min-height:560px;margin:0;overflow:hidden;border-radius:16px;border:1px solid var(--ob-line, #e3e3e8)}
+.screen {
+  display: flex !important;
+  flex-direction: column !important;
+}
+#mapView {
+  flex: 1;
+  display: flex !important;
+  flex-direction: column;
+  min-height: 0;
+}
+#wmeRoot {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  margin: 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
 #wmeRoot {
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo",sans-serif;
   background:var(--bg); color:var(--text); user-select:none;
@@ -4050,4 +4067,29 @@ body.tl-no-select, body.tl-no-select * {
 @media (max-width:980px) {
 #wmeRoot .workspace {grid-template-columns:250px 1fr}
 #wmeRoot .right {display:none}
+}
+
+
+/* =========================================================================
+   레이아웃 수정: 탭 바를 탐색기 오른쪽으로 (탐색기가 위쪽 공간까지 전부 사용)
+   ========================================================================= */
+.app {
+  height: calc(100vh - 68px) !important;
+  max-height: calc(100vh - 68px) !important;
+  grid-template-areas:
+    "rail sidepanel tabs"
+    "rail sidepanel main" !important;
+}
+.drawer {
+  border-right: 1px solid var(--ob-line) !important;
+}
+
+@media (max-width: 980px) {
+  .app {
+    height: calc(100vh - 16px) !important;
+    max-height: calc(100vh - 16px) !important;
+    grid-template-areas:
+      "rail tabs"
+      "rail main" !important;
+  }
 }
