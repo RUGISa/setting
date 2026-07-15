@@ -331,32 +331,6 @@
       <div class="panel-head">도구</div>
 
       <div class="section">
-        <div class="section-title"><span>브러시 선택</span></div>
-        <div class="tool-selector">
-          <button class="mode-card" data-tool="select" title="선택 - 놓인 스탬프 선택·이동">
-            <span class="mode-icon">⤡</span>
-            <span class="mode-text"><strong>선택</strong><span>스탬프 선택·이동</span></span>
-          </button>
-          <button class="mode-card active" data-tool="brush" title="육지 - 섬과 대륙 그리기">
-            <span class="mode-icon">●</span>
-            <span class="mode-text"><strong>육지</strong><span>섬과 대륙 그리기</span></span>
-          </button>
-          <button class="mode-card" data-tool="eraser" title="지우개 - 육지와 스탬프 지우기">
-            <span class="mode-icon">⌫</span>
-            <span class="mode-text"><strong>지우개</strong><span>육지와 스탬프 지우기</span></span>
-          </button>
-          <button class="mode-card" data-tool="stamp" title="스탬프 - 아이콘 배치">
-            <span class="mode-icon">✦</span>
-            <span class="mode-text"><strong>스탬프</strong><span>아이콘 배치</span></span>
-          </button>
-          <button class="mode-card" data-tool="pan" title="이동 - 캔버스 움직이기">
-            <span class="mode-icon">✋</span>
-            <span class="mode-text"><strong>이동</strong><span>캔버스 움직이기</span></span>
-          </button>
-        </div>
-      </div>
-
-      <div class="section">
         <div class="section-title"><span>스타일 프리셋</span></div>
         <div class="preset-grid" id="stylePresets"></div>
 
@@ -418,6 +392,28 @@
         <div class="row"><label>크기</label><input id="stampPropSize" type="range" min="10" max="240"><span class="num" id="stampPropSizeNum">0</span></div>
         <div class="row"><label>투명도</label><input id="stampPropOpacity" type="range" min="10" max="100"><span class="num" id="stampPropOpacityNum">100</span></div>
         <button class="btn small danger" id="stampPropDelete" style="width:100%">삭제</button>
+      </div>
+      <div class="wme-bottom-toolbar">
+        <button class="mode-card" data-tool="select" title="선택 - 놓인 스탬프 선택·이동">
+          <span class="mode-icon">⤡</span>
+          <span class="mode-text"><strong>선택</strong><span>스탬프 선택·이동</span></span>
+        </button>
+        <button class="mode-card active" data-tool="brush" title="육지 - 섬과 대륙 그리기">
+          <span class="mode-icon">●</span>
+          <span class="mode-text"><strong>육지</strong><span>섬과 대륙 그리기</span></span>
+        </button>
+        <button class="mode-card" data-tool="eraser" title="지우개 - 육지와 스탬프 지우기">
+          <span class="mode-icon">⌫</span>
+          <span class="mode-text"><strong>지우개</strong><span>육지와 스탬프 지우기</span></span>
+        </button>
+        <button class="mode-card" data-tool="stamp" title="스탬프 - 아이콘 배치">
+          <span class="mode-icon">✦</span>
+          <span class="mode-text"><strong>스탬프</strong><span>아이콘 배치</span></span>
+        </button>
+        <button class="mode-card" data-tool="pan" title="이동 - 캔버스 움직이기">
+          <span class="mode-icon">✋</span>
+          <span class="mode-text"><strong>이동</strong><span>캔버스 움직이기</span></span>
+        </button>
       </div>
       <div class="zoom">
         <button id="zoomOut" title="축소" aria-label="축소">

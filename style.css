@@ -4698,6 +4698,30 @@ body.map-view-active .screen {
 
 
 /* =========================================================================
+   캔버스 아래 떠 있는 도구 툴바 (Inkarnate식 하단 툴바)
+   ========================================================================= */
+#wmeRoot .wme-bottom-toolbar {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: rgba(38,38,38,.96);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  z-index: 20;
+}
+#wmeRoot .wme-bottom-toolbar .mode-card {
+  min-height: 44px;
+  width: 52px;
+}
+:root[data-theme="light"] #wmeRoot .wme-bottom-toolbar { background: rgba(255,255,255,.96); }
+
+
+/* =========================================================================
    해안선 효과 목록
    ========================================================================= */
 #wmeRoot .coast-band-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
