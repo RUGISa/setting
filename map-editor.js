@@ -29,6 +29,24 @@ const defaultStampDefs=[
   {name:'소용돌이',terrain:'sea',src:iconData('<path d="M50 31c0-11-10-19-21-16-9 2-14 12-9 20 5 8 18 8 23 0 4-7-2-15-10-14-6 1-9 8-5 13 4 5 12 3 12-3"/>')}
 ];
 
+const PERF_KEY='wme-perf-settings-v1';
+function loadPerfSettings(){
+  let raw={};
+  try{raw=JSON.parse(localStorage.getItem(PERF_KEY)||'{}');}catch{}
+  return {
+    dprCap: raw.dprCap==='uncapped' ? 'uncapped' : 2,
+    stampObjectMode: raw.stampObjectMode==='all' ? 'all' : 'click',
+    selectScope: raw.selectScope==='active' ? 'active' : 'all'
+  };
+}
+function savePerfSettings(p){
+  try{localStorage.setItem(PERF_KEY,JSON.stringify(p));}catch{}
+}
+function computeDpr(perf){
+  const raw=window.devicePixelRatio||1;
+  return perf.dprCap==='uncapped' ? raw : Math.min(raw,perf.dprCap);
+}
+
 let state={
   tool:'brush',
   shape:'round',
@@ -52,8 +70,12 @@ let state={
   selectedStamp:{type:'default',index:0},
   defaultStamps:[],customStamps:[],
   layers:[],activeLayerId:null,
-  history:[],historyIndex:-1, pointerDown:false, activePointerId:null
+  history:[],historyIndex:-1, pointerDown:false, activePointerId:null,
+  perf:loadPerfSettings(),
+  dpr:1,
+  docWidth:1400,docHeight:900
 };
+state.dpr=computeDpr(state.perf);
 
 const STYLE_PRESETS=[
   {name:'사막',terrains:{water:'#8C9184',grassland:'#D8B674',forest:'#C79A5B',desert:'#E4C689',snow:'#EADCC0'},coast:'#6f5a3a'},
@@ -98,7 +120,15 @@ function showStatus(text){
   clearTimeout(showStatus.t);
   showStatus.t=setTimeout(()=>s.classList.remove('show'),1300);
 }
-function updateHolderSize(){holder.style.width=canvas.width+'px';holder.style.height=canvas.height+'px'}
+function updateHolderSize(){holder.style.width=state.docWidth+'px';holder.style.height=state.docHeight+'px'}
+function setDocSize(w,h){
+  state.docWidth=w;state.docHeight=h;
+  canvas.width=Math.round(w*state.dpr);
+  canvas.height=Math.round(h*state.dpr);
+  canvas.style.width=w+'px';
+  canvas.style.height=h+'px';
+  updateHolderSize();
+}
 function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
 function adjustColor(hex,amount){
   const n=parseInt(hex.slice(1),16);
@@ -127,6 +157,7 @@ function getScratch(i){
 function tintMask(source,color,scratchIndex){
   const t=scratchIndex!=null?getScratch(scratchIndex):makeCanvas();
   const c=t.getContext('2d');
+  c.globalCompositeOperation='source-over';
   c.fillStyle=color;c.fillRect(0,0,t.width,t.height);
   c.globalCompositeOperation='destination-in';
   c.drawImage(source,0,0);
@@ -432,6 +463,7 @@ function renderLayers(){
 function serialize(){
   return {
     width:canvas.width,height:canvas.height,
+    docWidth:state.docWidth,docHeight:state.docHeight,
     terrains:state.terrains,activeTerrainId:state.activeTerrainId,coastColor:state.coastColor,
     stampColor:state.stampColor,stampMode:state.stampMode,stampSize:state.stampSize,stampGap:state.stampGap,
     layers:state.layers.map(l=>({
@@ -444,7 +476,7 @@ function serialize(){
 }
 async function loadImage(src){return await new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.src=src;});}
 async function restore(s){
-  canvas.width=s.width;canvas.height=s.height;updateHolderSize();
+  setDocSize(s.docWidth||s.width,s.docHeight||s.height);
   if(Array.isArray(s.terrains)&&s.terrains.length){
     state.terrains=s.terrains;
     state.activeTerrainId=s.activeTerrainId||state.terrains[1]?.id||state.terrains[0].id;
@@ -474,14 +506,16 @@ async function restore(s){
     if(item.masks){
       for(const [tid,src] of Object.entries(item.masks)){
         if(!l.masks[tid])l.masks[tid]=makeCanvas();
-        l.masks[tid].getContext('2d').drawImage(await loadImage(src),0,0);
+        const m=l.masks[tid];
+        m.getContext('2d').drawImage(await loadImage(src),0,0,m.width,m.height);
       }
     }else if(item.terrain){
       // 예전 저장 파일(지형 하나로 합쳐진 캔버스) 호환: 육지 지형 마스크로 불러옵니다.
       const fallbackId=state.terrains.find(t=>t.type==='Land')?.id||state.terrains[1].id;
-      l.masks[fallbackId].getContext('2d').drawImage(await loadImage(item.terrain),0,0);
+      const m=l.masks[fallbackId];
+      m.getContext('2d').drawImage(await loadImage(item.terrain),0,0,m.width,m.height);
     }
-    l.art.getContext('2d').drawImage(await loadImage(item.art),0,0);
+    l.art.getContext('2d').drawImage(await loadImage(item.art),0,0,l.art.width,l.art.height);
     state.layers.push(l);
   }
   state.activeLayerId=[...state.layers].reverse().find(l=>!l.locked)?.id||state.layers[0].id;
@@ -521,9 +555,9 @@ function setView(){
 function fitView(){
   if(!wrap.clientWidth||!wrap.clientHeight)return;
   const p=24;
-  state.scale=Math.min(1,(wrap.clientWidth-p)/canvas.width,(wrap.clientHeight-p)/canvas.height);
-  state.viewX=(wrap.clientWidth-canvas.width*state.scale)/2;
-  state.viewY=(wrap.clientHeight-canvas.height*state.scale)/2;
+  state.scale=Math.min(1,(wrap.clientWidth-p)/state.docWidth,(wrap.clientHeight-p)/state.docHeight);
+  state.viewX=(wrap.clientWidth-state.docWidth*state.scale)/2;
+  state.viewY=(wrap.clientHeight-state.docHeight*state.scale)/2;
   setView();
 }
 function zoomAt(next,x=wrap.clientWidth/2,y=wrap.clientHeight/2){
@@ -642,10 +676,12 @@ function drawBrushStampOnContext(c, item, x, y, size){
 function drawBrush(x,y){
   const layer=editableLayer(); if(!layer)return;
   ensureLayerMasks(layer);
+  const dpr=state.dpr;
+  x=x*dpr;y=y*dpr;
 
   if(state.tool==='eraser'){
     const eraseOne = (canvas2d)=>{
-      const c=canvas2d.getContext('2d'),s=state.size;
+      const c=canvas2d.getContext('2d'),s=state.size*dpr;
       c.save();
       c.globalCompositeOperation='destination-out';
       if(state.shape==='round'){
@@ -662,7 +698,7 @@ function drawBrush(x,y){
   }
 
   const activeId=state.activeTerrainId;
-  const s=state.size;
+  const s=state.size*dpr;
   const eraseShapeFrom=(canvas2d)=>{
     const c=canvas2d.getContext('2d');
     c.save();
@@ -703,7 +739,8 @@ function drawBrush(x,y){
 function drawSingleStamp(x,y){
   const layer=editableLayer(); if(!layer)return;
   const c=layer.art.getContext('2d');
-  drawBrushStampOnContext(c,currentStamp(),x,y,state.stampSize);
+  const dpr=state.dpr;
+  drawBrushStampOnContext(c,currentStamp(),x*dpr,y*dpr,state.stampSize*dpr);
   scheduleComposite();
 }
 function drawIrregularCell(c, cx, cy, r, seed){
@@ -746,11 +783,13 @@ function terrainKindAt(x,y,r=12){
   return 'sea';
 }
 function buildRegionCells(x,y){
-  const radius=state.stampSize*1.9;
-  const cellR=Math.max(13,state.stampSize*.38);
+  const dpr=state.dpr;
+  const stampSize=state.stampSize*dpr;
+  const radius=stampSize*1.9;
+  const cellR=Math.max(13*dpr,stampSize*.38);
   const step=cellR*1.58;
   const cells=[];
-  const seed=Math.floor(x*13+y*17+state.stampSize*29);
+  const seed=Math.floor(x*13+y*17+stampSize*29);
 
   for(let gy=-5;gy<=5;gy++){
     for(let gx=-5;gx<=5;gx++){
@@ -775,7 +814,7 @@ function buildRegionCells(x,y){
 function drawRegionStamp(x,y,drawGuides){
   const layer=editableLayer();if(!layer)return;
   const c=layer.art.getContext('2d');
-  const {cells,cellR}=buildRegionCells(x,y);
+  const {cells,cellR}=buildRegionCells(x*state.dpr,y*state.dpr);
   const item=currentStamp();
   if(!item)return;
 
@@ -824,7 +863,7 @@ wrap.onpointerdown=e=>{
     wrap.classList.add('dragging');return;
   }
   const p=localPoint(e);
-  if(p.x<0||p.y<0||p.x>canvas.width||p.y>canvas.height){cancelPointerAction(false);return;}
+  if(p.x<0||p.y<0||p.x>state.docWidth||p.y>state.docHeight){cancelPointerAction(false);return;}
   if(state.tool==='brush'||state.tool==='eraser'){
     drag={type:'paint'};last=p;changed=true;drawBrush(p.x,p.y);
   }else if(state.tool==='stamp'){
@@ -911,6 +950,31 @@ $('#stampGap').oninput=e=>{state.stampGap=+e.target.value;$('#stampGapNum').text
 $('#coastColor').oninput=e=>{state.coastColor=e.target.value;composite();}
 $('#stampColor').oninput=e=>{state.stampColor=e.target.value;}
 
+function syncPerfPanel(){
+  $('#perfStampMode').value=state.perf.stampObjectMode;
+  $('#perfDprCap').value=state.perf.dprCap;
+  $('#perfSelectScope').value=state.perf.selectScope;
+}
+$('#perfSettingsBtn').onclick=()=>{
+  syncPerfPanel();
+  $('#perfPanel').classList.toggle('hidden');
+};
+$('#perfPanelClose').onclick=()=>$('#perfPanel').classList.add('hidden');
+$('#perfStampMode').onchange=e=>{
+  state.perf.stampObjectMode=e.target.value;
+  savePerfSettings(state.perf);
+};
+$('#perfDprCap').onchange=e=>{
+  state.perf.dprCap=e.target.value==='uncapped'?'uncapped':2;
+  savePerfSettings(state.perf);
+  state.dpr=computeDpr(state.perf);
+  showStatus('새 지도를 만들거나 불러올 때부터 적용됩니다');
+};
+$('#perfSelectScope').onchange=e=>{
+  state.perf.selectScope=e.target.value;
+  savePerfSettings(state.perf);
+};
+
 $('#undoBtn').onclick=undo;
 $('#redoBtn').onclick=redo;
 $('#zoomIn').onclick=()=>zoomAt(state.scale*1.2);
@@ -940,7 +1004,7 @@ $('#duplicateLayerBtn').onclick=()=>{
 };
 
 $('#newBtn').onclick=()=>{
-  canvas.width=1400;canvas.height=900;updateHolderSize();
+  setDocSize(1400,900);
   resetLayers();
   state.history=[];state.historyIndex=-1;
   renderLayers();composite();pushHistory();fitView();
@@ -950,10 +1014,10 @@ $('#backgroundInput').onchange=e=>{
   const r=new FileReader();
   r.onload=async()=>{
     const img=await loadImage(r.result);
-    canvas.width=img.width;canvas.height=img.height;updateHolderSize();
+    setDocSize(img.width,img.height);
     resetLayers();
     const l=makeLayer('배경 이미지');
-    l.art.getContext('2d').drawImage(img,0,0);
+    l.art.getContext('2d').drawImage(img,0,0,l.art.width,l.art.height);
     state.layers.push(l);
     state.activeLayerId=l.id;
     renderLayers();composite();pushHistory();fitView();
@@ -1022,7 +1086,7 @@ window.addEventListener('keydown',e=>{
 });
 
 initDefaultStamps();
-updateHolderSize();
+setDocSize(state.docWidth,state.docHeight);
 resetLayers();
 renderLandSwatches();
 renderStylePresets();
