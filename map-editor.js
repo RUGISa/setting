@@ -16,19 +16,20 @@ function iconData(inner){
   return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg);
 }
 const defaultStampDefs=[
-  {name:'산',terrain:'land',src:iconData('<path d="M8 50 23 26 31 38 42 16 56 50"/><path d="M29 27l4 6 4-4"/>')},
-  {name:'숲',terrain:'land',src:iconData('<path d="M21 49V40"/><path d="M16 40 21 28 26 40Z"/><path d="M43 49V38"/><path d="M36 38 43 22 50 38Z"/>')},
-  {name:'도시',terrain:'land',src:iconData('<path d="M14 49V30h12v19"/><path d="M26 49V20h12v29"/><path d="M38 49V26h12v23"/>')},
-  {name:'성',terrain:'land',src:iconData('<path d="M12 49V28h8v6h6v-6h12v6h6v-6h8v21"/><path d="M12 49h40"/><path d="M28 49V39h8v10"/>')},
-  {name:'유적',terrain:'land',src:iconData('<path d="M12 49h40"/><path d="M18 49V27"/><path d="M30 49V22"/><path d="M42 49V30"/>')},
-  {name:'항구',terrain:'coast',src:iconData('<path d="M32 14v27"/><path d="M22 24c4 4 6 7 10 7s6-3 10-7"/><path d="M22 44c4 4 7 6 10 6s6-2 10-6"/>')},
-  {name:'동굴',terrain:'land',src:iconData('<path d="M10 47c6-16 16-23 22-23s16 7 22 23"/><path d="M24 47V35"/><path d="M40 47V35"/>')},
-  {name:'탑',terrain:'land',src:iconData('<path d="M24 49h16"/><path d="M26 49 29 19h6l3 30"/><path d="M24 19h16"/>')},
-  {name:'마을',terrain:'land',src:iconData('<path d="M15 49V32l11-9 11 9v17"/><path d="M20 49V38h12v11"/><path d="M40 49V36l9-7v20"/>')},
-  {name:'파도',terrain:'sea',src:iconData('<path d="M8 28c6-7 12-7 18 0s12 7 18 0 12-7 18 0"/><path d="M8 40c6-7 12-7 18 0s12 7 18 0 12-7 18 0"/>')},
-  {name:'선박',terrain:'sea',src:iconData('<path d="M16 39h34l-7 10H23Z"/><path d="M31 15v24"/><path d="M32 18l13 9H32Z"/>')},
-  {name:'소용돌이',terrain:'sea',src:iconData('<path d="M50 31c0-11-10-19-21-16-9 2-14 12-9 20 5 8 18 8 23 0 4-7-2-15-10-14-6 1-9 8-5 13 4 5 12 3 12-3"/>')}
+  {name:'산',category:'지형',terrain:'land',src:iconData('<path d="M8 50 23 26 31 38 42 16 56 50"/><path d="M29 27l4 6 4-4"/>')},
+  {name:'숲',category:'숲',terrain:'land',src:iconData('<path d="M21 49V40"/><path d="M16 40 21 28 26 40Z"/><path d="M43 49V38"/><path d="M36 38 43 22 50 38Z"/>')},
+  {name:'도시',category:'건물',terrain:'land',src:iconData('<path d="M14 49V30h12v19"/><path d="M26 49V20h12v29"/><path d="M38 49V26h12v23"/>')},
+  {name:'성',category:'건물',terrain:'land',src:iconData('<path d="M12 49V28h8v6h6v-6h12v6h6v-6h8v21"/><path d="M12 49h40"/><path d="M28 49V39h8v10"/>')},
+  {name:'유적',category:'지형',terrain:'land',src:iconData('<path d="M12 49h40"/><path d="M18 49V27"/><path d="M30 49V22"/><path d="M42 49V30"/>')},
+  {name:'항구',category:'건물',terrain:'coast',src:iconData('<path d="M32 14v27"/><path d="M22 24c4 4 6 7 10 7s6-3 10-7"/><path d="M22 44c4 4 7 6 10 6s6-2 10-6"/>')},
+  {name:'동굴',category:'지형',terrain:'land',src:iconData('<path d="M10 47c6-16 16-23 22-23s16 7 22 23"/><path d="M24 47V35"/><path d="M40 47V35"/>')},
+  {name:'탑',category:'지형',terrain:'land',src:iconData('<path d="M24 49h16"/><path d="M26 49 29 19h6l3 30"/><path d="M24 19h16"/>')},
+  {name:'마을',category:'건물',terrain:'land',src:iconData('<path d="M15 49V32l11-9 11 9v17"/><path d="M20 49V38h12v11"/><path d="M40 49V36l9-7v20"/>')},
+  {name:'파도',category:'바다',terrain:'sea',src:iconData('<path d="M8 28c6-7 12-7 18 0s12 7 18 0 12-7 18 0"/><path d="M8 40c6-7 12-7 18 0s12 7 18 0 12-7 18 0"/>')},
+  {name:'선박',category:'바다',terrain:'sea',src:iconData('<path d="M16 39h34l-7 10H23Z"/><path d="M31 15v24"/><path d="M32 18l13 9H32Z"/>')},
+  {name:'소용돌이',category:'바다',terrain:'sea',src:iconData('<path d="M50 31c0-11-10-19-21-16-9 2-14 12-9 20 5 8 18 8 23 0 4-7-2-15-10-14-6 1-9 8-5 13 4 5 12 3 12-3"/>')}
 ];
+const STAMP_CATEGORY_ORDER=['지형','숲','건물','바다'];
 
 const PERF_KEY='wme-perf-settings-v1';
 function loadPerfSettings(){
@@ -58,11 +59,11 @@ let state={
   stampSize:34,
   stampGap:22,
   terrains:[
-    {id:'water',name:'Water',color:'#8C9184',type:'Sea'},
-    {id:'grassland',name:'Grassland',color:'#AE987B',type:'Land'},
-    {id:'forest',name:'Forest',color:'#9E8B76',type:'Land'},
-    {id:'desert',name:'Desert',color:'#B6A591',type:'Land'},
-    {id:'snow',name:'Snow',color:'#BFAB92',type:'Land'}
+    {id:'water',name:'Water',color:'#8C9184',type:'Sea',texture:{id:'none',tileSize:64,strength:0.4,depth:0.3}},
+    {id:'grassland',name:'Grassland',color:'#AE987B',type:'Land',texture:{id:'none',tileSize:64,strength:0.4,depth:0.3}},
+    {id:'forest',name:'Forest',color:'#9E8B76',type:'Land',texture:{id:'none',tileSize:64,strength:0.4,depth:0.3}},
+    {id:'desert',name:'Desert',color:'#B6A591',type:'Land',texture:{id:'none',tileSize:64,strength:0.4,depth:0.3}},
+    {id:'snow',name:'Snow',color:'#BFAB92',type:'Land',texture:{id:'none',tileSize:64,strength:0.4,depth:0.3}}
   ],
   activeTerrainId:'grassland',
   coastColor:'#75654e',
@@ -85,7 +86,8 @@ const STYLE_PRESETS=[
   {name:'초원',terrains:{water:'#8FAFB0',grassland:'#AE987B',forest:'#8E9E6F',desert:'#C7B389',snow:'#DCD3B8'},coast:'#5d5a3f'},
   {name:'다크',terrains:{water:'#3E4A52',grassland:'#5B5546',forest:'#454A3B',desert:'#6B5F49',snow:'#7C7A6E'},coast:'#1c1c1c'},
   {name:'빙하',terrains:{water:'#5C7A99',grassland:'#AAB9C4',forest:'#8FA0AE',desert:'#C7D2D8',snow:'#EFF4F6'},coast:'#3a4b5c'},
-  {name:'황무지',terrains:{water:'#918383',grassland:'#AE987B',forest:'#8C7A63',desert:'#B08F6C',snow:'#C9BBA6'},coast:'#4a4038'}
+  {name:'황무지',terrains:{water:'#918383',grassland:'#AE987B',forest:'#8C7A63',desert:'#B08F6C',snow:'#C9BBA6'},coast:'#4a4038'},
+  {name:'모래빛',terrains:{water:'#969D8E',grassland:'#E5C494',forest:'#C9A46E',desert:'#EE987B',snow:'#F2E4C9'},coast:'#6b5a3f'}
 ];
 
 function activeTerrain(){return state.terrains.find(t=>t.id===state.activeTerrainId)||state.terrains[1]}
@@ -101,7 +103,7 @@ function defaultCoastBands(){
   ];
 }
 state.coastBands=defaultCoastBands();
-state.texture={id:'none',tileSize:64,strength:0.4,depth:0.3,scope:'all'};
+function defaultTerrainTexture(){return {id:'none',tileSize:64,strength:0.4,depth:0.3};}
 function makeCanvas(){const c=document.createElement('canvas');c.width=canvas.width;c.height=canvas.height;return c}
 function makeLayer(name,{locked=false}={}){
   const masks={};
@@ -245,15 +247,11 @@ function getTextureTile(id){
   if(!textureTileCache[id])textureTileCache[id]=buildTextureTile(id);
   return textureTileCache[id];
 }
-function applyTextureOverlay(layer){
-  const tex=state.texture;
+function applyTerrainTexture(terrain,mask){
+  const tex=terrain.texture;
   if(!tex||tex.id==='none')return;
   const tile=getTextureTile(tex.id);
   if(!tile)return;
-  const scopeMask=tex.scope==='active'
-    ? layer.masks[state.activeTerrainId]
-    : combinedMask(layer,null,4);
-  if(!scopeMask)return;
   const dpr=state.dpr;
   const tileSizePx=Math.max(8,tex.tileSize*dpr);
 
@@ -266,7 +264,7 @@ function applyTextureOverlay(layer){
   pc.fillRect(0,0,patternCanvas.width/scale,patternCanvas.height/scale);
   pc.restore();
   pc.globalCompositeOperation='destination-in';
-  pc.drawImage(scopeMask,0,0);
+  pc.drawImage(mask,0,0);
   pc.globalCompositeOperation='source-over';
 
   ctx.save();
@@ -277,13 +275,13 @@ function applyTextureOverlay(layer){
 
   if(tex.depth>0){
     const d=Math.max(1,tex.depth*10*dpr);
-    const light=tintMask(scopeMask,'#ffffff',6);
+    const light=tintMask(mask,'#ffffff',6);
     ctx.save();
     ctx.globalAlpha=clamp(tex.depth,0,1)*0.6;
     ctx.globalCompositeOperation='overlay';
     ctx.drawImage(light,-d,-d);
     ctx.restore();
-    const dark=tintMask(scopeMask,'#000000',6);
+    const dark=tintMask(mask,'#000000',6);
     ctx.save();
     ctx.globalAlpha=clamp(tex.depth,0,1)*0.6;
     ctx.globalCompositeOperation='overlay';
@@ -346,9 +344,8 @@ function drawLayerTerrain(layer){
     const m=layer.masks[t.id];
     if(!m)return;
     ctx.drawImage(tintMask(m,t.color,2),0,0);
+    applyTerrainTexture(t,m);
   });
-
-  applyTextureOverlay(layer);
 
   ctx.save();
   ctx.globalCompositeOperation='source-atop';
@@ -467,6 +464,8 @@ function renderTerrainList(){
       state.activeTerrainId=row.dataset.id;
       setTool('brush');
       renderTerrainList();
+      renderTextureGrid();
+      syncTextureControls();
     };
   });
   $$('.terrain-color').forEach(input=>{
@@ -484,24 +483,25 @@ function renderTerrainList(){
 }
 function renderLandSwatches(){renderTerrainList();}
 function renderTextureGrid(){
+  const tex=activeTerrain().texture;
   $('#textureGrid').innerHTML=TEXTURE_DEFS.map(d=>{
     if(d.id==='none'){
-      return `<button class="texture-swatch ${state.texture.id===d.id?'active':''}" data-id="${d.id}" title="${d.label}">⊘</button>`;
+      return `<button class="texture-swatch ${tex.id===d.id?'active':''}" data-id="${d.id}" title="${d.label}">⊘</button>`;
     }
     const tile=getTextureTile(d.id);
-    return `<button class="texture-swatch ${state.texture.id===d.id?'active':''}" data-id="${d.id}" title="${d.label}"><img src="${tile.toDataURL()}" alt="${d.label}"></button>`;
+    return `<button class="texture-swatch ${tex.id===d.id?'active':''}" data-id="${d.id}" title="${d.label}"><img src="${tile.toDataURL()}" alt="${d.label}"></button>`;
   }).join('');
   $$('.texture-swatch').forEach(b=>b.onclick=()=>{
-    state.texture.id=b.dataset.id;
+    activeTerrain().texture.id=b.dataset.id;
     renderTextureGrid();
     composite();
   });
 }
 function syncTextureControls(){
-  $('#textureTileSize').value=state.texture.tileSize;$('#textureTileSizeNum').textContent=state.texture.tileSize;
-  $('#textureStrength').value=Math.round(state.texture.strength*100);$('#textureStrengthNum').textContent=Math.round(state.texture.strength*100);
-  $('#textureDepth').value=Math.round(state.texture.depth*100);$('#textureDepthNum').textContent=Math.round(state.texture.depth*100);
-  $('#textureScope').value=state.texture.scope;
+  const tex=activeTerrain().texture;
+  $('#textureTileSize').value=tex.tileSize;$('#textureTileSizeNum').textContent=tex.tileSize;
+  $('#textureStrength').value=Math.round(tex.strength*100);$('#textureStrengthNum').textContent=Math.round(tex.strength*100);
+  $('#textureDepth').value=Math.round(tex.depth*100);$('#textureDepthNum').textContent=Math.round(tex.depth*100);
 }
 function renderCoastBands(){
   $('#coastBandList').innerHTML=state.coastBands.map((b,i)=>`
@@ -538,10 +538,18 @@ function initDefaultStamps(){
   state.defaultStamps=defaultStampDefs.map(d=>{const img=new Image();img.src=d.src;return {...d,img}});
 }
 function renderDefaultAssets(){
-  $('#defaultAssets').innerHTML=state.defaultStamps.map((s,i)=>`
-    <button class="asset ${state.selectedStamp.type==='default'&&state.selectedStamp.index===i?'active':''}" data-index="${i}">
-      <img src="${s.src}" alt="${s.name}">
-    </button>`).join('');
+  $('#defaultAssets').innerHTML=STAMP_CATEGORY_ORDER.map(cat=>{
+    const items=state.defaultStamps.map((s,i)=>({s,i})).filter(({s})=>s.category===cat);
+    if(!items.length)return '';
+    return `
+      <div class="asset-category-label">${cat}</div>
+      <div class="asset-grid">
+        ${items.map(({s,i})=>`
+          <button class="asset ${state.selectedStamp.type==='default'&&state.selectedStamp.index===i?'active':''}" data-index="${i}">
+            <img src="${s.src}" alt="${s.name}" title="${s.name}">
+          </button>`).join('')}
+      </div>`;
+  }).join('');
   $$('#defaultAssets .asset').forEach(b=>b.onclick=()=>{
     state.selectedStamp={type:'default',index:+b.dataset.index};
     setTool('stamp');
@@ -628,7 +636,6 @@ function serialize(){
     docWidth:state.docWidth,docHeight:state.docHeight,
     terrains:state.terrains,activeTerrainId:state.activeTerrainId,coastColor:state.coastColor,
     coastBands:state.coastBands,
-    texture:state.texture,
     stampColor:state.stampColor,stampMode:state.stampMode,stampSize:state.stampSize,stampGap:state.stampGap,
     layers:state.layers.map(l=>({
       id:l.id,name:l.name,visible:l.visible,locked:l.locked,
@@ -651,9 +658,10 @@ async function restore(s){
     state.terrains[0].color=s.waterColor||state.terrains[0].color;
     state.terrains[1].color=s.landColor||state.terrains[1].color;
   }
+  // 예전 저장 파일(지형별 텍스처가 없던 버전) 호환: 텍스처 없음으로 기본값 채움
+  state.terrains.forEach(t=>{ if(!t.texture) t.texture=defaultTerrainTexture(); });
   state.coastColor=s.coastColor||'#75654e';
   state.coastBands=Array.isArray(s.coastBands)&&s.coastBands.length?s.coastBands:defaultCoastBands();
-  state.texture=s.texture||{id:'none',tileSize:64,strength:0.4,depth:0.3,scope:'all'};
   state.stampColor=s.stampColor||'#6f6454';
   state.stampMode=s.stampMode||'region';
   state.stampSize=s.stampSize||34;
@@ -664,7 +672,7 @@ async function restore(s){
   renderCoastBands();
   renderTextureGrid();
   syncTextureControls();
-  $('#stampColor').value=state.stampColor;
+  syncStampColorInputs();
   $('#stampSize').value=state.stampSize;$('#stampSizeNum').textContent=state.stampSize;
   $('#stampGap').value=state.stampGap;$('#stampGapNum').textContent=state.stampGap;
   syncStampModeButtons();
@@ -715,6 +723,8 @@ function setTool(tool){
   if(tool!=='select')clearStampSelection();
   state.tool=tool;
   $$('.mode-card').forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));
+  $('#quickSizeGroup').classList.toggle('hidden',tool!=='brush'&&tool!=='eraser');
+  $('#quickStampColorGroup').classList.toggle('hidden',tool!=='stamp');
   updateCursorPreviewState();
   scheduleComposite();
 }
@@ -1176,8 +1186,9 @@ window.onpointermove=e=>{
   const p=localPoint(e);
   if(drag.type==='paint'){
     const d=Math.hypot(p.x-last.x,p.y-last.y);
-    const step=Math.max(1.2,state.size*.06,d/40);
-    for(let i=step;i<=d;i+=step){const t=i/d;drawBrush(last.x+(p.x-last.x)*t,last.y+(p.y-last.y)*t)}
+    const step=Math.max(1.2,state.size*.06);
+    const steps=Math.max(1,Math.ceil(d/step));
+    for(let i=1;i<=steps;i++){const t=i/steps;drawBrush(last.x+(p.x-last.x)*t,last.y+(p.y-last.y)*t)}
     last=p;
   }else if(drag.type==='stamp'){
     const d=Math.hypot(p.x-lastStamp.x,p.y-lastStamp.y);
@@ -1217,8 +1228,7 @@ wrap.addEventListener('wheel',e=>{
       $('#stampSizeNum').textContent=state.stampSize;
     }else if(state.tool==='brush'||state.tool==='eraser'){
       state.size=Math.max(6,Math.min(220,state.size+direction*4));
-      $('#sizeRange').value=state.size;
-      $('#sizeNum').textContent=state.size;
+      syncSizeInputs();
     }
     updateCursorPreviewState();
     moveCursorPreview(e.clientX,e.clientY);
@@ -1238,7 +1248,16 @@ $$('[data-stamp-mode]').forEach(b=>b.onclick=()=>{
   state.stampMode=b.dataset.stampMode;
   syncStampModeButtons();
 });
-$('#sizeRange').oninput=e=>{state.size=+e.target.value;$('#sizeNum').textContent=e.target.value;updateCursorPreviewState();}
+function syncSizeInputs(){
+  $('#sizeRange').value=state.size;$('#sizeNum').textContent=state.size;
+  $('#sizeRangeQuick').value=state.size;$('#sizeNumQuick').textContent=state.size;
+}
+function syncStampColorInputs(){
+  $('#stampColor').value=state.stampColor;
+  $('#stampColorQuick').value=state.stampColor;
+}
+$('#sizeRange').oninput=e=>{state.size=+e.target.value;syncSizeInputs();updateCursorPreviewState();}
+$('#sizeRangeQuick').oninput=e=>{state.size=+e.target.value;syncSizeInputs();updateCursorPreviewState();}
 $('#opacityRange').oninput=e=>{state.opacity=+e.target.value/100;$('#opacityNum').textContent=e.target.value;}
 $('#softRange').oninput=e=>{state.softness=+e.target.value/100;$('#softNum').textContent=e.target.value;}
 $('#stampSize').oninput=e=>{state.stampSize=+e.target.value;$('#stampSizeNum').textContent=e.target.value;updateCursorPreviewState();}
@@ -1248,10 +1267,9 @@ $('#addCoastBandBtn').onclick=()=>{
   state.coastBands.push({id:uid(),type:'soft',width:11,strength:0.5});
   renderCoastBands();composite();pushHistory();
 };
-$('#textureTileSize').oninput=e=>{state.texture.tileSize=+e.target.value;$('#textureTileSizeNum').textContent=e.target.value;composite();}
-$('#textureStrength').oninput=e=>{state.texture.strength=+e.target.value/100;$('#textureStrengthNum').textContent=e.target.value;composite();}
-$('#textureDepth').oninput=e=>{state.texture.depth=+e.target.value/100;$('#textureDepthNum').textContent=e.target.value;composite();}
-$('#textureScope').onchange=e=>{state.texture.scope=e.target.value;composite();}
+$('#textureTileSize').oninput=e=>{activeTerrain().texture.tileSize=+e.target.value;$('#textureTileSizeNum').textContent=e.target.value;composite();}
+$('#textureStrength').oninput=e=>{activeTerrain().texture.strength=+e.target.value/100;$('#textureStrengthNum').textContent=e.target.value;composite();}
+$('#textureDepth').oninput=e=>{activeTerrain().texture.depth=+e.target.value/100;$('#textureDepthNum').textContent=e.target.value;composite();}
 $('#stampPropSize').oninput=e=>{
   const found=getSelectedStamp(); if(!found)return;
   found.stamp.size=+e.target.value;$('#stampPropSizeNum').textContent=e.target.value;
@@ -1270,7 +1288,8 @@ $('#stampPropDelete').onclick=()=>{
   clearStampSelection();
   composite();pushHistory();
 };
-$('#stampColor').oninput=e=>{state.stampColor=e.target.value;}
+$('#stampColor').oninput=e=>{state.stampColor=e.target.value;syncStampColorInputs();}
+$('#stampColorQuick').oninput=e=>{state.stampColor=e.target.value;syncStampColorInputs();}
 
 function syncPerfPanel(){
   $('#perfStampMode').value=state.perf.stampObjectMode;
@@ -1413,6 +1432,8 @@ window.addEventListener('keydown',e=>{
       state.activeTerrainId=state.terrains[n-1].id;
       setTool('brush');
       renderTerrainList();
+      renderTextureGrid();
+      syncTextureControls();
     }
   }
 });
