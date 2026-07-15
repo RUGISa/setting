@@ -4695,3 +4695,45 @@ body.map-view-active .screen {
 :root[data-theme="light"] #wmeRoot .perf-row label { color: #6e6e76; }
 :root[data-theme="light"] #wmeRoot .perf-row select { background: #fff; border-color: #d3d3d9; color: #303038; }
 :root[data-theme="light"] #wmeRoot .perf-hint { color: #9a9aa2; }
+
+
+/* =========================================================================
+   해안선 효과 목록
+   ========================================================================= */
+#wmeRoot .coast-band-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+#wmeRoot .coast-band {
+  border: 1px solid #161616;
+  background: #232323;
+  border-radius: 8px;
+  padding: 7px 8px;
+}
+#wmeRoot .coast-band-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+#wmeRoot .coast-band-head select {
+  flex: 1;
+  background: #1c1c1c;
+  border: 1px solid #161616;
+  color: #d8d8d8;
+  border-radius: 6px;
+  padding: 3px 5px;
+  font-size: 11px;
+}
+#wmeRoot .coast-band-head button {
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 6px;
+  background: #3a3a3a;
+  border: 1px solid #161616;
+  color: #cfcfcf;
+  font-size: 12px;
+}
+#wmeRoot .coast-band .row { margin: 4px 0 !important; }
+:root[data-theme="light"] #wmeRoot .coast-band { background: #f4f4f6; border-color: #dcdce0; }
+:root[data-theme="light"] #wmeRoot .coast-band-head select { background: #fff; border-color: #d3d3d9; color: #303038; }
+:root[data-theme="light"] #wmeRoot .coast-band-head button { background: #f0f0f3; border-color: #d3d3d9; color: #303038; }

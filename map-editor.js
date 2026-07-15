@@ -65,6 +65,7 @@ let state={
   ],
   activeTerrainId:'grassland',
   coastColor:'#75654e',
+  coastBands:[],
   stampColor:'#6f6454',
   scale:1,viewX:0,viewY:0,
   selectedStamp:{type:'default',index:0},
@@ -90,6 +91,14 @@ function terrainColorById(id){return state.terrains.find(t=>t.id===id)?.color||'
 function waterColor(){return state.terrains[0].color}
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2)}
+const COAST_BAND_TYPES=[{id:'soft',label:'종이'},{id:'gradient',label:'그라데이션'}];
+function defaultCoastBands(){
+  return [
+    {id:uid(),type:'soft',width:11,strength:0.78},
+    {id:uid(),type:'gradient',width:7,strength:0.4}
+  ];
+}
+state.coastBands=defaultCoastBands();
 function makeCanvas(){const c=document.createElement('canvas');c.width=canvas.width;c.height=canvas.height;return c}
 function makeLayer(name,{locked=false}={}){
   const masks={};
@@ -195,7 +204,33 @@ function drawOcean(){
   }
   ctx.restore();
 }
-const coastGlowRings=[{r:3,a:.16},{r:5,a:.09},{r:7.5,a:.05}];
+function drawCoastBand(coast,band,dpr){
+  const w=Math.max(1,band.width*dpr);
+  const s=clamp(band.strength,0,1);
+  const gradient=band.type==='gradient';
+  const ringCount=gradient?5:3;
+  const spread=gradient?1:0.55;
+
+  ctx.save();
+  ctx.globalAlpha=s*0.2;
+  ctx.filter=`blur(${Math.max(1,w*0.5)}px)`;
+  ctx.drawImage(coast,0,w*0.2);
+  ctx.restore();
+
+  ctx.save();
+  for(let i=0;i<ringCount;i++){
+    const r=w*spread*((i+1)/ringCount);
+    const a=s*0.16*(1-(i/ringCount)*0.6);
+    if(a<=0)continue;
+    ctx.globalAlpha=a;
+    const steps=Math.max(10,Math.round(r*0.45));
+    for(let k=0;k<steps;k++){
+      const angle=(k/steps)*Math.PI*2;
+      ctx.drawImage(coast,Math.cos(angle)*r,Math.sin(angle)*r);
+    }
+  }
+  ctx.restore();
+}
 function combinedMask(layer,predicate,scratchIndex){
   const out=scratchIndex!=null?getScratch(scratchIndex):makeCanvas();
   const c=out.getContext('2d');
@@ -210,28 +245,13 @@ function drawLayerTerrain(layer){
   ensureLayerMasks(layer);
   const landUnion=combinedMask(layer,t=>t.type==='Land',0);
   const coast=tintMask(landUnion,state.coastColor,1);
+  const dpr=state.dpr;
 
-  ctx.save();
-  ctx.globalAlpha=.16;
-  ctx.filter='blur(5px)';
-  ctx.drawImage(coast,0,3);
-  ctx.restore();
-
-  // 부드럽게 번지는 해안선 (안쪽은 진하고 밖으로 갈수록 옅어짐)
-  ctx.save();
-  coastGlowRings.forEach(({r,a})=>{
-    ctx.globalAlpha=a;
-    const steps=Math.max(10,Math.round(r*5));
-    for(let i=0;i<steps;i++){
-      const angle=(i/steps)*Math.PI*2;
-      ctx.drawImage(coast,Math.cos(angle)*r,Math.sin(angle)*r);
-    }
-  });
-  ctx.restore();
+  state.coastBands.forEach(band=>drawCoastBand(coast,band,dpr));
 
   ctx.save();
   ctx.globalAlpha=.48;
-  outlineOffsets.forEach(([x,y])=>ctx.drawImage(coast,x,y));
+  outlineOffsets.forEach(([x,y])=>ctx.drawImage(coast,x*dpr,y*dpr));
   ctx.restore();
 
   // 각 지형을 현재 색상으로 실시간 채색해서 그림 (프리셋 바뀌면 이미 칠한 부분도 같이 바뀜)
@@ -372,6 +392,37 @@ function renderTerrainList(){
   });
 }
 function renderLandSwatches(){renderTerrainList();}
+function renderCoastBands(){
+  $('#coastBandList').innerHTML=state.coastBands.map((b,i)=>`
+    <div class="coast-band" data-id="${b.id}">
+      <div class="coast-band-head">
+        <span class="terrain-key">${i+1}</span>
+        <select class="cb-type" data-id="${b.id}">
+          ${COAST_BAND_TYPES.map(t=>`<option value="${t.id}" ${b.type===t.id?'selected':''}>${t.label}</option>`).join('')}
+        </select>
+        <button class="cb-del" data-id="${b.id}" title="삭제">×</button>
+      </div>
+      <div class="row"><label>폭</label><input type="range" class="cb-width" data-id="${b.id}" min="1" max="40" value="${b.width}"><span class="num">${b.width}</span></div>
+      <div class="row"><label>세기</label><input type="range" class="cb-strength" data-id="${b.id}" min="0" max="100" value="${Math.round(b.strength*100)}"><span class="num">${Math.round(b.strength*100)}</span></div>
+    </div>
+  `).join('');
+  $$('.cb-type').forEach(sel=>sel.onchange=e=>{
+    const b=state.coastBands.find(x=>x.id===e.target.dataset.id);
+    if(b){b.type=e.target.value;composite();}
+  });
+  $$('.cb-del').forEach(btn=>btn.onclick=()=>{
+    state.coastBands=state.coastBands.filter(x=>x.id!==btn.dataset.id);
+    renderCoastBands();composite();pushHistory();
+  });
+  $$('.cb-width').forEach(input=>input.oninput=e=>{
+    const b=state.coastBands.find(x=>x.id===e.target.dataset.id);
+    if(b){b.width=+e.target.value;e.target.nextElementSibling.textContent=e.target.value;composite();}
+  });
+  $$('.cb-strength').forEach(input=>input.oninput=e=>{
+    const b=state.coastBands.find(x=>x.id===e.target.dataset.id);
+    if(b){b.strength=+e.target.value/100;e.target.nextElementSibling.textContent=e.target.value;composite();}
+  });
+}
 function initDefaultStamps(){
   state.defaultStamps=defaultStampDefs.map(d=>{const img=new Image();img.src=d.src;return {...d,img}});
 }
@@ -465,6 +516,7 @@ function serialize(){
     width:canvas.width,height:canvas.height,
     docWidth:state.docWidth,docHeight:state.docHeight,
     terrains:state.terrains,activeTerrainId:state.activeTerrainId,coastColor:state.coastColor,
+    coastBands:state.coastBands,
     stampColor:state.stampColor,stampMode:state.stampMode,stampSize:state.stampSize,stampGap:state.stampGap,
     layers:state.layers.map(l=>({
       id:l.id,name:l.name,visible:l.visible,locked:l.locked,
@@ -486,6 +538,7 @@ async function restore(s){
     state.terrains[1].color=s.landColor||state.terrains[1].color;
   }
   state.coastColor=s.coastColor||'#75654e';
+  state.coastBands=Array.isArray(s.coastBands)&&s.coastBands.length?s.coastBands:defaultCoastBands();
   state.stampColor=s.stampColor||'#6f6454';
   state.stampMode=s.stampMode||'region';
   state.stampSize=s.stampSize||34;
@@ -493,6 +546,7 @@ async function restore(s){
 
   renderTerrainList();
   $('#coastColor').value=state.coastColor;
+  renderCoastBands();
   $('#stampColor').value=state.stampColor;
   $('#stampSize').value=state.stampSize;$('#stampSizeNum').textContent=state.stampSize;
   $('#stampGap').value=state.stampGap;$('#stampGapNum').textContent=state.stampGap;
@@ -948,6 +1002,10 @@ $('#softRange').oninput=e=>{state.softness=+e.target.value/100;$('#softNum').tex
 $('#stampSize').oninput=e=>{state.stampSize=+e.target.value;$('#stampSizeNum').textContent=e.target.value;updateCursorPreviewState();}
 $('#stampGap').oninput=e=>{state.stampGap=+e.target.value;$('#stampGapNum').textContent=e.target.value;}
 $('#coastColor').oninput=e=>{state.coastColor=e.target.value;composite();}
+$('#addCoastBandBtn').onclick=()=>{
+  state.coastBands.push({id:uid(),type:'soft',width:11,strength:0.5});
+  renderCoastBands();composite();pushHistory();
+};
 $('#stampColor').oninput=e=>{state.stampColor=e.target.value;}
 
 function syncPerfPanel(){
@@ -1089,6 +1147,7 @@ initDefaultStamps();
 setDocSize(state.docWidth,state.docHeight);
 resetLayers();
 renderLandSwatches();
+renderCoastBands();
 renderStylePresets();
 renderDefaultAssets();
 renderCustomAssets();
