@@ -4765,3 +4765,31 @@ body.map-view-active .screen {
 #wmeRoot .texture-swatch img { width: 100%; height: 100%; object-fit: cover; }
 #wmeRoot .texture-swatch.active { outline: 2px solid var(--accent); border-color: var(--accent); }
 :root[data-theme="light"] #wmeRoot .texture-swatch { background: #f0f0f3; border-color: #d3d3d9; }
+
+
+/* =========================================================================
+   스탬프 선택 상자 / 속성 패널
+   ========================================================================= */
+#wmeRoot .stamp-select-box {
+  position: absolute;
+  left: 0; top: 0;
+  border: 1.5px dashed #1473e6;
+  background: rgba(20,115,230,.08);
+  pointer-events: none;
+  z-index: 15;
+}
+#wmeRoot .stamp-prop-panel {
+  position: absolute;
+  left: 0; top: 0;
+  transform: translate(-9999px,-9999px);
+  z-index: 16;
+  width: 190px;
+  background: rgba(38,38,38,.97);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 8px 10px;
+}
+#wmeRoot .stamp-prop-panel .row { margin: 6px 0 !important; }
+#wmeRoot .stamp-prop-panel .row label { width: 44px !important; font-size: 10.5px !important; }
+:root[data-theme="light"] #wmeRoot .stamp-prop-panel { background: rgba(255,255,255,.97); }

@@ -5,6 +5,7 @@ const $$=s=>[...wmeRoot.querySelectorAll(s)];
 const canvas=$('#wmeMapCanvas'),ctx=canvas.getContext('2d');
 const wrap=$('#canvasWrap'),holder=$('#canvasHolder');
 const cursorPreview=$('#cursorPreview'),cursorLabel=$('#cursorLabel'),cursorStampPreview=$('#cursorStampPreview');
+const stampSelectBox=$('#stampSelectBox'),stampPropPanel=$('#stampPropPanel');
 
 const landPresets=['#d2c29f','#b7a481','#9d9679','#707c64','#d8c7a4','#ad8f67','#c7b493','#928371','#7e8a75','#cdbca0'];
 const outlineOffsets=[[-2,0],[2,0],[0,-2],[0,2],[-1,-1],[1,-1],[-1,1],[1,1]];
@@ -72,6 +73,7 @@ let state={
   defaultStamps:[],customStamps:[],
   layers:[],activeLayerId:null,
   history:[],historyIndex:-1, pointerDown:false, activePointerId:null,
+  selectedStampRef:null,
   perf:loadPerfSettings(),
   dpr:1,
   docWidth:1400,docHeight:900
@@ -104,7 +106,7 @@ function makeCanvas(){const c=document.createElement('canvas');c.width=canvas.wi
 function makeLayer(name,{locked=false}={}){
   const masks={};
   state.terrains.forEach(t=>{masks[t.id]=makeCanvas();});
-  return {id:uid(),name,visible:true,locked,masks,art:makeCanvas()};
+  return {id:uid(),name,visible:true,locked,masks,art:makeCanvas(),stamps:[]};
 }
 function ensureLayerMasks(layer){
   state.terrains.forEach(t=>{
@@ -425,8 +427,10 @@ function composite(){
     if(!layer.visible||layer.locked)return;
     drawLayerTerrain(layer);
     ctx.drawImage(layer.art,0,0);
+    renderLayerStamps(layer);
   });
   drawPaperTexture();
+  updateStampSelectionOverlay();
 }
 function renderStylePresets(){
   $('#stylePresets').innerHTML=STYLE_PRESETS.map((p,i)=>`
@@ -629,13 +633,15 @@ function serialize(){
     layers:state.layers.map(l=>({
       id:l.id,name:l.name,visible:l.visible,locked:l.locked,
       masks:Object.fromEntries(Object.entries(l.masks).map(([id,c])=>[id,c.toDataURL()])),
-      art:l.art.toDataURL()
+      art:l.art.toDataURL(),
+      stamps:(l.stamps||[]).map(s=>({...s}))
     })),
     customStamps:state.customStamps.map(s=>({name:s.name,src:s.src}))
   };
 }
 async function loadImage(src){return await new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.src=src;});}
 async function restore(s){
+  clearStampSelection();
   setDocSize(s.docWidth||s.width,s.docHeight||s.height);
   if(Array.isArray(s.terrains)&&s.terrains.length){
     state.terrains=s.terrains;
@@ -681,6 +687,7 @@ async function restore(s){
       m.getContext('2d').drawImage(await loadImage(item.terrain),0,0,m.width,m.height);
     }
     l.art.getContext('2d').drawImage(await loadImage(item.art),0,0,l.art.width,l.art.height);
+    l.stamps=Array.isArray(item.stamps)?item.stamps.map(s=>({...s})):[];
     state.layers.push(l);
   }
   state.activeLayerId=[...state.layers].reverse().find(l=>!l.locked)?.id||state.layers[0].id;
@@ -705,9 +712,11 @@ function pushHistory(){
 function undo(){if(state.historyIndex<=0)return;state.historyIndex--;restore(state.history[state.historyIndex]);}
 function redo(){if(state.historyIndex>=state.history.length-1)return;state.historyIndex++;restore(state.history[state.historyIndex]);}
 function setTool(tool){
+  if(tool!=='select')clearStampSelection();
   state.tool=tool;
   $$('.mode-card').forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));
   updateCursorPreviewState();
+  scheduleComposite();
 }
 function syncStampModeButtons(){
   $$('[data-stamp-mode]').forEach(btn=>btn.classList.toggle('active',btn.dataset.stampMode===state.stampMode));
@@ -716,6 +725,7 @@ function syncStampModeButtons(){
 function setView(){
   holder.style.transform=`translate(${state.viewX}px,${state.viewY}px) scale(${state.scale})`;
   $('#zoomText').textContent=Math.round(state.scale*100)+'%';
+  updateStampSelectionOverlay();
 }
 function fitView(){
   if(!wrap.clientWidth||!wrap.clientHeight)return;
@@ -823,20 +833,41 @@ function currentStamp(){
     ? state.defaultStamps[state.selectedStamp.index]
     : state.customStamps[state.selectedStamp.index];
 }
-function drawBrushStampOnContext(c, item, x, y, size){
-  if(!item?.img)return;
-  if(state.selectedStamp.type==='default'){
-    const t=document.createElement('canvas');
-    t.width=64;t.height=64;
-    const tc=t.getContext('2d');
+const tintedIconCache={};
+function getTintedIcon(item,color){
+  const key=item.src+'|'+color;
+  let c=tintedIconCache[key];
+  if(!c){
+    c=document.createElement('canvas');
+    c.width=64;c.height=64;
+    const tc=c.getContext('2d');
     tc.drawImage(item.img,0,0,64,64);
     tc.globalCompositeOperation='source-in';
-    tc.fillStyle=state.stampColor;
+    tc.fillStyle=color;
     tc.fillRect(0,0,64,64);
-    c.drawImage(t,x-size/2,y-size/2,size,size);
+    tintedIconCache[key]=c;
+  }
+  return c;
+}
+function drawBrushStampOnContext(c, item, kind, color, x, y, size, opacity=1){
+  if(!item?.img)return;
+  c.save();
+  c.globalAlpha=opacity;
+  if(kind==='default'){
+    c.drawImage(getTintedIcon(item,color),x-size/2,y-size/2,size,size);
   }else{
     c.drawImage(item.img,x-size/2,y-size/2,size,size);
   }
+  c.restore();
+}
+function renderLayerStamps(layer){
+  const dpr=state.dpr;
+  const stamps=[...(layer.stamps||[])].sort((a,b)=>a.y-b.y);
+  stamps.forEach(st=>{
+    const item=st.kind==='default'?state.defaultStamps[st.index]:state.customStamps[st.index];
+    if(!item)return;
+    drawBrushStampOnContext(ctx,item,st.kind,st.color,st.x*dpr,st.y*dpr,st.size*dpr,st.opacity==null?1:st.opacity);
+  });
 }
 function drawBrush(x,y){
   const layer=editableLayer(); if(!layer)return;
@@ -858,6 +889,14 @@ function drawBrush(x,y){
     };
     state.terrains.forEach(t=>eraseOne(layer.masks[t.id]));
     eraseOne(layer.art);
+    if(layer.stamps&&layer.stamps.length){
+      const rLogical=state.size/2;
+      const before=layer.stamps.length;
+      layer.stamps=layer.stamps.filter(st=>Math.hypot(st.x-x/dpr,st.y-y/dpr)>rLogical);
+      if(layer.stamps.length!==before&&state.selectedStampRef&&state.selectedStampRef.layerId===layer.id&&!layer.stamps.find(st=>st.id===state.selectedStampRef.stampId)){
+        clearStampSelection();
+      }
+    }
     scheduleComposite();
     return;
   }
@@ -903,9 +942,13 @@ function drawBrush(x,y){
 }
 function drawSingleStamp(x,y){
   const layer=editableLayer(); if(!layer)return;
-  const c=layer.art.getContext('2d');
-  const dpr=state.dpr;
-  drawBrushStampOnContext(c,currentStamp(),x*dpr,y*dpr,state.stampSize*dpr);
+  const item=currentStamp();
+  if(!item)return;
+  if(!layer.stamps)layer.stamps=[];
+  layer.stamps.push({
+    id:uid(),kind:state.selectedStamp.type,index:state.selectedStamp.index,
+    x,y,size:state.stampSize,color:state.stampColor,opacity:1
+  });
   scheduleComposite();
 }
 function drawIrregularCell(c, cx, cy, r, seed){
@@ -1002,12 +1045,84 @@ function drawRegionStamp(x,y,drawGuides){
     if(drawGuides)c.stroke();
   }
 
-  for(const cell of cells){
-    const iconSize=cellR*(cell.kind==='sea'?.96:1.08);
-    drawBrushStampOnContext(c,item,cell.x,cell.y,iconSize);
+  if(state.perf.stampObjectMode==='all'){
+    if(!layer.stamps)layer.stamps=[];
+    for(const cell of cells){
+      const iconSize=(cellR*(cell.kind==='sea'?.96:1.08))/state.dpr;
+      layer.stamps.push({
+        id:uid(),kind:state.selectedStamp.type,index:state.selectedStamp.index,
+        x:cell.x/state.dpr,y:cell.y/state.dpr,size:iconSize,color:state.stampColor,opacity:1
+      });
+    }
+  }else{
+    for(const cell of cells){
+      const iconSize=cellR*(cell.kind==='sea'?.96:1.08);
+      drawBrushStampOnContext(c,item,state.selectedStamp.type,state.stampColor,cell.x,cell.y,iconSize);
+    }
   }
   c.restore();
   scheduleComposite();
+}
+
+function stampLayerCandidates(){
+  if(state.perf.selectScope==='active'){
+    const l=activeLayer();
+    return l?[l]:[];
+  }
+  return [...state.layers].reverse().filter(l=>l.visible&&!l.locked);
+}
+function findStampAt(x,y){
+  for(const layer of stampLayerCandidates()){
+    const stamps=[...(layer.stamps||[])].sort((a,b)=>b.y-a.y);
+    for(const st of stamps){
+      const r=Math.max(st.size/2,10);
+      if(Math.hypot(x-st.x,y-st.y)<=r)return {layer,stamp:st};
+    }
+  }
+  return null;
+}
+function selectStamp(layerId,stampId){
+  state.selectedStampRef={layerId,stampId};
+  syncStampPropPanel();
+}
+function clearStampSelection(){
+  state.selectedStampRef=null;
+  stampSelectBox.classList.add('hidden');
+  stampPropPanel.classList.add('hidden');
+}
+function getSelectedStamp(){
+  if(!state.selectedStampRef)return null;
+  const layer=state.layers.find(l=>l.id===state.selectedStampRef.layerId);
+  if(!layer)return null;
+  const stamp=(layer.stamps||[]).find(s=>s.id===state.selectedStampRef.stampId);
+  if(!stamp)return null;
+  return {layer,stamp};
+}
+function syncStampPropPanel(){
+  const found=getSelectedStamp();
+  if(!found)return;
+  $('#stampPropSize').value=found.stamp.size;$('#stampPropSizeNum').textContent=Math.round(found.stamp.size);
+  $('#stampPropOpacity').value=Math.round((found.stamp.opacity==null?1:found.stamp.opacity)*100);
+  $('#stampPropOpacityNum').textContent=$('#stampPropOpacity').value;
+}
+function updateStampSelectionOverlay(){
+  if(state.tool!=='select'){stampSelectBox.classList.add('hidden');stampPropPanel.classList.add('hidden');return;}
+  const found=getSelectedStamp();
+  if(!found){stampSelectBox.classList.add('hidden');stampPropPanel.classList.add('hidden');return;}
+  const {stamp}=found;
+  const rect=wrap.getBoundingClientRect();
+  const half=stamp.size/2;
+  const left=state.viewX+(stamp.x-half)*state.scale;
+  const top=state.viewY+(stamp.y-half)*state.scale;
+  const size=stamp.size*state.scale;
+  stampSelectBox.classList.remove('hidden');
+  stampSelectBox.style.left=left+'px';
+  stampSelectBox.style.top=top+'px';
+  stampSelectBox.style.width=size+'px';
+  stampSelectBox.style.height=size+'px';
+
+  stampPropPanel.classList.remove('hidden');
+  stampPropPanel.style.transform=`translate(${left+size+10}px,${top}px)`;
 }
 
 let drag=null,last=null,lastStamp=null,changed=false;
@@ -1036,6 +1151,17 @@ wrap.onpointerdown=e=>{
     if(state.stampMode==='single')drawSingleStamp(p.x,p.y);
     else if(state.stampMode==='region')drawRegionStamp(p.x,p.y,false);
     else drawRegionStamp(p.x,p.y,true);
+  }else if(state.tool==='select'){
+    const hit=findStampAt(p.x,p.y);
+    if(hit){
+      selectStamp(hit.layer.id,hit.stamp.id);
+      drag={type:'moveStamp',layer:hit.layer,stamp:hit.stamp,startX:hit.stamp.x,startY:hit.stamp.y,px:p.x,py:p.y};
+      changed=false;
+    }else{
+      clearStampSelection();
+      drag=null;
+    }
+    scheduleComposite();
   }
 };
 window.onpointermove=e=>{
@@ -1063,6 +1189,11 @@ window.onpointermove=e=>{
       else drawRegionStamp(sx,sy,true);
     }
     if(d>=gap)lastStamp=p;
+  }else if(drag.type==='moveStamp'){
+    drag.stamp.x=drag.startX+(p.x-drag.px);
+    drag.stamp.y=drag.startY+(p.y-drag.py);
+    changed=true;
+    scheduleComposite();
   }
 };
 window.onpointerup=e=>{
@@ -1121,6 +1252,24 @@ $('#textureTileSize').oninput=e=>{state.texture.tileSize=+e.target.value;$('#tex
 $('#textureStrength').oninput=e=>{state.texture.strength=+e.target.value/100;$('#textureStrengthNum').textContent=e.target.value;composite();}
 $('#textureDepth').oninput=e=>{state.texture.depth=+e.target.value/100;$('#textureDepthNum').textContent=e.target.value;composite();}
 $('#textureScope').onchange=e=>{state.texture.scope=e.target.value;composite();}
+$('#stampPropSize').oninput=e=>{
+  const found=getSelectedStamp(); if(!found)return;
+  found.stamp.size=+e.target.value;$('#stampPropSizeNum').textContent=e.target.value;
+  scheduleComposite();
+};
+$('#stampPropSize').onchange=()=>pushHistory();
+$('#stampPropOpacity').oninput=e=>{
+  const found=getSelectedStamp(); if(!found)return;
+  found.stamp.opacity=+e.target.value/100;$('#stampPropOpacityNum').textContent=e.target.value;
+  scheduleComposite();
+};
+$('#stampPropOpacity').onchange=()=>pushHistory();
+$('#stampPropDelete').onclick=()=>{
+  const found=getSelectedStamp(); if(!found)return;
+  found.layer.stamps=found.layer.stamps.filter(s=>s.id!==found.stamp.id);
+  clearStampSelection();
+  composite();pushHistory();
+};
 $('#stampColor').oninput=e=>{state.stampColor=e.target.value;}
 
 function syncPerfPanel(){
@@ -1169,6 +1318,7 @@ $('#duplicateLayerBtn').onclick=()=>{
     if(src.masks[t.id])l.masks[t.id].getContext('2d').drawImage(src.masks[t.id],0,0);
   });
   l.art.getContext('2d').drawImage(src.art,0,0);
+  l.stamps=(src.stamps||[]).map(s=>({...s,id:uid()}));
   state.layers.push(l);
   state.activeLayerId=l.id;
   renderLayers();
@@ -1248,6 +1398,15 @@ window.addEventListener('keydown',e=>{
   if(!wmeRoot.offsetParent)return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();redo();}
+  if((e.key==='Delete'||e.key==='Backspace')&&document.activeElement?.tagName!=='INPUT'&&state.selectedStampRef){
+    e.preventDefault();
+    const found=getSelectedStamp();
+    if(found){
+      found.layer.stamps=found.layer.stamps.filter(s=>s.id!==found.stamp.id);
+      clearStampSelection();
+      composite();pushHistory();
+    }
+  }
   if(!e.ctrlKey&&!e.metaKey&&!e.altKey&&document.activeElement?.tagName!=='INPUT'){
     const n=parseInt(e.key,10);
     if(n>=1&&n<=state.terrains.length){

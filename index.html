@@ -333,6 +333,10 @@
       <div class="section">
         <div class="section-title"><span>브러시 선택</span></div>
         <div class="tool-selector">
+          <button class="mode-card" data-tool="select" title="선택 - 놓인 스탬프 선택·이동">
+            <span class="mode-icon">⤡</span>
+            <span class="mode-text"><strong>선택</strong><span>스탬프 선택·이동</span></span>
+          </button>
           <button class="mode-card active" data-tool="brush" title="육지 - 섬과 대륙 그리기">
             <span class="mode-icon">●</span>
             <span class="mode-text"><strong>육지</strong><span>섬과 대륙 그리기</span></span>
@@ -408,6 +412,12 @@
       <div id="cursorPreview" class="cursor-preview">
         <div id="cursorStampPreview" class="cursor-stamp-preview"></div>
         <div id="cursorLabel" class="cursor-label">72px</div>
+      </div>
+      <div id="stampSelectBox" class="stamp-select-box hidden"></div>
+      <div id="stampPropPanel" class="stamp-prop-panel hidden">
+        <div class="row"><label>크기</label><input id="stampPropSize" type="range" min="10" max="240"><span class="num" id="stampPropSizeNum">0</span></div>
+        <div class="row"><label>투명도</label><input id="stampPropOpacity" type="range" min="10" max="100"><span class="num" id="stampPropOpacityNum">100</span></div>
+        <button class="btn small danger" id="stampPropDelete" style="width:100%">삭제</button>
       </div>
       <div class="zoom">
         <button id="zoomOut" title="축소" aria-label="축소">
