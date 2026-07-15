@@ -99,6 +99,7 @@ function defaultCoastBands(){
   ];
 }
 state.coastBands=defaultCoastBands();
+state.texture={id:'none',tileSize:64,strength:0.4,depth:0.3,scope:'all'};
 function makeCanvas(){const c=document.createElement('canvas');c.width=canvas.width;c.height=canvas.height;return c}
 function makeLayer(name,{locked=false}={}){
   const masks={};
@@ -204,6 +205,90 @@ function drawOcean(){
   }
   ctx.restore();
 }
+const TEXTURE_DEFS=[
+  {id:'none',label:'없음'},
+  {id:'dots',label:'점묘'},
+  {id:'crosshatch',label:'교차선'},
+  {id:'grain',label:'입자'}
+];
+const textureTileCache={};
+function buildTextureTile(id){
+  const size=64;
+  const t=document.createElement('canvas');
+  t.width=size;t.height=size;
+  const c=t.getContext('2d');
+  if(id==='dots'){
+    c.fillStyle='rgba(0,0,0,.45)';
+    for(let y=6;y<size;y+=12)for(let x=6;x<size;x+=12){
+      const jitter=((x*7+y*13)%5)-2;
+      c.beginPath();c.arc(x+jitter,y+jitter*.6,1.6,0,Math.PI*2);c.fill();
+    }
+  }else if(id==='crosshatch'){
+    c.strokeStyle='rgba(0,0,0,.32)';c.lineWidth=1;
+    for(let i=-size;i<size*2;i+=8){
+      c.beginPath();c.moveTo(i,0);c.lineTo(i+size,size);c.stroke();
+      c.beginPath();c.moveTo(i,size);c.lineTo(i+size,0);c.stroke();
+    }
+  }else if(id==='grain'){
+    const img=c.createImageData(size,size);
+    for(let i=0;i<img.data.length;i+=4){
+      img.data[i+3]=Math.random()*130;
+    }
+    c.putImageData(img,0,0);
+  }
+  return t;
+}
+function getTextureTile(id){
+  if(id==='none')return null;
+  if(!textureTileCache[id])textureTileCache[id]=buildTextureTile(id);
+  return textureTileCache[id];
+}
+function applyTextureOverlay(layer){
+  const tex=state.texture;
+  if(!tex||tex.id==='none')return;
+  const tile=getTextureTile(tex.id);
+  if(!tile)return;
+  const scopeMask=tex.scope==='active'
+    ? layer.masks[state.activeTerrainId]
+    : combinedMask(layer,null,4);
+  if(!scopeMask)return;
+  const dpr=state.dpr;
+  const tileSizePx=Math.max(8,tex.tileSize*dpr);
+
+  const patternCanvas=getScratch(5);
+  const pc=patternCanvas.getContext('2d');
+  pc.save();
+  const scale=tileSizePx/64;
+  pc.scale(scale,scale);
+  pc.fillStyle=pc.createPattern(tile,'repeat');
+  pc.fillRect(0,0,patternCanvas.width/scale,patternCanvas.height/scale);
+  pc.restore();
+  pc.globalCompositeOperation='destination-in';
+  pc.drawImage(scopeMask,0,0);
+  pc.globalCompositeOperation='source-over';
+
+  ctx.save();
+  ctx.globalCompositeOperation='multiply';
+  ctx.globalAlpha=clamp(tex.strength,0,1);
+  ctx.drawImage(patternCanvas,0,0);
+  ctx.restore();
+
+  if(tex.depth>0){
+    const d=Math.max(1,tex.depth*10*dpr);
+    const light=tintMask(scopeMask,'#ffffff',6);
+    ctx.save();
+    ctx.globalAlpha=clamp(tex.depth,0,1)*0.6;
+    ctx.globalCompositeOperation='overlay';
+    ctx.drawImage(light,-d,-d);
+    ctx.restore();
+    const dark=tintMask(scopeMask,'#000000',6);
+    ctx.save();
+    ctx.globalAlpha=clamp(tex.depth,0,1)*0.6;
+    ctx.globalCompositeOperation='overlay';
+    ctx.drawImage(dark,d,d);
+    ctx.restore();
+  }
+}
 function drawCoastBand(coast,band,dpr){
   const w=Math.max(1,band.width*dpr);
   const s=clamp(band.strength,0,1);
@@ -260,6 +345,8 @@ function drawLayerTerrain(layer){
     if(!m)return;
     ctx.drawImage(tintMask(m,t.color,2),0,0);
   });
+
+  applyTextureOverlay(layer);
 
   ctx.save();
   ctx.globalCompositeOperation='source-atop';
@@ -392,6 +479,26 @@ function renderTerrainList(){
   });
 }
 function renderLandSwatches(){renderTerrainList();}
+function renderTextureGrid(){
+  $('#textureGrid').innerHTML=TEXTURE_DEFS.map(d=>{
+    if(d.id==='none'){
+      return `<button class="texture-swatch ${state.texture.id===d.id?'active':''}" data-id="${d.id}" title="${d.label}">⊘</button>`;
+    }
+    const tile=getTextureTile(d.id);
+    return `<button class="texture-swatch ${state.texture.id===d.id?'active':''}" data-id="${d.id}" title="${d.label}"><img src="${tile.toDataURL()}" alt="${d.label}"></button>`;
+  }).join('');
+  $$('.texture-swatch').forEach(b=>b.onclick=()=>{
+    state.texture.id=b.dataset.id;
+    renderTextureGrid();
+    composite();
+  });
+}
+function syncTextureControls(){
+  $('#textureTileSize').value=state.texture.tileSize;$('#textureTileSizeNum').textContent=state.texture.tileSize;
+  $('#textureStrength').value=Math.round(state.texture.strength*100);$('#textureStrengthNum').textContent=Math.round(state.texture.strength*100);
+  $('#textureDepth').value=Math.round(state.texture.depth*100);$('#textureDepthNum').textContent=Math.round(state.texture.depth*100);
+  $('#textureScope').value=state.texture.scope;
+}
 function renderCoastBands(){
   $('#coastBandList').innerHTML=state.coastBands.map((b,i)=>`
     <div class="coast-band" data-id="${b.id}">
@@ -517,6 +624,7 @@ function serialize(){
     docWidth:state.docWidth,docHeight:state.docHeight,
     terrains:state.terrains,activeTerrainId:state.activeTerrainId,coastColor:state.coastColor,
     coastBands:state.coastBands,
+    texture:state.texture,
     stampColor:state.stampColor,stampMode:state.stampMode,stampSize:state.stampSize,stampGap:state.stampGap,
     layers:state.layers.map(l=>({
       id:l.id,name:l.name,visible:l.visible,locked:l.locked,
@@ -539,6 +647,7 @@ async function restore(s){
   }
   state.coastColor=s.coastColor||'#75654e';
   state.coastBands=Array.isArray(s.coastBands)&&s.coastBands.length?s.coastBands:defaultCoastBands();
+  state.texture=s.texture||{id:'none',tileSize:64,strength:0.4,depth:0.3,scope:'all'};
   state.stampColor=s.stampColor||'#6f6454';
   state.stampMode=s.stampMode||'region';
   state.stampSize=s.stampSize||34;
@@ -547,6 +656,8 @@ async function restore(s){
   renderTerrainList();
   $('#coastColor').value=state.coastColor;
   renderCoastBands();
+  renderTextureGrid();
+  syncTextureControls();
   $('#stampColor').value=state.stampColor;
   $('#stampSize').value=state.stampSize;$('#stampSizeNum').textContent=state.stampSize;
   $('#stampGap').value=state.stampGap;$('#stampGapNum').textContent=state.stampGap;
@@ -1006,6 +1117,10 @@ $('#addCoastBandBtn').onclick=()=>{
   state.coastBands.push({id:uid(),type:'soft',width:11,strength:0.5});
   renderCoastBands();composite();pushHistory();
 };
+$('#textureTileSize').oninput=e=>{state.texture.tileSize=+e.target.value;$('#textureTileSizeNum').textContent=e.target.value;composite();}
+$('#textureStrength').oninput=e=>{state.texture.strength=+e.target.value/100;$('#textureStrengthNum').textContent=e.target.value;composite();}
+$('#textureDepth').oninput=e=>{state.texture.depth=+e.target.value/100;$('#textureDepthNum').textContent=e.target.value;composite();}
+$('#textureScope').onchange=e=>{state.texture.scope=e.target.value;composite();}
 $('#stampColor').oninput=e=>{state.stampColor=e.target.value;}
 
 function syncPerfPanel(){
@@ -1148,6 +1263,8 @@ setDocSize(state.docWidth,state.docHeight);
 resetLayers();
 renderLandSwatches();
 renderCoastBands();
+renderTextureGrid();
+syncTextureControls();
 renderStylePresets();
 renderDefaultAssets();
 renderCustomAssets();
