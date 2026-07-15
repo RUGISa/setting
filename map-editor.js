@@ -2,7 +2,7 @@
 const wmeRoot=document.getElementById('wmeRoot');
 const $=s=>wmeRoot.querySelector(s);
 const $$=s=>[...wmeRoot.querySelectorAll(s)];
-const canvas=$('#mapCanvas'),ctx=canvas.getContext('2d');
+const canvas=$('#wmeMapCanvas'),ctx=canvas.getContext('2d');
 const wrap=$('#canvasWrap'),holder=$('#canvasHolder');
 const cursorPreview=$('#cursorPreview'),cursorLabel=$('#cursorLabel'),cursorStampPreview=$('#cursorStampPreview');
 

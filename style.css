@@ -4019,7 +4019,7 @@ body.tl-no-select, body.tl-no-select * {
   position:absolute;left:0;top:0;transform-origin:0 0;
   width:1400px;height:900px;background:#cbd6d9;box-shadow:0 20px 60px rgba(0,0,0,.18);
 }
-#wmeRoot #mapCanvas {display:block;width:1400px;height:900px}
+#wmeRoot #wmeMapCanvas {display:block;width:1400px;height:900px}
 #wmeRoot .cursor-preview {
   position:absolute;left:0;top:0;transform:translate(-9999px,-9999px);
   border:1.5px dashed rgba(207,71,71,.95); border-radius:50%;
