@@ -4625,3 +4625,195 @@ body.map-view-active .screen {
   align-items: center;
   justify-content: center;
 }
+
+
+/* =========================================================================
+   성능 설정 패널
+   ========================================================================= */
+#wmeRoot .wme-icon-btn {
+  width: 32px;
+  padding: 0 !important;
+  font-size: 15px;
+}
+#wmeRoot .perf-panel {
+  position: absolute;
+  top: 48px;
+  right: 10px;
+  z-index: 30;
+  width: 280px;
+  background: #262626;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 4px 12px 10px;
+}
+#wmeRoot .perf-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #e8e8e8;
+  padding: 8px 0;
+  border-bottom: 1px solid #1c1c1c;
+  margin-bottom: 6px;
+}
+#wmeRoot .perf-panel-head button {
+  background: none;
+  border: 0;
+  color: #9a9a9a;
+  font-size: 15px;
+  cursor: pointer;
+  min-height: auto;
+  padding: 0 2px;
+}
+#wmeRoot .perf-row { margin: 8px 0 12px; }
+#wmeRoot .perf-row label {
+  display: block;
+  font-size: 11px;
+  color: #9a9a9a;
+  margin-bottom: 4px;
+}
+#wmeRoot .perf-row select {
+  width: 100%;
+  background: #1c1c1c;
+  border: 1px solid #161616;
+  color: #d8d8d8;
+  border-radius: 6px;
+  padding: 5px 6px;
+  font-size: 12px;
+}
+#wmeRoot .perf-hint {
+  font-size: 10px;
+  line-height: 1.5;
+  color: #7a7a7a;
+  margin: 4px 0 0;
+}
+:root[data-theme="light"] #wmeRoot .perf-panel { background: #ffffff; }
+:root[data-theme="light"] #wmeRoot .perf-panel-head { color: #232329; border-color: #ececef; }
+:root[data-theme="light"] #wmeRoot .perf-panel-head button { color: #6e6e76; }
+:root[data-theme="light"] #wmeRoot .perf-row label { color: #6e6e76; }
+:root[data-theme="light"] #wmeRoot .perf-row select { background: #fff; border-color: #d3d3d9; color: #303038; }
+:root[data-theme="light"] #wmeRoot .perf-hint { color: #9a9aa2; }
+
+
+/* =========================================================================
+   캔버스 아래 떠 있는 도구 툴바 (Inkarnate식 하단 툴바)
+   ========================================================================= */
+#wmeRoot .wme-bottom-toolbar {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  background: rgba(38,38,38,.96);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  z-index: 20;
+}
+#wmeRoot .wme-bottom-toolbar .mode-card {
+  min-height: 44px;
+  width: 52px;
+}
+:root[data-theme="light"] #wmeRoot .wme-bottom-toolbar { background: rgba(255,255,255,.96); }
+
+
+/* =========================================================================
+   해안선 효과 목록
+   ========================================================================= */
+#wmeRoot .coast-band-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+#wmeRoot .coast-band {
+  border: 1px solid #161616;
+  background: #232323;
+  border-radius: 8px;
+  padding: 7px 8px;
+}
+#wmeRoot .coast-band-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+#wmeRoot .coast-band-head select {
+  flex: 1;
+  background: #1c1c1c;
+  border: 1px solid #161616;
+  color: #d8d8d8;
+  border-radius: 6px;
+  padding: 3px 5px;
+  font-size: 11px;
+}
+#wmeRoot .coast-band-head button {
+  width: 22px;
+  height: 22px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 6px;
+  background: #3a3a3a;
+  border: 1px solid #161616;
+  color: #cfcfcf;
+  font-size: 12px;
+}
+#wmeRoot .coast-band .row { margin: 4px 0 !important; }
+:root[data-theme="light"] #wmeRoot .coast-band { background: #f4f4f6; border-color: #dcdce0; }
+:root[data-theme="light"] #wmeRoot .coast-band-head select { background: #fff; border-color: #d3d3d9; color: #303038; }
+:root[data-theme="light"] #wmeRoot .coast-band-head button { background: #f0f0f3; border-color: #d3d3d9; color: #303038; }
+
+
+/* =========================================================================
+   텍스처 오버레이 스와치
+   ========================================================================= */
+#wmeRoot .texture-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 5px;
+  margin-bottom: 8px;
+}
+#wmeRoot .texture-swatch {
+  aspect-ratio: 1;
+  border-radius: 6px;
+  border: 1px solid #161616;
+  background: #303030;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8f8f8f;
+  font-size: 14px;
+  overflow: hidden;
+}
+#wmeRoot .texture-swatch img { width: 100%; height: 100%; object-fit: cover; }
+#wmeRoot .texture-swatch.active { outline: 2px solid var(--accent); border-color: var(--accent); }
+:root[data-theme="light"] #wmeRoot .texture-swatch { background: #f0f0f3; border-color: #d3d3d9; }
+
+
+/* =========================================================================
+   스탬프 선택 상자 / 속성 패널
+   ========================================================================= */
+#wmeRoot .stamp-select-box {
+  position: absolute;
+  left: 0; top: 0;
+  border: 1.5px dashed #1473e6;
+  background: rgba(20,115,230,.08);
+  pointer-events: none;
+  z-index: 15;
+}
+#wmeRoot .stamp-prop-panel {
+  position: absolute;
+  left: 0; top: 0;
+  transform: translate(-9999px,-9999px);
+  z-index: 16;
+  width: 190px;
+  background: rgba(38,38,38,.97);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 8px 10px;
+}
+#wmeRoot .stamp-prop-panel .row { margin: 6px 0 !important; }
+#wmeRoot .stamp-prop-panel .row label { width: 44px !important; font-size: 10.5px !important; }
+:root[data-theme="light"] #wmeRoot .stamp-prop-panel { background: rgba(255,255,255,.97); }

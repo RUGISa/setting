@@ -5,6 +5,7 @@ const $$=s=>[...wmeRoot.querySelectorAll(s)];
 const canvas=$('#wmeMapCanvas'),ctx=canvas.getContext('2d');
 const wrap=$('#canvasWrap'),holder=$('#canvasHolder');
 const cursorPreview=$('#cursorPreview'),cursorLabel=$('#cursorLabel'),cursorStampPreview=$('#cursorStampPreview');
+const stampSelectBox=$('#stampSelectBox'),stampPropPanel=$('#stampPropPanel');
 
 const landPresets=['#d2c29f','#b7a481','#9d9679','#707c64','#d8c7a4','#ad8f67','#c7b493','#928371','#7e8a75','#cdbca0'];
 const outlineOffsets=[[-2,0],[2,0],[0,-2],[0,2],[-1,-1],[1,-1],[-1,1],[1,1]];
@@ -29,6 +30,24 @@ const defaultStampDefs=[
   {name:'소용돌이',terrain:'sea',src:iconData('<path d="M50 31c0-11-10-19-21-16-9 2-14 12-9 20 5 8 18 8 23 0 4-7-2-15-10-14-6 1-9 8-5 13 4 5 12 3 12-3"/>')}
 ];
 
+const PERF_KEY='wme-perf-settings-v1';
+function loadPerfSettings(){
+  let raw={};
+  try{raw=JSON.parse(localStorage.getItem(PERF_KEY)||'{}');}catch{}
+  return {
+    dprCap: raw.dprCap==='uncapped' ? 'uncapped' : 2,
+    stampObjectMode: raw.stampObjectMode==='all' ? 'all' : 'click',
+    selectScope: raw.selectScope==='active' ? 'active' : 'all'
+  };
+}
+function savePerfSettings(p){
+  try{localStorage.setItem(PERF_KEY,JSON.stringify(p));}catch{}
+}
+function computeDpr(perf){
+  const raw=window.devicePixelRatio||1;
+  return perf.dprCap==='uncapped' ? raw : Math.min(raw,perf.dprCap);
+}
+
 let state={
   tool:'brush',
   shape:'round',
@@ -47,13 +66,19 @@ let state={
   ],
   activeTerrainId:'grassland',
   coastColor:'#75654e',
+  coastBands:[],
   stampColor:'#6f6454',
   scale:1,viewX:0,viewY:0,
   selectedStamp:{type:'default',index:0},
   defaultStamps:[],customStamps:[],
   layers:[],activeLayerId:null,
-  history:[],historyIndex:-1, pointerDown:false, activePointerId:null
+  history:[],historyIndex:-1, pointerDown:false, activePointerId:null,
+  selectedStampRef:null,
+  perf:loadPerfSettings(),
+  dpr:1,
+  docWidth:1400,docHeight:900
 };
+state.dpr=computeDpr(state.perf);
 
 const STYLE_PRESETS=[
   {name:'사막',terrains:{water:'#8C9184',grassland:'#D8B674',forest:'#C79A5B',desert:'#E4C689',snow:'#EADCC0'},coast:'#6f5a3a'},
@@ -68,11 +93,20 @@ function terrainColorById(id){return state.terrains.find(t=>t.id===id)?.color||'
 function waterColor(){return state.terrains[0].color}
 
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2)}
+const COAST_BAND_TYPES=[{id:'soft',label:'종이'},{id:'gradient',label:'그라데이션'}];
+function defaultCoastBands(){
+  return [
+    {id:uid(),type:'soft',width:11,strength:0.78},
+    {id:uid(),type:'gradient',width:7,strength:0.4}
+  ];
+}
+state.coastBands=defaultCoastBands();
+state.texture={id:'none',tileSize:64,strength:0.4,depth:0.3,scope:'all'};
 function makeCanvas(){const c=document.createElement('canvas');c.width=canvas.width;c.height=canvas.height;return c}
 function makeLayer(name,{locked=false}={}){
   const masks={};
   state.terrains.forEach(t=>{masks[t.id]=makeCanvas();});
-  return {id:uid(),name,visible:true,locked,masks,art:makeCanvas()};
+  return {id:uid(),name,visible:true,locked,masks,art:makeCanvas(),stamps:[]};
 }
 function ensureLayerMasks(layer){
   state.terrains.forEach(t=>{
@@ -98,7 +132,15 @@ function showStatus(text){
   clearTimeout(showStatus.t);
   showStatus.t=setTimeout(()=>s.classList.remove('show'),1300);
 }
-function updateHolderSize(){holder.style.width=canvas.width+'px';holder.style.height=canvas.height+'px'}
+function updateHolderSize(){holder.style.width=state.docWidth+'px';holder.style.height=state.docHeight+'px'}
+function setDocSize(w,h){
+  state.docWidth=w;state.docHeight=h;
+  canvas.width=Math.round(w*state.dpr);
+  canvas.height=Math.round(h*state.dpr);
+  canvas.style.width=w+'px';
+  canvas.style.height=h+'px';
+  updateHolderSize();
+}
 function clamp(v,min,max){return Math.max(min,Math.min(max,v))}
 function adjustColor(hex,amount){
   const n=parseInt(hex.slice(1),16);
@@ -127,6 +169,7 @@ function getScratch(i){
 function tintMask(source,color,scratchIndex){
   const t=scratchIndex!=null?getScratch(scratchIndex):makeCanvas();
   const c=t.getContext('2d');
+  c.globalCompositeOperation='source-over';
   c.fillStyle=color;c.fillRect(0,0,t.width,t.height);
   c.globalCompositeOperation='destination-in';
   c.drawImage(source,0,0);
@@ -164,7 +207,117 @@ function drawOcean(){
   }
   ctx.restore();
 }
-const coastGlowRings=[{r:3,a:.16},{r:5,a:.09},{r:7.5,a:.05}];
+const TEXTURE_DEFS=[
+  {id:'none',label:'없음'},
+  {id:'dots',label:'점묘'},
+  {id:'crosshatch',label:'교차선'},
+  {id:'grain',label:'입자'}
+];
+const textureTileCache={};
+function buildTextureTile(id){
+  const size=64;
+  const t=document.createElement('canvas');
+  t.width=size;t.height=size;
+  const c=t.getContext('2d');
+  if(id==='dots'){
+    c.fillStyle='rgba(0,0,0,.45)';
+    for(let y=6;y<size;y+=12)for(let x=6;x<size;x+=12){
+      const jitter=((x*7+y*13)%5)-2;
+      c.beginPath();c.arc(x+jitter,y+jitter*.6,1.6,0,Math.PI*2);c.fill();
+    }
+  }else if(id==='crosshatch'){
+    c.strokeStyle='rgba(0,0,0,.32)';c.lineWidth=1;
+    for(let i=-size;i<size*2;i+=8){
+      c.beginPath();c.moveTo(i,0);c.lineTo(i+size,size);c.stroke();
+      c.beginPath();c.moveTo(i,size);c.lineTo(i+size,0);c.stroke();
+    }
+  }else if(id==='grain'){
+    const img=c.createImageData(size,size);
+    for(let i=0;i<img.data.length;i+=4){
+      img.data[i+3]=Math.random()*130;
+    }
+    c.putImageData(img,0,0);
+  }
+  return t;
+}
+function getTextureTile(id){
+  if(id==='none')return null;
+  if(!textureTileCache[id])textureTileCache[id]=buildTextureTile(id);
+  return textureTileCache[id];
+}
+function applyTextureOverlay(layer){
+  const tex=state.texture;
+  if(!tex||tex.id==='none')return;
+  const tile=getTextureTile(tex.id);
+  if(!tile)return;
+  const scopeMask=tex.scope==='active'
+    ? layer.masks[state.activeTerrainId]
+    : combinedMask(layer,null,4);
+  if(!scopeMask)return;
+  const dpr=state.dpr;
+  const tileSizePx=Math.max(8,tex.tileSize*dpr);
+
+  const patternCanvas=getScratch(5);
+  const pc=patternCanvas.getContext('2d');
+  pc.save();
+  const scale=tileSizePx/64;
+  pc.scale(scale,scale);
+  pc.fillStyle=pc.createPattern(tile,'repeat');
+  pc.fillRect(0,0,patternCanvas.width/scale,patternCanvas.height/scale);
+  pc.restore();
+  pc.globalCompositeOperation='destination-in';
+  pc.drawImage(scopeMask,0,0);
+  pc.globalCompositeOperation='source-over';
+
+  ctx.save();
+  ctx.globalCompositeOperation='multiply';
+  ctx.globalAlpha=clamp(tex.strength,0,1);
+  ctx.drawImage(patternCanvas,0,0);
+  ctx.restore();
+
+  if(tex.depth>0){
+    const d=Math.max(1,tex.depth*10*dpr);
+    const light=tintMask(scopeMask,'#ffffff',6);
+    ctx.save();
+    ctx.globalAlpha=clamp(tex.depth,0,1)*0.6;
+    ctx.globalCompositeOperation='overlay';
+    ctx.drawImage(light,-d,-d);
+    ctx.restore();
+    const dark=tintMask(scopeMask,'#000000',6);
+    ctx.save();
+    ctx.globalAlpha=clamp(tex.depth,0,1)*0.6;
+    ctx.globalCompositeOperation='overlay';
+    ctx.drawImage(dark,d,d);
+    ctx.restore();
+  }
+}
+function drawCoastBand(coast,band,dpr){
+  const w=Math.max(1,band.width*dpr);
+  const s=clamp(band.strength,0,1);
+  const gradient=band.type==='gradient';
+  const ringCount=gradient?5:3;
+  const spread=gradient?1:0.55;
+
+  ctx.save();
+  ctx.globalAlpha=s*0.2;
+  ctx.filter=`blur(${Math.max(1,w*0.5)}px)`;
+  ctx.drawImage(coast,0,w*0.2);
+  ctx.restore();
+
+  ctx.save();
+  for(let i=0;i<ringCount;i++){
+    const r=w*spread*((i+1)/ringCount);
+    const a=s*0.16*(1-(i/ringCount)*0.6);
+    if(a<=0)continue;
+    ctx.globalAlpha=a;
+    const steps=Math.max(10,Math.round(r*0.45));
+    for(let k=0;k<steps;k++){
+      const angle=(k/steps)*Math.PI*2;
+      ctx.drawImage(coast,Math.cos(angle)*r,Math.sin(angle)*r);
+    }
+  }
+  ctx.restore();
+}
 function combinedMask(layer,predicate,scratchIndex){
   const out=scratchIndex!=null?getScratch(scratchIndex):makeCanvas();
   const c=out.getContext('2d');
@@ -179,28 +332,13 @@ function drawLayerTerrain(layer){
   ensureLayerMasks(layer);
   const landUnion=combinedMask(layer,t=>t.type==='Land',0);
   const coast=tintMask(landUnion,state.coastColor,1);
+  const dpr=state.dpr;
 
-  ctx.save();
-  ctx.globalAlpha=.16;
-  ctx.filter='blur(5px)';
-  ctx.drawImage(coast,0,3);
-  ctx.restore();
-
-  // 부드럽게 번지는 해안선 (안쪽은 진하고 밖으로 갈수록 옅어짐)
-  ctx.save();
-  coastGlowRings.forEach(({r,a})=>{
-    ctx.globalAlpha=a;
-    const steps=Math.max(10,Math.round(r*5));
-    for(let i=0;i<steps;i++){
-      const angle=(i/steps)*Math.PI*2;
-      ctx.drawImage(coast,Math.cos(angle)*r,Math.sin(angle)*r);
-    }
-  });
-  ctx.restore();
+  state.coastBands.forEach(band=>drawCoastBand(coast,band,dpr));
 
   ctx.save();
   ctx.globalAlpha=.48;
-  outlineOffsets.forEach(([x,y])=>ctx.drawImage(coast,x,y));
+  outlineOffsets.forEach(([x,y])=>ctx.drawImage(coast,x*dpr,y*dpr));
   ctx.restore();
 
   // 각 지형을 현재 색상으로 실시간 채색해서 그림 (프리셋 바뀌면 이미 칠한 부분도 같이 바뀜)
@@ -209,6 +347,8 @@ function drawLayerTerrain(layer){
     if(!m)return;
     ctx.drawImage(tintMask(m,t.color,2),0,0);
   });
+
+  applyTextureOverlay(layer);
 
   ctx.save();
   ctx.globalCompositeOperation='source-atop';
@@ -287,8 +427,10 @@ function composite(){
     if(!layer.visible||layer.locked)return;
     drawLayerTerrain(layer);
     ctx.drawImage(layer.art,0,0);
+    renderLayerStamps(layer);
   });
   drawPaperTexture();
+  updateStampSelectionOverlay();
 }
 function renderStylePresets(){
   $('#stylePresets').innerHTML=STYLE_PRESETS.map((p,i)=>`
@@ -341,6 +483,57 @@ function renderTerrainList(){
   });
 }
 function renderLandSwatches(){renderTerrainList();}
+function renderTextureGrid(){
+  $('#textureGrid').innerHTML=TEXTURE_DEFS.map(d=>{
+    if(d.id==='none'){
+      return `<button class="texture-swatch ${state.texture.id===d.id?'active':''}" data-id="${d.id}" title="${d.label}">⊘</button>`;
+    }
+    const tile=getTextureTile(d.id);
+    return `<button class="texture-swatch ${state.texture.id===d.id?'active':''}" data-id="${d.id}" title="${d.label}"><img src="${tile.toDataURL()}" alt="${d.label}"></button>`;
+  }).join('');
+  $$('.texture-swatch').forEach(b=>b.onclick=()=>{
+    state.texture.id=b.dataset.id;
+    renderTextureGrid();
+    composite();
+  });
+}
+function syncTextureControls(){
+  $('#textureTileSize').value=state.texture.tileSize;$('#textureTileSizeNum').textContent=state.texture.tileSize;
+  $('#textureStrength').value=Math.round(state.texture.strength*100);$('#textureStrengthNum').textContent=Math.round(state.texture.strength*100);
+  $('#textureDepth').value=Math.round(state.texture.depth*100);$('#textureDepthNum').textContent=Math.round(state.texture.depth*100);
+  $('#textureScope').value=state.texture.scope;
+}
+function renderCoastBands(){
+  $('#coastBandList').innerHTML=state.coastBands.map((b,i)=>`
+    <div class="coast-band" data-id="${b.id}">
+      <div class="coast-band-head">
+        <span class="terrain-key">${i+1}</span>
+        <select class="cb-type" data-id="${b.id}">
+          ${COAST_BAND_TYPES.map(t=>`<option value="${t.id}" ${b.type===t.id?'selected':''}>${t.label}</option>`).join('')}
+        </select>
+        <button class="cb-del" data-id="${b.id}" title="삭제">×</button>
+      </div>
+      <div class="row"><label>폭</label><input type="range" class="cb-width" data-id="${b.id}" min="1" max="40" value="${b.width}"><span class="num">${b.width}</span></div>
+      <div class="row"><label>세기</label><input type="range" class="cb-strength" data-id="${b.id}" min="0" max="100" value="${Math.round(b.strength*100)}"><span class="num">${Math.round(b.strength*100)}</span></div>
+    </div>
+  `).join('');
+  $$('.cb-type').forEach(sel=>sel.onchange=e=>{
+    const b=state.coastBands.find(x=>x.id===e.target.dataset.id);
+    if(b){b.type=e.target.value;composite();}
+  });
+  $$('.cb-del').forEach(btn=>btn.onclick=()=>{
+    state.coastBands=state.coastBands.filter(x=>x.id!==btn.dataset.id);
+    renderCoastBands();composite();pushHistory();
+  });
+  $$('.cb-width').forEach(input=>input.oninput=e=>{
+    const b=state.coastBands.find(x=>x.id===e.target.dataset.id);
+    if(b){b.width=+e.target.value;e.target.nextElementSibling.textContent=e.target.value;composite();}
+  });
+  $$('.cb-strength').forEach(input=>input.oninput=e=>{
+    const b=state.coastBands.find(x=>x.id===e.target.dataset.id);
+    if(b){b.strength=+e.target.value/100;e.target.nextElementSibling.textContent=e.target.value;composite();}
+  });
+}
 function initDefaultStamps(){
   state.defaultStamps=defaultStampDefs.map(d=>{const img=new Image();img.src=d.src;return {...d,img}});
 }
@@ -432,19 +625,24 @@ function renderLayers(){
 function serialize(){
   return {
     width:canvas.width,height:canvas.height,
+    docWidth:state.docWidth,docHeight:state.docHeight,
     terrains:state.terrains,activeTerrainId:state.activeTerrainId,coastColor:state.coastColor,
+    coastBands:state.coastBands,
+    texture:state.texture,
     stampColor:state.stampColor,stampMode:state.stampMode,stampSize:state.stampSize,stampGap:state.stampGap,
     layers:state.layers.map(l=>({
       id:l.id,name:l.name,visible:l.visible,locked:l.locked,
       masks:Object.fromEntries(Object.entries(l.masks).map(([id,c])=>[id,c.toDataURL()])),
-      art:l.art.toDataURL()
+      art:l.art.toDataURL(),
+      stamps:(l.stamps||[]).map(s=>({...s}))
     })),
     customStamps:state.customStamps.map(s=>({name:s.name,src:s.src}))
   };
 }
 async function loadImage(src){return await new Promise(r=>{const i=new Image();i.onload=()=>r(i);i.src=src;});}
 async function restore(s){
-  canvas.width=s.width;canvas.height=s.height;updateHolderSize();
+  clearStampSelection();
+  setDocSize(s.docWidth||s.width,s.docHeight||s.height);
   if(Array.isArray(s.terrains)&&s.terrains.length){
     state.terrains=s.terrains;
     state.activeTerrainId=s.activeTerrainId||state.terrains[1]?.id||state.terrains[0].id;
@@ -454,6 +652,8 @@ async function restore(s){
     state.terrains[1].color=s.landColor||state.terrains[1].color;
   }
   state.coastColor=s.coastColor||'#75654e';
+  state.coastBands=Array.isArray(s.coastBands)&&s.coastBands.length?s.coastBands:defaultCoastBands();
+  state.texture=s.texture||{id:'none',tileSize:64,strength:0.4,depth:0.3,scope:'all'};
   state.stampColor=s.stampColor||'#6f6454';
   state.stampMode=s.stampMode||'region';
   state.stampSize=s.stampSize||34;
@@ -461,6 +661,9 @@ async function restore(s){
 
   renderTerrainList();
   $('#coastColor').value=state.coastColor;
+  renderCoastBands();
+  renderTextureGrid();
+  syncTextureControls();
   $('#stampColor').value=state.stampColor;
   $('#stampSize').value=state.stampSize;$('#stampSizeNum').textContent=state.stampSize;
   $('#stampGap').value=state.stampGap;$('#stampGapNum').textContent=state.stampGap;
@@ -474,14 +677,17 @@ async function restore(s){
     if(item.masks){
       for(const [tid,src] of Object.entries(item.masks)){
         if(!l.masks[tid])l.masks[tid]=makeCanvas();
-        l.masks[tid].getContext('2d').drawImage(await loadImage(src),0,0);
+        const m=l.masks[tid];
+        m.getContext('2d').drawImage(await loadImage(src),0,0,m.width,m.height);
       }
     }else if(item.terrain){
       // 예전 저장 파일(지형 하나로 합쳐진 캔버스) 호환: 육지 지형 마스크로 불러옵니다.
       const fallbackId=state.terrains.find(t=>t.type==='Land')?.id||state.terrains[1].id;
-      l.masks[fallbackId].getContext('2d').drawImage(await loadImage(item.terrain),0,0);
+      const m=l.masks[fallbackId];
+      m.getContext('2d').drawImage(await loadImage(item.terrain),0,0,m.width,m.height);
     }
-    l.art.getContext('2d').drawImage(await loadImage(item.art),0,0);
+    l.art.getContext('2d').drawImage(await loadImage(item.art),0,0,l.art.width,l.art.height);
+    l.stamps=Array.isArray(item.stamps)?item.stamps.map(s=>({...s})):[];
     state.layers.push(l);
   }
   state.activeLayerId=[...state.layers].reverse().find(l=>!l.locked)?.id||state.layers[0].id;
@@ -506,9 +712,11 @@ function pushHistory(){
 function undo(){if(state.historyIndex<=0)return;state.historyIndex--;restore(state.history[state.historyIndex]);}
 function redo(){if(state.historyIndex>=state.history.length-1)return;state.historyIndex++;restore(state.history[state.historyIndex]);}
 function setTool(tool){
+  if(tool!=='select')clearStampSelection();
   state.tool=tool;
   $$('.mode-card').forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));
   updateCursorPreviewState();
+  scheduleComposite();
 }
 function syncStampModeButtons(){
   $$('[data-stamp-mode]').forEach(btn=>btn.classList.toggle('active',btn.dataset.stampMode===state.stampMode));
@@ -517,13 +725,14 @@ function syncStampModeButtons(){
 function setView(){
   holder.style.transform=`translate(${state.viewX}px,${state.viewY}px) scale(${state.scale})`;
   $('#zoomText').textContent=Math.round(state.scale*100)+'%';
+  updateStampSelectionOverlay();
 }
 function fitView(){
   if(!wrap.clientWidth||!wrap.clientHeight)return;
   const p=24;
-  state.scale=Math.min(1,(wrap.clientWidth-p)/canvas.width,(wrap.clientHeight-p)/canvas.height);
-  state.viewX=(wrap.clientWidth-canvas.width*state.scale)/2;
-  state.viewY=(wrap.clientHeight-canvas.height*state.scale)/2;
+  state.scale=Math.min(1,(wrap.clientWidth-p)/state.docWidth,(wrap.clientHeight-p)/state.docHeight);
+  state.viewX=(wrap.clientWidth-state.docWidth*state.scale)/2;
+  state.viewY=(wrap.clientHeight-state.docHeight*state.scale)/2;
   setView();
 }
 function zoomAt(next,x=wrap.clientWidth/2,y=wrap.clientHeight/2){
@@ -624,28 +833,51 @@ function currentStamp(){
     ? state.defaultStamps[state.selectedStamp.index]
     : state.customStamps[state.selectedStamp.index];
 }
-function drawBrushStampOnContext(c, item, x, y, size){
-  if(!item?.img)return;
-  if(state.selectedStamp.type==='default'){
-    const t=document.createElement('canvas');
-    t.width=64;t.height=64;
-    const tc=t.getContext('2d');
+const tintedIconCache={};
+function getTintedIcon(item,color){
+  const key=item.src+'|'+color;
+  let c=tintedIconCache[key];
+  if(!c){
+    c=document.createElement('canvas');
+    c.width=64;c.height=64;
+    const tc=c.getContext('2d');
     tc.drawImage(item.img,0,0,64,64);
     tc.globalCompositeOperation='source-in';
-    tc.fillStyle=state.stampColor;
+    tc.fillStyle=color;
     tc.fillRect(0,0,64,64);
-    c.drawImage(t,x-size/2,y-size/2,size,size);
+    tintedIconCache[key]=c;
+  }
+  return c;
+}
+function drawBrushStampOnContext(c, item, kind, color, x, y, size, opacity=1){
+  if(!item?.img)return;
+  c.save();
+  c.globalAlpha=opacity;
+  if(kind==='default'){
+    c.drawImage(getTintedIcon(item,color),x-size/2,y-size/2,size,size);
   }else{
     c.drawImage(item.img,x-size/2,y-size/2,size,size);
   }
+  c.restore();
+}
+function renderLayerStamps(layer){
+  const dpr=state.dpr;
+  const stamps=[...(layer.stamps||[])].sort((a,b)=>a.y-b.y);
+  stamps.forEach(st=>{
+    const item=st.kind==='default'?state.defaultStamps[st.index]:state.customStamps[st.index];
+    if(!item)return;
+    drawBrushStampOnContext(ctx,item,st.kind,st.color,st.x*dpr,st.y*dpr,st.size*dpr,st.opacity==null?1:st.opacity);
+  });
 }
 function drawBrush(x,y){
   const layer=editableLayer(); if(!layer)return;
   ensureLayerMasks(layer);
+  const dpr=state.dpr;
+  x=x*dpr;y=y*dpr;
 
   if(state.tool==='eraser'){
     const eraseOne = (canvas2d)=>{
-      const c=canvas2d.getContext('2d'),s=state.size;
+      const c=canvas2d.getContext('2d'),s=state.size*dpr;
       c.save();
       c.globalCompositeOperation='destination-out';
       if(state.shape==='round'){
@@ -657,12 +889,20 @@ function drawBrush(x,y){
     };
     state.terrains.forEach(t=>eraseOne(layer.masks[t.id]));
     eraseOne(layer.art);
+    if(layer.stamps&&layer.stamps.length){
+      const rLogical=state.size/2;
+      const before=layer.stamps.length;
+      layer.stamps=layer.stamps.filter(st=>Math.hypot(st.x-x/dpr,st.y-y/dpr)>rLogical);
+      if(layer.stamps.length!==before&&state.selectedStampRef&&state.selectedStampRef.layerId===layer.id&&!layer.stamps.find(st=>st.id===state.selectedStampRef.stampId)){
+        clearStampSelection();
+      }
+    }
     scheduleComposite();
     return;
   }
 
   const activeId=state.activeTerrainId;
-  const s=state.size;
+  const s=state.size*dpr;
   const eraseShapeFrom=(canvas2d)=>{
     const c=canvas2d.getContext('2d');
     c.save();
@@ -702,8 +942,13 @@ function drawBrush(x,y){
 }
 function drawSingleStamp(x,y){
   const layer=editableLayer(); if(!layer)return;
-  const c=layer.art.getContext('2d');
-  drawBrushStampOnContext(c,currentStamp(),x,y,state.stampSize);
+  const item=currentStamp();
+  if(!item)return;
+  if(!layer.stamps)layer.stamps=[];
+  layer.stamps.push({
+    id:uid(),kind:state.selectedStamp.type,index:state.selectedStamp.index,
+    x,y,size:state.stampSize,color:state.stampColor,opacity:1
+  });
   scheduleComposite();
 }
 function drawIrregularCell(c, cx, cy, r, seed){
@@ -746,11 +991,13 @@ function terrainKindAt(x,y,r=12){
   return 'sea';
 }
 function buildRegionCells(x,y){
-  const radius=state.stampSize*1.9;
-  const cellR=Math.max(13,state.stampSize*.38);
+  const dpr=state.dpr;
+  const stampSize=state.stampSize*dpr;
+  const radius=stampSize*1.9;
+  const cellR=Math.max(13*dpr,stampSize*.38);
   const step=cellR*1.58;
   const cells=[];
-  const seed=Math.floor(x*13+y*17+state.stampSize*29);
+  const seed=Math.floor(x*13+y*17+stampSize*29);
 
   for(let gy=-5;gy<=5;gy++){
     for(let gx=-5;gx<=5;gx++){
@@ -775,7 +1022,7 @@ function buildRegionCells(x,y){
 function drawRegionStamp(x,y,drawGuides){
   const layer=editableLayer();if(!layer)return;
   const c=layer.art.getContext('2d');
-  const {cells,cellR}=buildRegionCells(x,y);
+  const {cells,cellR}=buildRegionCells(x*state.dpr,y*state.dpr);
   const item=currentStamp();
   if(!item)return;
 
@@ -798,12 +1045,84 @@ function drawRegionStamp(x,y,drawGuides){
     if(drawGuides)c.stroke();
   }
 
-  for(const cell of cells){
-    const iconSize=cellR*(cell.kind==='sea'?.96:1.08);
-    drawBrushStampOnContext(c,item,cell.x,cell.y,iconSize);
+  if(state.perf.stampObjectMode==='all'){
+    if(!layer.stamps)layer.stamps=[];
+    for(const cell of cells){
+      const iconSize=(cellR*(cell.kind==='sea'?.96:1.08))/state.dpr;
+      layer.stamps.push({
+        id:uid(),kind:state.selectedStamp.type,index:state.selectedStamp.index,
+        x:cell.x/state.dpr,y:cell.y/state.dpr,size:iconSize,color:state.stampColor,opacity:1
+      });
+    }
+  }else{
+    for(const cell of cells){
+      const iconSize=cellR*(cell.kind==='sea'?.96:1.08);
+      drawBrushStampOnContext(c,item,state.selectedStamp.type,state.stampColor,cell.x,cell.y,iconSize);
+    }
   }
   c.restore();
   scheduleComposite();
+}
+
+function stampLayerCandidates(){
+  if(state.perf.selectScope==='active'){
+    const l=activeLayer();
+    return l?[l]:[];
+  }
+  return [...state.layers].reverse().filter(l=>l.visible&&!l.locked);
+}
+function findStampAt(x,y){
+  for(const layer of stampLayerCandidates()){
+    const stamps=[...(layer.stamps||[])].sort((a,b)=>b.y-a.y);
+    for(const st of stamps){
+      const r=Math.max(st.size/2,10);
+      if(Math.hypot(x-st.x,y-st.y)<=r)return {layer,stamp:st};
+    }
+  }
+  return null;
+}
+function selectStamp(layerId,stampId){
+  state.selectedStampRef={layerId,stampId};
+  syncStampPropPanel();
+}
+function clearStampSelection(){
+  state.selectedStampRef=null;
+  stampSelectBox.classList.add('hidden');
+  stampPropPanel.classList.add('hidden');
+}
+function getSelectedStamp(){
+  if(!state.selectedStampRef)return null;
+  const layer=state.layers.find(l=>l.id===state.selectedStampRef.layerId);
+  if(!layer)return null;
+  const stamp=(layer.stamps||[]).find(s=>s.id===state.selectedStampRef.stampId);
+  if(!stamp)return null;
+  return {layer,stamp};
+}
+function syncStampPropPanel(){
+  const found=getSelectedStamp();
+  if(!found)return;
+  $('#stampPropSize').value=found.stamp.size;$('#stampPropSizeNum').textContent=Math.round(found.stamp.size);
+  $('#stampPropOpacity').value=Math.round((found.stamp.opacity==null?1:found.stamp.opacity)*100);
+  $('#stampPropOpacityNum').textContent=$('#stampPropOpacity').value;
+}
+function updateStampSelectionOverlay(){
+  if(state.tool!=='select'){stampSelectBox.classList.add('hidden');stampPropPanel.classList.add('hidden');return;}
+  const found=getSelectedStamp();
+  if(!found){stampSelectBox.classList.add('hidden');stampPropPanel.classList.add('hidden');return;}
+  const {stamp}=found;
+  const rect=wrap.getBoundingClientRect();
+  const half=stamp.size/2;
+  const left=state.viewX+(stamp.x-half)*state.scale;
+  const top=state.viewY+(stamp.y-half)*state.scale;
+  const size=stamp.size*state.scale;
+  stampSelectBox.classList.remove('hidden');
+  stampSelectBox.style.left=left+'px';
+  stampSelectBox.style.top=top+'px';
+  stampSelectBox.style.width=size+'px';
+  stampSelectBox.style.height=size+'px';
+
+  stampPropPanel.classList.remove('hidden');
+  stampPropPanel.style.transform=`translate(${left+size+10}px,${top}px)`;
 }
 
 let drag=null,last=null,lastStamp=null,changed=false;
@@ -824,7 +1143,7 @@ wrap.onpointerdown=e=>{
     wrap.classList.add('dragging');return;
   }
   const p=localPoint(e);
-  if(p.x<0||p.y<0||p.x>canvas.width||p.y>canvas.height){cancelPointerAction(false);return;}
+  if(p.x<0||p.y<0||p.x>state.docWidth||p.y>state.docHeight){cancelPointerAction(false);return;}
   if(state.tool==='brush'||state.tool==='eraser'){
     drag={type:'paint'};last=p;changed=true;drawBrush(p.x,p.y);
   }else if(state.tool==='stamp'){
@@ -832,6 +1151,17 @@ wrap.onpointerdown=e=>{
     if(state.stampMode==='single')drawSingleStamp(p.x,p.y);
     else if(state.stampMode==='region')drawRegionStamp(p.x,p.y,false);
     else drawRegionStamp(p.x,p.y,true);
+  }else if(state.tool==='select'){
+    const hit=findStampAt(p.x,p.y);
+    if(hit){
+      selectStamp(hit.layer.id,hit.stamp.id);
+      drag={type:'moveStamp',layer:hit.layer,stamp:hit.stamp,startX:hit.stamp.x,startY:hit.stamp.y,px:p.x,py:p.y};
+      changed=false;
+    }else{
+      clearStampSelection();
+      drag=null;
+    }
+    scheduleComposite();
   }
 };
 window.onpointermove=e=>{
@@ -859,6 +1189,11 @@ window.onpointermove=e=>{
       else drawRegionStamp(sx,sy,true);
     }
     if(d>=gap)lastStamp=p;
+  }else if(drag.type==='moveStamp'){
+    drag.stamp.x=drag.startX+(p.x-drag.px);
+    drag.stamp.y=drag.startY+(p.y-drag.py);
+    changed=true;
+    scheduleComposite();
   }
 };
 window.onpointerup=e=>{
@@ -909,7 +1244,58 @@ $('#softRange').oninput=e=>{state.softness=+e.target.value/100;$('#softNum').tex
 $('#stampSize').oninput=e=>{state.stampSize=+e.target.value;$('#stampSizeNum').textContent=e.target.value;updateCursorPreviewState();}
 $('#stampGap').oninput=e=>{state.stampGap=+e.target.value;$('#stampGapNum').textContent=e.target.value;}
 $('#coastColor').oninput=e=>{state.coastColor=e.target.value;composite();}
+$('#addCoastBandBtn').onclick=()=>{
+  state.coastBands.push({id:uid(),type:'soft',width:11,strength:0.5});
+  renderCoastBands();composite();pushHistory();
+};
+$('#textureTileSize').oninput=e=>{state.texture.tileSize=+e.target.value;$('#textureTileSizeNum').textContent=e.target.value;composite();}
+$('#textureStrength').oninput=e=>{state.texture.strength=+e.target.value/100;$('#textureStrengthNum').textContent=e.target.value;composite();}
+$('#textureDepth').oninput=e=>{state.texture.depth=+e.target.value/100;$('#textureDepthNum').textContent=e.target.value;composite();}
+$('#textureScope').onchange=e=>{state.texture.scope=e.target.value;composite();}
+$('#stampPropSize').oninput=e=>{
+  const found=getSelectedStamp(); if(!found)return;
+  found.stamp.size=+e.target.value;$('#stampPropSizeNum').textContent=e.target.value;
+  scheduleComposite();
+};
+$('#stampPropSize').onchange=()=>pushHistory();
+$('#stampPropOpacity').oninput=e=>{
+  const found=getSelectedStamp(); if(!found)return;
+  found.stamp.opacity=+e.target.value/100;$('#stampPropOpacityNum').textContent=e.target.value;
+  scheduleComposite();
+};
+$('#stampPropOpacity').onchange=()=>pushHistory();
+$('#stampPropDelete').onclick=()=>{
+  const found=getSelectedStamp(); if(!found)return;
+  found.layer.stamps=found.layer.stamps.filter(s=>s.id!==found.stamp.id);
+  clearStampSelection();
+  composite();pushHistory();
+};
 $('#stampColor').oninput=e=>{state.stampColor=e.target.value;}
+
+function syncPerfPanel(){
+  $('#perfStampMode').value=state.perf.stampObjectMode;
+  $('#perfDprCap').value=state.perf.dprCap;
+  $('#perfSelectScope').value=state.perf.selectScope;
+}
+$('#perfSettingsBtn').onclick=()=>{
+  syncPerfPanel();
+  $('#perfPanel').classList.toggle('hidden');
+};
+$('#perfPanelClose').onclick=()=>$('#perfPanel').classList.add('hidden');
+$('#perfStampMode').onchange=e=>{
+  state.perf.stampObjectMode=e.target.value;
+  savePerfSettings(state.perf);
+};
+$('#perfDprCap').onchange=e=>{
+  state.perf.dprCap=e.target.value==='uncapped'?'uncapped':2;
+  savePerfSettings(state.perf);
+  state.dpr=computeDpr(state.perf);
+  showStatus('새 지도를 만들거나 불러올 때부터 적용됩니다');
+};
+$('#perfSelectScope').onchange=e=>{
+  state.perf.selectScope=e.target.value;
+  savePerfSettings(state.perf);
+};
 
 $('#undoBtn').onclick=undo;
 $('#redoBtn').onclick=redo;
@@ -932,6 +1318,7 @@ $('#duplicateLayerBtn').onclick=()=>{
     if(src.masks[t.id])l.masks[t.id].getContext('2d').drawImage(src.masks[t.id],0,0);
   });
   l.art.getContext('2d').drawImage(src.art,0,0);
+  l.stamps=(src.stamps||[]).map(s=>({...s,id:uid()}));
   state.layers.push(l);
   state.activeLayerId=l.id;
   renderLayers();
@@ -940,7 +1327,7 @@ $('#duplicateLayerBtn').onclick=()=>{
 };
 
 $('#newBtn').onclick=()=>{
-  canvas.width=1400;canvas.height=900;updateHolderSize();
+  setDocSize(1400,900);
   resetLayers();
   state.history=[];state.historyIndex=-1;
   renderLayers();composite();pushHistory();fitView();
@@ -950,10 +1337,10 @@ $('#backgroundInput').onchange=e=>{
   const r=new FileReader();
   r.onload=async()=>{
     const img=await loadImage(r.result);
-    canvas.width=img.width;canvas.height=img.height;updateHolderSize();
+    setDocSize(img.width,img.height);
     resetLayers();
     const l=makeLayer('배경 이미지');
-    l.art.getContext('2d').drawImage(img,0,0);
+    l.art.getContext('2d').drawImage(img,0,0,l.art.width,l.art.height);
     state.layers.push(l);
     state.activeLayerId=l.id;
     renderLayers();composite();pushHistory();fitView();
@@ -1011,6 +1398,15 @@ window.addEventListener('keydown',e=>{
   if(!wmeRoot.offsetParent)return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();redo();}
+  if((e.key==='Delete'||e.key==='Backspace')&&document.activeElement?.tagName!=='INPUT'&&state.selectedStampRef){
+    e.preventDefault();
+    const found=getSelectedStamp();
+    if(found){
+      found.layer.stamps=found.layer.stamps.filter(s=>s.id!==found.stamp.id);
+      clearStampSelection();
+      composite();pushHistory();
+    }
+  }
   if(!e.ctrlKey&&!e.metaKey&&!e.altKey&&document.activeElement?.tagName!=='INPUT'){
     const n=parseInt(e.key,10);
     if(n>=1&&n<=state.terrains.length){
@@ -1022,9 +1418,12 @@ window.addEventListener('keydown',e=>{
 });
 
 initDefaultStamps();
-updateHolderSize();
+setDocSize(state.docWidth,state.docHeight);
 resetLayers();
 renderLandSwatches();
+renderCoastBands();
+renderTextureGrid();
+syncTextureControls();
 renderStylePresets();
 renderDefaultAssets();
 renderCustomAssets();
