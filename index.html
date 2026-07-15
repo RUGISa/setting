@@ -334,17 +334,11 @@
         <div class="section-title"><span>스타일 프리셋</span></div>
         <div class="preset-grid" id="stylePresets"></div>
 
-        <div class="section-title"><span>텍스처</span></div>
+        <div class="section-title"><span>텍스처 <span class="muted">· 선택한 지형에 적용</span></span></div>
         <div class="texture-grid" id="textureGrid"></div>
         <div class="row"><label>타일 크기</label><input id="textureTileSize" type="range" min="16" max="200" value="64"><span class="num" id="textureTileSizeNum">64</span></div>
         <div class="row"><label>강도</label><input id="textureStrength" type="range" min="0" max="100" value="40"><span class="num" id="textureStrengthNum">40</span></div>
         <div class="row"><label>입체감</label><input id="textureDepth" type="range" min="0" max="100" value="30"><span class="num" id="textureDepthNum">30</span></div>
-        <div class="row"><label>적용 범위</label>
-          <select id="textureScope">
-            <option value="all">전체 지형</option>
-            <option value="active">선택한 지형만</option>
-          </select>
-        </div>
 
         <div class="section-title"><span>지형</span></div>
         <div class="terrain-list" id="terrainList"></div>
@@ -414,6 +408,15 @@
           <span class="mode-icon">✋</span>
           <span class="mode-text"><strong>이동</strong><span>캔버스 움직이기</span></span>
         </button>
+        <div class="toolbar-quick" id="quickSizeGroup">
+          <label>크기</label>
+          <input id="sizeRangeQuick" type="range" min="6" max="220" value="72">
+          <span class="num" id="sizeNumQuick">72</span>
+        </div>
+        <div class="toolbar-quick hidden" id="quickStampColorGroup">
+          <label>색상</label>
+          <input id="stampColorQuick" type="color" value="#6f6454">
+        </div>
       </div>
       <div class="zoom">
         <button id="zoomOut" title="축소" aria-label="축소">
@@ -435,7 +438,7 @@
 
       <div class="section">
         <div class="section-title"><span>기본 스탬프</span></div>
-        <div class="asset-grid" id="defaultAssets"></div>
+        <div id="defaultAssets"></div>
       </div>
 
       <div class="section">

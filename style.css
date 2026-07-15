@@ -4718,7 +4718,23 @@ body.map-view-active .screen {
   min-height: 44px;
   width: 52px;
 }
+#wmeRoot .toolbar-quick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  border-left: 1px solid var(--line);
+  color: #cfcfcf;
+  font-size: 10.5px;
+}
+#wmeRoot .toolbar-quick input[type="range"] { width: 90px; }
+#wmeRoot .toolbar-quick input[type="color"] {
+  width: 26px; height: 26px; padding: 1px;
+  border-radius: 6px; border: 1px solid #161616; background: #1c1c1c;
+}
+#wmeRoot .toolbar-quick .num { min-width: 26px; text-align: center; color: #aaa; }
 :root[data-theme="light"] #wmeRoot .wme-bottom-toolbar { background: rgba(255,255,255,.96); }
+:root[data-theme="light"] #wmeRoot .toolbar-quick { color: #55555d; }
 
 
 /* =========================================================================
@@ -4817,3 +4833,17 @@ body.map-view-active .screen {
 #wmeRoot .stamp-prop-panel .row { margin: 6px 0 !important; }
 #wmeRoot .stamp-prop-panel .row label { width: 44px !important; font-size: 10.5px !important; }
 :root[data-theme="light"] #wmeRoot .stamp-prop-panel { background: rgba(255,255,255,.97); }
+
+
+/* =========================================================================
+   기본 스탬프 카테고리 그룹
+   ========================================================================= */
+#wmeRoot .asset-category-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 10px 0 5px;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+}
+#wmeRoot .asset-category-label:first-child { margin-top: 0; }
