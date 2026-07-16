@@ -55,9 +55,13 @@ let state={
   size:72,
   opacity:1,
   softness:.35,
+  blendMode:'source-over',
   stampMode:'region',
   stampSize:34,
   stampGap:22,
+  stampRotation:0,
+  shape2:{type:'circle',mode:'paint',perimeterOnly:false},
+  shapeDraft:null,
   terrains:[
     {id:'water',name:'Water',color:'#8C9184',type:'Sea',texture:{id:'none',tileSize:64,strength:0.4,depth:0.3}},
     {id:'grassland',name:'Grassland',color:'#AE987B',type:'Land',texture:{id:'none',tileSize:64,strength:0.4,depth:0.3}},
@@ -427,6 +431,7 @@ function composite(){
     renderLayerStamps(layer);
   });
   drawPaperTexture();
+  drawShapeDraftPreview();
   updateStampSelectionOverlay();
 }
 function renderStylePresets(){
@@ -721,12 +726,35 @@ function undo(){if(state.historyIndex<=0)return;state.historyIndex--;restore(sta
 function redo(){if(state.historyIndex>=state.history.length-1)return;state.historyIndex++;restore(state.history[state.historyIndex]);}
 function setTool(tool){
   if(tool!=='select')clearStampSelection();
+  if(tool!=='shape')state.shapeDraft=null;
   state.tool=tool;
   $$('.mode-card').forEach(b=>b.classList.toggle('active',b.dataset.tool===tool));
-  $('#quickSizeGroup').classList.toggle('hidden',tool!=='brush'&&tool!=='eraser');
-  $('#quickStampColorGroup').classList.toggle('hidden',tool!=='stamp');
+  renderToolSettings();
   updateCursorPreviewState();
   scheduleComposite();
+}
+function focusCoastlineSection(){
+  const el=$('#coastBandList');
+  if(!el)return;
+  el.scrollIntoView({behavior:'smooth',block:'center'});
+  el.classList.add('flash-highlight');
+  setTimeout(()=>el.classList.remove('flash-highlight'),900);
+}
+function renderToolSettings(){
+  const tool=state.tool;
+  $('#toolPanelBrush').classList.toggle('hidden',tool!=='brush'&&tool!=='eraser');
+  $('#toolPanelStamp').classList.toggle('hidden',tool!=='stamp');
+  $('#toolPanelShape').classList.toggle('hidden',tool!=='shape');
+  const showHint=tool==='select'||tool==='pan'||tool==='zoom';
+  $('#toolPanelHint').classList.toggle('hidden',!showHint);
+  if(showHint){
+    const hints={
+      select:`선택 범위: ${state.perf.selectScope==='active'?'현재 레이어만':'보이는 모든 레이어'}. 스탬프를 클릭해 선택하고, Delete 키로 삭제할 수 있습니다.`,
+      pan:'캔버스를 드래그해서 이동합니다. 휠 스크롤로도 이동할 수 있습니다.',
+      zoom:`현재 확대: ${Math.round(state.scale*100)}%. 캔버스를 클릭하면 확대, Shift+클릭하면 축소됩니다. Ctrl+휠로도 조정할 수 있습니다.`
+    };
+    $('#toolHintText').textContent=hints[tool]||'';
+  }
 }
 function syncStampModeButtons(){
   $$('[data-stamp-mode]').forEach(btn=>btn.classList.toggle('active',btn.dataset.stampMode===state.stampMode));
@@ -859,14 +887,16 @@ function getTintedIcon(item,color){
   }
   return c;
 }
-function drawBrushStampOnContext(c, item, kind, color, x, y, size, opacity=1){
+function drawBrushStampOnContext(c, item, kind, color, x, y, size, opacity=1, rotation=0){
   if(!item?.img)return;
   c.save();
   c.globalAlpha=opacity;
+  c.translate(x,y);
+  if(rotation)c.rotate(rotation*Math.PI/180);
   if(kind==='default'){
-    c.drawImage(getTintedIcon(item,color),x-size/2,y-size/2,size,size);
+    c.drawImage(getTintedIcon(item,color),-size/2,-size/2,size,size);
   }else{
-    c.drawImage(item.img,x-size/2,y-size/2,size,size);
+    c.drawImage(item.img,-size/2,-size/2,size,size);
   }
   c.restore();
 }
@@ -876,7 +906,7 @@ function renderLayerStamps(layer){
   stamps.forEach(st=>{
     const item=st.kind==='default'?state.defaultStamps[st.index]:state.customStamps[st.index];
     if(!item)return;
-    drawBrushStampOnContext(ctx,item,st.kind,st.color,st.x*dpr,st.y*dpr,st.size*dpr,st.opacity==null?1:st.opacity);
+    drawBrushStampOnContext(ctx,item,st.kind,st.color,st.x*dpr,st.y*dpr,st.size*dpr,st.opacity==null?1:st.opacity,st.rotation||0);
   });
 }
 function drawBrush(x,y){
@@ -932,6 +962,7 @@ function drawBrush(x,y){
   const c=layer.masks[activeId].getContext('2d');
   c.save();
   c.globalAlpha=state.opacity;
+  c.globalCompositeOperation=state.blendMode;
   if(state.shape==='round'){
     if(state.softness>0){
       const g=c.createRadialGradient(x,y,s*.08,x,y,s/2);
@@ -957,7 +988,7 @@ function drawSingleStamp(x,y){
   if(!layer.stamps)layer.stamps=[];
   layer.stamps.push({
     id:uid(),kind:state.selectedStamp.type,index:state.selectedStamp.index,
-    x,y,size:state.stampSize,color:state.stampColor,opacity:1
+    x,y,size:state.stampSize,color:state.stampColor,opacity:1,rotation:state.stampRotation
   });
   scheduleComposite();
 }
@@ -1114,6 +1145,8 @@ function syncStampPropPanel(){
   $('#stampPropSize').value=found.stamp.size;$('#stampPropSizeNum').textContent=Math.round(found.stamp.size);
   $('#stampPropOpacity').value=Math.round((found.stamp.opacity==null?1:found.stamp.opacity)*100);
   $('#stampPropOpacityNum').textContent=$('#stampPropOpacity').value;
+  $('#stampPropRotation').value=found.stamp.rotation||0;
+  $('#stampPropRotationNum').textContent=found.stamp.rotation||0;
 }
 function updateStampSelectionOverlay(){
   if(state.tool!=='select'){stampSelectBox.classList.add('hidden');stampPropPanel.classList.add('hidden');return;}
@@ -1135,9 +1168,218 @@ function updateStampSelectionOverlay(){
   stampPropPanel.style.transform=`translate(${left+size+10}px,${top}px)`;
 }
 
+// ---- 도형 도구 ----
+function starPoints(cx,cy,rOuter,points=5){
+  const rInner=rOuter*0.45;
+  const pts=[];
+  for(let i=0;i<points*2;i++){
+    const r=i%2===0?rOuter:rInner;
+    const a=(Math.PI*i/points)-Math.PI/2;
+    pts.push({x:cx+Math.cos(a)*r,y:cy+Math.sin(a)*r});
+  }
+  return pts;
+}
+function shapeOutlinePoints(shape){
+  if(shape.type==='circle'){
+    const pts=[];
+    const steps=48;
+    for(let i=0;i<steps;i++){
+      const a=(i/steps)*Math.PI*2;
+      pts.push({x:shape.cx+Math.cos(a)*shape.r,y:shape.cy+Math.sin(a)*shape.r});
+    }
+    return pts;
+  }
+  if(shape.type==='square'){
+    const r=shape.r;
+    return [
+      {x:shape.cx-r,y:shape.cy-r},{x:shape.cx+r,y:shape.cy-r},
+      {x:shape.cx+r,y:shape.cy+r},{x:shape.cx-r,y:shape.cy+r}
+    ];
+  }
+  if(shape.type==='star')return starPoints(shape.cx,shape.cy,shape.r);
+  if(shape.type==='polygon')return shape.points;
+  return [];
+}
+function pointInShape(px,py,shape){
+  if(shape.type==='circle')return Math.hypot(px-shape.cx,py-shape.cy)<=shape.r;
+  if(shape.type==='square')return Math.abs(px-shape.cx)<=shape.r&&Math.abs(py-shape.cy)<=shape.r;
+  const pts=shapeOutlinePoints(shape);
+  if(pts.length<3)return false;
+  let inside=false;
+  for(let i=0,j=pts.length-1;i<pts.length;j=i++){
+    const a=pts[i],b=pts[j];
+    if(((a.y>py)!==(b.y>py))&&(px<(b.x-a.x)*(py-a.y)/(b.y-a.y)+a.x))inside=!inside;
+  }
+  return inside;
+}
+function traceShapePath(c,shape){
+  c.beginPath();
+  if(shape.type==='circle'){
+    c.arc(shape.cx,shape.cy,Math.max(0,shape.r),0,Math.PI*2);
+  }else if(shape.type==='square'){
+    c.rect(shape.cx-shape.r,shape.cy-shape.r,shape.r*2,shape.r*2);
+  }else{
+    const pts=shapeOutlinePoints(shape);
+    pts.forEach((p,i)=>{if(i===0)c.moveTo(p.x,p.y);else c.lineTo(p.x,p.y);});
+  }
+  c.closePath();
+}
+function shapeBounds(shape){
+  const pts=shape.type==='circle'||shape.type==='square'
+    ?[{x:shape.cx-shape.r,y:shape.cy-shape.r},{x:shape.cx+shape.r,y:shape.cy+shape.r}]
+    :shapeOutlinePoints(shape);
+  const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y);
+  return {minX:Math.min(...xs),maxX:Math.max(...xs),minY:Math.min(...ys),maxY:Math.max(...ys)};
+}
+function sampleShapePerimeter(shape,count){
+  if(shape.type==='circle'){
+    const pts=[];
+    for(let i=0;i<count;i++){
+      const a=(i/count)*Math.PI*2;
+      pts.push({x:shape.cx+Math.cos(a)*shape.r,y:shape.cy+Math.sin(a)*shape.r});
+    }
+    return pts;
+  }
+  const verts=shapeOutlinePoints(shape);
+  if(verts.length<2)return [];
+  const edges=verts.map((p,i)=>{const q=verts[(i+1)%verts.length];return {p,q,len:Math.hypot(q.x-p.x,q.y-p.y)};});
+  const total=edges.reduce((s,e)=>s+e.len,0)||1;
+  const pts=[];
+  for(let i=0;i<count;i++){
+    let d=(i/count)*total;
+    for(const e of edges){
+      if(d<=e.len){pts.push({x:e.p.x+(e.q.x-e.p.x)*(d/e.len),y:e.p.y+(e.q.y-e.p.y)*(d/e.len)});break;}
+      d-=e.len;
+    }
+  }
+  return pts;
+}
+function beginShapeDraft(x,y,e){
+  const type=state.shape2.type;
+  if(type==='polygon'){
+    if(!state.shapeDraft){
+      state.shapeDraft={type:'polygon',points:[{x,y}]};
+    }else{
+      const first=state.shapeDraft.points[0];
+      const closeDist=12/state.scale;
+      if(state.shapeDraft.points.length>=3&&Math.hypot(x-first.x,y-first.y)<closeDist){
+        commitShapeDraft();return;
+      }
+      state.shapeDraft.points.push({x,y});
+    }
+    scheduleComposite();
+    return;
+  }
+  state.shapeDraft={type,cx:x,cy:y,r:0};
+  drag={type:'shapeDrag'};
+  changed=false;
+}
+function updateShapeDraftDrag(x,y){
+  if(!state.shapeDraft)return;
+  state.shapeDraft.r=Math.hypot(x-state.shapeDraft.cx,y-state.shapeDraft.cy);
+  scheduleComposite();
+}
+function cancelShapeDraft(){
+  state.shapeDraft=null;
+  scheduleComposite();
+}
+function commitShapeDraft(){
+  const shape=state.shapeDraft;
+  state.shapeDraft=null;
+  if(!shape)return;
+  if(shape.type==='polygon'&&shape.points.length<3)return;
+  if((shape.type==='circle'||shape.type==='square')&&shape.r<2)return;
+  const layer=editableLayer();
+  if(!layer){scheduleComposite();return;}
+  const dpr=state.dpr;
+  const bufShape=shape.type==='polygon'
+    ?{type:'polygon',points:shape.points.map(p=>({x:p.x*dpr,y:p.y*dpr}))}
+    :{type:shape.type,cx:shape.cx*dpr,cy:shape.cy*dpr,r:shape.r*dpr};
+
+  if(state.shape2.mode==='paint'){
+    ensureLayerMasks(layer);
+    const activeId=state.activeTerrainId;
+    state.terrains.forEach(t=>{
+      if(t.id===activeId)return;
+      const c=layer.masks[t.id].getContext('2d');
+      c.save();c.globalCompositeOperation='destination-out';
+      traceShapePath(c,bufShape);c.fill();c.restore();
+    });
+    const c=layer.masks[activeId].getContext('2d');
+    c.save();
+    c.globalAlpha=state.opacity;
+    c.globalCompositeOperation=state.blendMode;
+    c.fillStyle='#fff';
+    traceShapePath(c,bufShape);
+    c.fill();
+    c.restore();
+    changed=true;
+    scheduleComposite();
+    pushHistory();
+  }else{
+    const item=currentStamp();
+    if(!item){scheduleComposite();return;}
+    if(!layer.stamps)layer.stamps=[];
+    const targetCount=Math.max(4,Math.round((shape.r||80)/Math.max(10,state.stampSize*0.5)*4));
+    const points=state.shape2.perimeterOnly
+      ? sampleShapePerimeter(shape,targetCount)
+      : (()=>{
+          const bounds=shapeBounds(shape);
+          const pts=[];
+          let guard=0;
+          while(pts.length<targetCount&&guard<targetCount*40){
+            guard++;
+            const px=bounds.minX+Math.random()*(bounds.maxX-bounds.minX);
+            const py=bounds.minY+Math.random()*(bounds.maxY-bounds.minY);
+            if(pointInShape(px,py,shape))pts.push({x:px,y:py});
+          }
+          return pts;
+        })();
+    points.forEach(p=>{
+      layer.stamps.push({
+        id:uid(),kind:state.selectedStamp.type,index:state.selectedStamp.index,
+        x:p.x,y:p.y,size:state.stampSize,color:state.stampColor,opacity:1,rotation:state.stampRotation
+      });
+    });
+    changed=true;
+    scheduleComposite();
+    pushHistory();
+  }
+}
+function drawShapeDraftPreview(){
+  if(!state.shapeDraft)return;
+  const dpr=state.dpr;
+  const shape=state.shapeDraft;
+  const bufShape=shape.type==='polygon'
+    ?{type:'polygon',points:shape.points.map(p=>({x:p.x*dpr,y:p.y*dpr}))}
+    :{type:shape.type,cx:shape.cx*dpr,cy:shape.cy*dpr,r:shape.r*dpr};
+  ctx.save();
+  ctx.strokeStyle='#1473e6';
+  ctx.lineWidth=Math.max(1,1.5*dpr);
+  ctx.setLineDash([6*dpr,5*dpr]);
+  if(shape.type==='polygon'){
+    ctx.beginPath();
+    bufShape.points.forEach((p,i)=>{if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);});
+    if(shape.previewPoint)ctx.lineTo(shape.previewPoint.x*dpr,shape.previewPoint.y*dpr);
+    ctx.stroke();
+    bufShape.points.forEach(p=>{
+      ctx.save();ctx.setLineDash([]);ctx.fillStyle='#1473e6';
+      ctx.beginPath();ctx.arc(p.x,p.y,3*dpr,0,Math.PI*2);ctx.fill();ctx.restore();
+    });
+  }else{
+    traceShapePath(ctx,bufShape);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 let drag=null,last=null,lastStamp=null,changed=false;
 function cancelPointerAction(commit=true){
-  if(commit&&drag&&drag.type!=='pan'&&changed)pushHistory();
+  if(commit&&drag&&drag.type==='shapeDrag'){
+    commitShapeDraft();
+  }else if(commit&&drag&&drag.type!=='pan'&&changed){
+    pushHistory();
+  }
   drag=null;changed=false;state.pointerDown=false;state.activePointerId=null;
   wrap.classList.remove('dragging');
 }
@@ -1172,10 +1414,21 @@ wrap.onpointerdown=e=>{
       drag=null;
     }
     scheduleComposite();
+  }else if(state.tool==='zoom'){
+    const r=wrap.getBoundingClientRect();
+    const factor=e.shiftKey?1/1.35:1.35;
+    zoomAt(state.scale*factor,e.clientX-r.left,e.clientY-r.top);
+    drag=null;
+  }else if(state.tool==='shape'){
+    beginShapeDraft(p.x,p.y,e);
   }
 };
 window.onpointermove=e=>{
   moveCursorPreview(e.clientX,e.clientY);
+  if(state.tool==='shape'&&state.shape2.type==='polygon'&&state.shapeDraft){
+    state.shapeDraft.previewPoint=localPoint(e);
+    scheduleComposite();
+  }
   if(!state.pointerDown||!drag)return;
   if(state.activePointerId!==null&&e.pointerId!==state.activePointerId)return;
   if(e.buttons===0){cancelPointerAction(true);return;}
@@ -1205,6 +1458,8 @@ window.onpointermove=e=>{
     drag.stamp.y=drag.startY+(p.y-drag.py);
     changed=true;
     scheduleComposite();
+  }else if(drag.type==='shapeDrag'){
+    updateShapeDraftDrag(p.x,p.y);
   }
 };
 window.onpointerup=e=>{
@@ -1216,6 +1471,14 @@ window.onpointercancel=()=>cancelPointerAction(true);
 window.addEventListener('blur',()=>cancelPointerAction(true));
 wrap.onpointerenter=e=>{updateCursorPreviewState();moveCursorPreview(e.clientX,e.clientY)};
 wrap.onpointerleave=()=>{if(!state.pointerDown)hideCursorPreview()};
+wrap.addEventListener('dblclick',e=>{
+  if(state.tool==='shape'&&state.shapeDraft&&state.shapeDraft.type==='polygon'){
+    e.preventDefault();
+    state.shapeDraft.points.pop();
+    if(state.shapeDraft.points.length>=3)commitShapeDraft();
+    else cancelShapeDraft();
+  }
+});
 
 wrap.addEventListener('wheel',e=>{
   e.preventDefault();
@@ -1239,7 +1502,10 @@ wrap.addEventListener('wheel',e=>{
   zoomAt(state.scale*(e.deltaY<0?1.1:.9),e.clientX-r.left,e.clientY-r.top);
 },{passive:false});
 
-$$('.mode-card').forEach(b=>b.onclick=()=>setTool(b.dataset.tool));
+$$('.mode-card').forEach(b=>b.onclick=()=>{
+  if(b.dataset.tool==='coastline'){focusCoastlineSection();return;}
+  setTool(b.dataset.tool);
+});
 $$('[data-shape]').forEach(b=>b.onclick=()=>{
   state.shape=b.dataset.shape;
   $$('[data-shape]').forEach(x=>x.classList.toggle('active',x===b));
@@ -1250,18 +1516,36 @@ $$('[data-stamp-mode]').forEach(b=>b.onclick=()=>{
 });
 function syncSizeInputs(){
   $('#sizeRange').value=state.size;$('#sizeNum').textContent=state.size;
-  $('#sizeRangeQuick').value=state.size;$('#sizeNumQuick').textContent=state.size;
 }
 function syncStampColorInputs(){
   $('#stampColor').value=state.stampColor;
-  $('#stampColorQuick').value=state.stampColor;
 }
 $('#sizeRange').oninput=e=>{state.size=+e.target.value;syncSizeInputs();updateCursorPreviewState();}
-$('#sizeRangeQuick').oninput=e=>{state.size=+e.target.value;syncSizeInputs();updateCursorPreviewState();}
 $('#opacityRange').oninput=e=>{state.opacity=+e.target.value/100;$('#opacityNum').textContent=e.target.value;}
 $('#softRange').oninput=e=>{state.softness=+e.target.value/100;$('#softNum').textContent=e.target.value;}
 $('#stampSize').oninput=e=>{state.stampSize=+e.target.value;$('#stampSizeNum').textContent=e.target.value;updateCursorPreviewState();}
 $('#stampGap').oninput=e=>{state.stampGap=+e.target.value;$('#stampGapNum').textContent=e.target.value;}
+$('#stampRotation').oninput=e=>{state.stampRotation=+e.target.value;$('#stampRotationNum').textContent=e.target.value;}
+$('#blendModeSelect').onchange=e=>{state.blendMode=e.target.value;}
+const SHAPE2_TYPES={
+  paint:[{id:'circle',label:'원'},{id:'square',label:'사각'},{id:'polygon',label:'다각형'}],
+  stamp:[{id:'circle',label:'원'},{id:'square',label:'사각'},{id:'star',label:'별'}]
+};
+function renderShape2Types(){
+  const list=SHAPE2_TYPES[state.shape2.mode];
+  if(!list.find(t=>t.id===state.shape2.type))state.shape2.type=list[0].id;
+  $('#shape2Type').innerHTML=list.map(t=>`<option value="${t.id}" ${t.id===state.shape2.type?'selected':''}>${t.label}</option>`).join('');
+  $('#shape2PerimeterRow').classList.toggle('hidden',state.shape2.mode!=='stamp');
+}
+$$('[data-shape2-mode]').forEach(b=>b.onclick=()=>{
+  state.shape2.mode=b.dataset.shape2Mode;
+  $$('[data-shape2-mode]').forEach(x=>x.classList.toggle('active',x===b));
+  renderShape2Types();
+  cancelShapeDraft();
+});
+$('#shape2Type').onchange=e=>{state.shape2.type=e.target.value;cancelShapeDraft();}
+$('#shape2Perimeter').onchange=e=>{state.shape2.perimeterOnly=e.target.checked;}
+renderShape2Types();
 $('#coastColor').oninput=e=>{state.coastColor=e.target.value;composite();}
 $('#addCoastBandBtn').onclick=()=>{
   state.coastBands.push({id:uid(),type:'soft',width:11,strength:0.5});
@@ -1282,6 +1566,12 @@ $('#stampPropOpacity').oninput=e=>{
   scheduleComposite();
 };
 $('#stampPropOpacity').onchange=()=>pushHistory();
+$('#stampPropRotation').oninput=e=>{
+  const found=getSelectedStamp(); if(!found)return;
+  found.stamp.rotation=+e.target.value;$('#stampPropRotationNum').textContent=e.target.value;
+  scheduleComposite();
+};
+$('#stampPropRotation').onchange=()=>pushHistory();
 $('#stampPropDelete').onclick=()=>{
   const found=getSelectedStamp(); if(!found)return;
   found.layer.stamps=found.layer.stamps.filter(s=>s.id!==found.stamp.id);
@@ -1289,7 +1579,6 @@ $('#stampPropDelete').onclick=()=>{
   composite();pushHistory();
 };
 $('#stampColor').oninput=e=>{state.stampColor=e.target.value;syncStampColorInputs();}
-$('#stampColorQuick').oninput=e=>{state.stampColor=e.target.value;syncStampColorInputs();}
 
 function syncPerfPanel(){
   $('#perfStampMode').value=state.perf.stampObjectMode;
@@ -1417,6 +1706,11 @@ window.addEventListener('keydown',e=>{
   if(!wmeRoot.offsetParent)return;
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();}
   if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();redo();}
+  if(e.key==='Escape'&&state.shapeDraft){e.preventDefault();cancelShapeDraft();}
+  if(e.key==='Enter'&&state.shapeDraft&&state.shapeDraft.type==='polygon'&&document.activeElement?.tagName!=='INPUT'){
+    e.preventDefault();
+    if(state.shapeDraft.points.length>=3)commitShapeDraft();
+  }
   if((e.key==='Delete'||e.key==='Backspace')&&document.activeElement?.tagName!=='INPUT'&&state.selectedStampRef){
     e.preventDefault();
     const found=getSelectedStamp();

@@ -576,8 +576,12 @@ function renderTabStrip() {
       ? (findItem(tab.category, tab.id)?.title || "제목 없음")
       : categories[tab.key];
     const closable = !(tab.type === "view" && tab.key === "all");
+    const icon = tab.type === "view" ? viewIcons[tab.key] : null;
+    const labelHTML = icon
+      ? `<span class="tab-icon" title="${escapeHTML(label)}" aria-label="${escapeHTML(label)}">${icon}</span>`
+      : `<span>${escapeHTML(label)}</span>`;
     el.innerHTML = `
-      <span>${escapeHTML(label)}</span>
+      ${labelHTML}
       ${closable ? `<button type="button" aria-label="탭 닫기">×</button>` : ""}
     `;
     el.addEventListener("click", () => navigateToTab(tab));
