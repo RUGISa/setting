@@ -412,13 +412,6 @@ function drawPaperTexture(){
     c.fillStyle=c.createPattern(paperTextureCanvas,'repeat');
     c.fillRect(0,0,canvas.width,canvas.height);
   },'multiply');
-  ctx.save();
-  const vg=ctx.createRadialGradient(canvas.width/2,canvas.height/2,canvas.height*.35,canvas.width/2,canvas.height/2,canvas.height*.78);
-  vg.addColorStop(0,'rgba(0,0,0,0)');
-  vg.addColorStop(1,'rgba(20,15,8,.14)');
-  ctx.fillStyle=vg;
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.restore();
 }
 let compositeScheduled=false;
 function scheduleComposite(){
