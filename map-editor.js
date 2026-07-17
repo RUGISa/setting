@@ -1606,6 +1606,38 @@ $('#zoomIn').onclick=()=>zoomAt(state.scale*1.2);
 $('#zoomOut').onclick=()=>zoomAt(state.scale/1.2);
 $('#fitBtn').onclick=fitView;
 
+function closeAllMenus(){$$('.menu-item.open').forEach(m=>m.classList.remove('open'));}
+$$('#wmeMenubar .menu-item').forEach(item=>{
+  item.querySelector('.menu-label').onclick=(e)=>{
+    e.stopPropagation();
+    const wasOpen=item.classList.contains('open');
+    closeAllMenus();
+    if(!wasOpen)item.classList.add('open');
+  };
+});
+const MENU_ACTIONS={
+  new:()=>$('#newBtn').click(),
+  load:()=>$('#loadBtn').click(),
+  save:()=>$('#saveBtn').click(),
+  export:()=>$('#exportBtn').click(),
+  undo:()=>$('#undoBtn').click(),
+  redo:()=>$('#redoBtn').click(),
+  zoomin:()=>$('#zoomIn').click(),
+  zoomout:()=>$('#zoomOut').click(),
+  fit:()=>$('#fitBtn').click()
+};
+$$('#wmeMenubar [data-menu-action]').forEach(btn=>{
+  btn.onclick=()=>{
+    MENU_ACTIONS[btn.dataset.menuAction]?.();
+    closeAllMenus();
+  };
+});
+$$('#wmeMenubar .menu-dropdown label').forEach(l=>{
+  l.onclick=()=>closeAllMenus();
+});
+document.addEventListener('click',()=>closeAllMenus());
+window.addEventListener('keydown',e=>{if(e.key==='Escape')closeAllMenus();});
+
 $('#addLayerBtn').onclick=()=>{
   const l=makeLayer('레이어 '+state.layers.length);
   state.layers.push(l);

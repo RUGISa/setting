@@ -287,6 +287,34 @@
       <section class="map-view hidden" id="mapView">
 <div id="wmeRoot">
 <div class="wme-app">
+  <div class="wme-menubar" id="wmeMenubar">
+    <div class="menu-item" data-menu="file">
+      <button class="menu-label" type="button">파일</button>
+      <div class="menu-dropdown">
+        <button type="button" data-menu-action="new">새 지도</button>
+        <button type="button" data-menu-action="load">불러오기</button>
+        <button type="button" data-menu-action="save">프로젝트 저장</button>
+        <button type="button" data-menu-action="export">PNG 내보내기</button>
+        <div class="menu-sep"></div>
+        <label for="backgroundInput">배경 이미지 불러오기</label>
+      </div>
+    </div>
+    <div class="menu-item" data-menu="edit">
+      <button class="menu-label" type="button">편집</button>
+      <div class="menu-dropdown">
+        <button type="button" data-menu-action="undo">실행 취소</button>
+        <button type="button" data-menu-action="redo">다시 실행</button>
+      </div>
+    </div>
+    <div class="menu-item" data-menu="view">
+      <button class="menu-label" type="button">보기</button>
+      <div class="menu-dropdown">
+        <button type="button" data-menu-action="zoomin">확대</button>
+        <button type="button" data-menu-action="zoomout">축소</button>
+        <button type="button" data-menu-action="fit">화면 맞춤</button>
+      </div>
+    </div>
+  </div>
   <header class="topbar">
     <div class="brand"><div class="logo">✦</div>월드맵 편집기</div>
     <div class="top-actions">
