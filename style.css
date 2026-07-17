@@ -2705,6 +2705,15 @@ body {
   border: 1px solid var(--ob-line);
   border-bottom: 0;
 }
+.tab-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+.tab:has(.tab-icon) { padding-left: 10px; }
 .tab button {
   display: inline-flex;
   align-items: center;
@@ -4065,7 +4074,7 @@ body.tl-no-select, body.tl-no-select * {
 }
 #wmeRoot .status.show {opacity:1;transform:none}
 @media (max-width:980px) {
-#wmeRoot .workspace {grid-template-columns:250px 1fr}
+#wmeRoot .workspace {grid-template-columns:48px 250px 1fr}
 #wmeRoot .right {display:none}
 }
 
@@ -4121,7 +4130,7 @@ body.tl-no-select, body.tl-no-select * {
    지도 편집기: 포토샵식 컴팩트 UI (패널 좁히고 캔버스가 대부분을 차지하도록)
    ========================================================================= */
 #wmeRoot .workspace {
-  grid-template-columns: 230px 1fr 230px !important;
+  grid-template-columns: 54px 230px 1fr 230px !important;
 }
 #wmeRoot .topbar {
   height: 42px !important;
@@ -4628,6 +4637,54 @@ body.map-view-active .screen {
 
 
 /* =========================================================================
+   전용 도구 아이콘 바 (왼쪽, Photoshop식 툴박스)
+   ========================================================================= */
+#wmeRoot .wme-tool-icon-bar {
+  grid-row: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 6px;
+  background: #232323;
+  border-right: 1px solid var(--line);
+  overflow-y: auto;
+}
+#wmeRoot .wme-tool-icon-bar .mode-card {
+  width: 40px;
+  height: 40px;
+  min-height: 0;
+  padding: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #303030;
+  border: 1px solid #161616;
+  border-radius: 8px;
+  color: #cfcfcf;
+  cursor: pointer;
+}
+#wmeRoot .wme-tool-icon-bar .mode-card .mode-text { display: none; }
+#wmeRoot .wme-tool-icon-bar .mode-card .mode-icon {
+  width: auto; height: auto; background: transparent; font-size: 16px; color: inherit;
+}
+#wmeRoot .wme-tool-icon-bar .mode-card:hover { background: #3a3a3a; }
+#wmeRoot .wme-tool-icon-bar .mode-card.active {
+  background: rgba(20,115,230,.18);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+#wmeRoot .wme-tool-icon-bar .tool-sep {
+  width: 26px; height: 1px; background: #161616; margin: 3px 0;
+}
+:root[data-theme="light"] #wmeRoot .wme-tool-icon-bar { background: #ececef; border-color: #dcdce0; }
+:root[data-theme="light"] #wmeRoot .wme-tool-icon-bar .mode-card { background: #f7f7f9; border-color: #d3d3d9; color: #303038; }
+:root[data-theme="light"] #wmeRoot .wme-tool-icon-bar .mode-card:hover { background: #fff; }
+:root[data-theme="light"] #wmeRoot .wme-tool-icon-bar .tool-sep { background: #d3d3d9; }
+
+
+/* =========================================================================
    성능 설정 패널
    ========================================================================= */
 #wmeRoot .wme-icon-btn {
@@ -4698,46 +4755,6 @@ body.map-view-active .screen {
 
 
 /* =========================================================================
-   캔버스 아래 떠 있는 도구 툴바 (Inkarnate식 하단 툴바)
-   ========================================================================= */
-#wmeRoot .wme-bottom-toolbar {
-  position: absolute;
-  left: 50%;
-  bottom: 18px;
-  transform: translateX(-50%);
-  display: flex;
-  gap: 6px;
-  padding: 6px;
-  background: rgba(38,38,38,.96);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-  z-index: 20;
-}
-#wmeRoot .wme-bottom-toolbar .mode-card {
-  min-height: 44px;
-  width: 52px;
-}
-#wmeRoot .toolbar-quick {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 8px;
-  border-left: 1px solid var(--line);
-  color: #cfcfcf;
-  font-size: 10.5px;
-}
-#wmeRoot .toolbar-quick input[type="range"] { width: 90px; }
-#wmeRoot .toolbar-quick input[type="color"] {
-  width: 26px; height: 26px; padding: 1px;
-  border-radius: 6px; border: 1px solid #161616; background: #1c1c1c;
-}
-#wmeRoot .toolbar-quick .num { min-width: 26px; text-align: center; color: #aaa; }
-:root[data-theme="light"] #wmeRoot .wme-bottom-toolbar { background: rgba(255,255,255,.96); }
-:root[data-theme="light"] #wmeRoot .toolbar-quick { color: #55555d; }
-
-
-/* =========================================================================
    해안선 효과 목록
    ========================================================================= */
 #wmeRoot .coast-band-list { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
@@ -4777,6 +4794,12 @@ body.map-view-active .screen {
 :root[data-theme="light"] #wmeRoot .coast-band { background: #f4f4f6; border-color: #dcdce0; }
 :root[data-theme="light"] #wmeRoot .coast-band-head select { background: #fff; border-color: #d3d3d9; color: #303038; }
 :root[data-theme="light"] #wmeRoot .coast-band-head button { background: #f0f0f3; border-color: #d3d3d9; color: #303038; }
+#wmeRoot .coast-band-list.flash-highlight { animation: wme-flash 0.9s ease; }
+@keyframes wme-flash {
+  0%,100% { box-shadow: none; }
+  25% { box-shadow: 0 0 0 2px var(--accent); }
+  75% { box-shadow: 0 0 0 2px var(--accent); }
+}
 
 
 /* =========================================================================

@@ -327,6 +327,34 @@
   </div>
 
   <div class="workspace">
+    <aside class="wme-tool-icon-bar" id="wmeToolIconBar">
+      <button class="mode-card" data-tool="select" title="선택 - 놓인 스탬프 선택·이동">
+        <span class="mode-icon">⤡</span>
+      </button>
+      <button class="mode-card" data-tool="pan" title="이동 - 캔버스 움직이기">
+        <span class="mode-icon">✋</span>
+      </button>
+      <button class="mode-card" data-tool="zoom" title="확대 - 클릭해서 확대, Shift+클릭으로 축소">
+        <span class="mode-icon">🔍</span>
+      </button>
+      <div class="tool-sep"></div>
+      <button class="mode-card active" data-tool="brush" title="육지 - 섬과 대륙 그리기">
+        <span class="mode-icon">●</span>
+      </button>
+      <button class="mode-card" data-tool="eraser" title="지우개 - 육지와 스탬프 지우기">
+        <span class="mode-icon">⌫</span>
+      </button>
+      <button class="mode-card" data-tool="stamp" title="스탬프 - 아이콘 배치">
+        <span class="mode-icon">✦</span>
+      </button>
+      <button class="mode-card" data-tool="shape" title="도형 - 원/사각/다각형으로 칠하거나 스탬프 뿌리기">
+        <span class="mode-icon">◆</span>
+      </button>
+      <div class="tool-sep"></div>
+      <button class="mode-card" data-tool="coastline" title="해안선 설정으로 이동 (자동 생성, 왼쪽 패널에서 조정)">
+        <span class="mode-icon">〜</span>
+      </button>
+    </aside>
     <aside class="panel left">
       <div class="panel-head">도구</div>
 
@@ -345,17 +373,6 @@
         <div class="row"><label>해안선</label><input id="coastColor" type="color" value="#75654e"></div>
         <div class="coast-band-list" id="coastBandList"></div>
         <button class="btn small" id="addCoastBandBtn" style="width:100%;margin-top:6px">＋ 해안선 효과 추가</button>
-      </div>
-
-      <div class="section">
-        <div class="section-title"><span>브러시 설정</span></div>
-        <div class="row"><label>크기</label><input id="sizeRange" type="range" min="6" max="220" value="72"><span class="num" id="sizeNum">72</span></div>
-        <div class="row"><label>불투명도</label><input id="opacityRange" type="range" min="10" max="100" value="100"><span class="num" id="opacityNum">100</span></div>
-        <div class="row"><label>부드러움</label><input id="softRange" type="range" min="0" max="100" value="35"><span class="num" id="softNum">35</span></div>
-        <div class="segment">
-          <button class="active" data-shape="round">원형</button>
-          <button data-shape="square">사각</button>
-        </div>
       </div>
 
       <div class="section">
@@ -385,38 +402,8 @@
       <div id="stampPropPanel" class="stamp-prop-panel hidden">
         <div class="row"><label>크기</label><input id="stampPropSize" type="range" min="10" max="240"><span class="num" id="stampPropSizeNum">0</span></div>
         <div class="row"><label>투명도</label><input id="stampPropOpacity" type="range" min="10" max="100"><span class="num" id="stampPropOpacityNum">100</span></div>
+        <div class="row"><label>회전</label><input id="stampPropRotation" type="range" min="0" max="359"><span class="num" id="stampPropRotationNum">0</span></div>
         <button class="btn small danger" id="stampPropDelete" style="width:100%">삭제</button>
-      </div>
-      <div class="wme-bottom-toolbar">
-        <button class="mode-card" data-tool="select" title="선택 - 놓인 스탬프 선택·이동">
-          <span class="mode-icon">⤡</span>
-          <span class="mode-text"><strong>선택</strong><span>스탬프 선택·이동</span></span>
-        </button>
-        <button class="mode-card active" data-tool="brush" title="육지 - 섬과 대륙 그리기">
-          <span class="mode-icon">●</span>
-          <span class="mode-text"><strong>육지</strong><span>섬과 대륙 그리기</span></span>
-        </button>
-        <button class="mode-card" data-tool="eraser" title="지우개 - 육지와 스탬프 지우기">
-          <span class="mode-icon">⌫</span>
-          <span class="mode-text"><strong>지우개</strong><span>육지와 스탬프 지우기</span></span>
-        </button>
-        <button class="mode-card" data-tool="stamp" title="스탬프 - 아이콘 배치">
-          <span class="mode-icon">✦</span>
-          <span class="mode-text"><strong>스탬프</strong><span>아이콘 배치</span></span>
-        </button>
-        <button class="mode-card" data-tool="pan" title="이동 - 캔버스 움직이기">
-          <span class="mode-icon">✋</span>
-          <span class="mode-text"><strong>이동</strong><span>캔버스 움직이기</span></span>
-        </button>
-        <div class="toolbar-quick" id="quickSizeGroup">
-          <label>크기</label>
-          <input id="sizeRangeQuick" type="range" min="6" max="220" value="72">
-          <span class="num" id="sizeNumQuick">72</span>
-        </div>
-        <div class="toolbar-quick hidden" id="quickStampColorGroup">
-          <label>색상</label>
-          <input id="stampColorQuick" type="color" value="#6f6454">
-        </div>
       </div>
       <div class="zoom">
         <button id="zoomOut" title="축소" aria-label="축소">
@@ -449,23 +436,68 @@
       </div>
 
       <div class="section">
-        <div class="section-title"><span>스탬프 설정</span></div>
-        <div class="row"><label>방식</label>
-          <div class="segment three" style="flex:1">
-            <button id="stampModeSingleBtn" data-stamp-mode="single" title="일반 - 클릭한 자리에 하나씩" aria-label="일반">
-              <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
-            </button>
-            <button id="stampModeRegionBtn" class="active" data-stamp-mode="region" title="구역 채우기 - 영역 안을 자동으로 채움" aria-label="구역 채우기">
-              <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="7" cy="7" r="2.2" fill="currentColor"/><circle cx="17" cy="7" r="2.2" fill="currentColor"/><circle cx="7" cy="17" r="2.2" fill="currentColor"/><circle cx="17" cy="17" r="2.2" fill="currentColor"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/></svg>
-            </button>
-            <button id="stampModeGuideBtn" data-stamp-mode="guide" title="구역선 포함 - 채우기 + 경계선 표시" aria-label="구역선 포함">
-              <svg viewBox="0 0 24 24" width="14" height="14"><rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/></svg>
-            </button>
+        <div class="section-title"><span>도구 설정</span></div>
+
+        <div id="toolPanelBrush">
+          <div class="row"><label>크기</label><input id="sizeRange" type="range" min="6" max="220" value="72"><span class="num" id="sizeNum">72</span></div>
+          <div class="row"><label>불투명도</label><input id="opacityRange" type="range" min="10" max="100" value="100"><span class="num" id="opacityNum">100</span></div>
+          <div class="row"><label>부드러움</label><input id="softRange" type="range" min="0" max="100" value="35"><span class="num" id="softNum">35</span></div>
+          <div class="row"><label>모양</label>
+            <div class="segment" style="flex:1">
+              <button class="active" data-shape="round">원형</button>
+              <button data-shape="square">사각</button>
+            </div>
+          </div>
+          <div class="row"><label>블렌드</label>
+            <select id="blendModeSelect">
+              <option value="source-over">보통</option>
+              <option value="multiply">곱하기</option>
+              <option value="screen">스크린</option>
+              <option value="overlay">오버레이</option>
+            </select>
           </div>
         </div>
-        <div class="row"><label>크기</label><input id="stampSize" type="range" min="14" max="110" value="34"><span class="num" id="stampSizeNum">34</span></div>
-        <div class="row"><label>간격</label><input id="stampGap" type="range" min="8" max="120" value="22"><span class="num" id="stampGapNum">22</span></div>
-        <div class="row"><label>색상</label><input id="stampColor" type="color" value="#6f6454"></div>
+
+        <div id="toolPanelStamp" class="hidden">
+          <div class="row"><label>방식</label>
+            <div class="segment three" style="flex:1">
+              <button id="stampModeSingleBtn" data-stamp-mode="single" title="일반 - 클릭한 자리에 하나씩" aria-label="일반">
+                <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>
+              </button>
+              <button id="stampModeRegionBtn" class="active" data-stamp-mode="region" title="구역 채우기 - 영역 안을 자동으로 채움" aria-label="구역 채우기">
+                <svg viewBox="0 0 24 24" width="14" height="14"><circle cx="7" cy="7" r="2.2" fill="currentColor"/><circle cx="17" cy="7" r="2.2" fill="currentColor"/><circle cx="7" cy="17" r="2.2" fill="currentColor"/><circle cx="17" cy="17" r="2.2" fill="currentColor"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/></svg>
+              </button>
+              <button id="stampModeGuideBtn" data-stamp-mode="guide" title="구역선 포함 - 채우기 + 경계선 표시" aria-label="구역선 포함">
+                <svg viewBox="0 0 24 24" width="14" height="14"><rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="2.2" fill="currentColor"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="row"><label>크기</label><input id="stampSize" type="range" min="14" max="110" value="34"><span class="num" id="stampSizeNum">34</span></div>
+          <div class="row"><label>간격</label><input id="stampGap" type="range" min="8" max="120" value="22"><span class="num" id="stampGapNum">22</span></div>
+          <div class="row"><label>색상</label><input id="stampColor" type="color" value="#6f6454"></div>
+          <div class="row"><label>회전</label><input id="stampRotation" type="range" min="0" max="359" value="0"><span class="num" id="stampRotationNum">0</span></div>
+        </div>
+
+        <div id="toolPanelShape" class="hidden">
+          <div class="row"><label>배치</label>
+            <div class="segment" style="flex:1">
+              <button class="active" data-shape2-mode="paint">지형 칠하기</button>
+              <button data-shape2-mode="stamp">스탬프 뿌리기</button>
+            </div>
+          </div>
+          <div class="row"><label>모양</label>
+            <select id="shape2Type"></select>
+          </div>
+          <div class="row" id="shape2PerimeterRow">
+            <label>테두리만</label>
+            <input id="shape2Perimeter" type="checkbox">
+          </div>
+          <div class="help">원/사각형은 드래그로 크기를 정하고, 다각형은 클릭으로 점을 찍은 뒤 더블클릭(또는 Enter)으로 마무리합니다. Esc로 취소.</div>
+        </div>
+
+        <div id="toolPanelHint" class="hidden">
+          <div class="help" id="toolHintText"></div>
+        </div>
       </div>
 
       <div class="section">
