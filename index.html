@@ -37,6 +37,9 @@
         <svg class="icon-moon" viewBox="0 0 24 24" width="19" height="19"><path d="M20.5 14.5A8.5 8.5 0 1 1 9.5 3.5a7 7 0 0 0 11 11z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
         <svg class="icon-sun" viewBox="0 0 24 24" width="19" height="19"><circle cx="12" cy="12" r="4.3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5 5l2.1 2.1M16.9 16.9L19 19M19 5l-2.1 2.1M7.1 16.9L5 19" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
       </button>
+      <button class="rail-btn hidden" id="wmeRailPerfBtn" type="button" title="지도 성능 설정" aria-label="지도 성능 설정">
+        <svg viewBox="0 0 24 24" width="19" height="19"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M19.4 13a7.7 7.7 0 0 0 0-2l2-1.5-2-3.4-2.4 1a7.7 7.7 0 0 0-1.7-1L15 3.5h-4l-.3 2.6a7.7 7.7 0 0 0-1.7 1l-2.4-1-2 3.4L6.6 11a7.7 7.7 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a7.7 7.7 0 0 0 1.7 1l.3 2.6h4l.3-2.6a7.7 7.7 0 0 0 1.7-1l2.4 1 2-3.4-2-1.5z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+      </button>
       <button class="rail-btn" id="railWriteBtn" type="button" title="새 파일" aria-label="새 파일">
         <svg viewBox="0 0 24 24" width="19" height="19"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
       </button>
@@ -287,36 +290,28 @@
       <section class="map-view hidden" id="mapView">
 <div id="wmeRoot">
 <div class="wme-app">
-  <div class="wme-menubar" id="wmeMenubar">
-    <div class="menu-item" data-menu="file">
-      <button class="menu-label" type="button">파일</button>
-      <div class="menu-dropdown">
-        <button type="button" data-menu-action="new">새 지도</button>
-        <button type="button" data-menu-action="load">불러오기</button>
-        <button type="button" data-menu-action="save">프로젝트 저장</button>
-        <button type="button" data-menu-action="export">PNG 내보내기</button>
-        <div class="menu-sep"></div>
-        <label for="backgroundInput">배경 이미지 불러오기</label>
-      </div>
-    </div>
-    <div class="menu-item" data-menu="view">
-      <button class="menu-label" type="button">보기</button>
-      <div class="menu-dropdown">
-        <button type="button" data-menu-action="zoomin">확대</button>
-        <button type="button" data-menu-action="zoomout">축소</button>
-        <button type="button" data-menu-action="fit">화면 맞춤</button>
-      </div>
-    </div>
-  </div>
   <header class="topbar">
     <div class="brand"><div class="logo">✦</div>월드맵 편집기</div>
-    <div class="top-actions">
-      <label class="btn upload-btn" for="backgroundInput" title="배경 이미지 불러오기">🖼</label>
-      <button class="btn" id="newBtn">새 지도</button>
-      <button class="btn" id="loadBtn">불러오기</button>
-      <button class="btn" id="saveBtn">프로젝트 저장</button>
-      <button class="btn primary" id="exportBtn">PNG 내보내기</button>
-      <button class="btn wme-icon-btn" id="perfSettingsBtn" title="성능 설정" aria-label="성능 설정">⚙</button>
+    <div class="wme-menubar" id="wmeMenubar">
+      <div class="menu-item" data-menu="file">
+        <button class="menu-label" type="button">파일</button>
+        <div class="menu-dropdown">
+          <button type="button" id="newBtn">새 지도</button>
+          <button type="button" id="loadBtn">불러오기</button>
+          <button type="button" id="saveBtn">프로젝트 저장</button>
+          <button type="button" id="exportBtn">PNG 내보내기</button>
+          <div class="menu-sep"></div>
+          <label for="backgroundInput">배경 이미지 불러오기</label>
+        </div>
+      </div>
+      <div class="menu-item" data-menu="view">
+        <button class="menu-label" type="button">보기</button>
+        <div class="menu-dropdown">
+          <button type="button" data-menu-action="zoomin">확대</button>
+          <button type="button" data-menu-action="zoomout">축소</button>
+          <button type="button" data-menu-action="fit">화면 맞춤</button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -441,10 +436,10 @@
             <div class="row"><label>불투명도</label><input id="opacityRange" type="range" min="10" max="100" value="100"><span class="num" id="opacityNum">100</span></div>
             <div class="row"><label>부드러움</label><input id="softRange" type="range" min="0" max="100" value="35"><span class="num" id="softNum">35</span></div>
             <div class="row"><label>모양</label>
-              <div class="segment three" style="flex:1">
-                <button class="active" data-shape="round">원형</button>
-                <button data-shape="star">별</button>
-                <button data-shape="organic">랜덤</button>
+              <div class="segment three brush-shape-segment" style="flex:1">
+                <button class="active" data-shape="round" title="원형">원형</button>
+                <button data-shape="organic-sharp" title="랜덤(각지게)">각진<br>랜덤</button>
+                <button data-shape="organic-soft" title="랜덤(부드럽게)">부드런<br>랜덤</button>
               </div>
             </div>
             <div class="row"><label>블렌드</label>
@@ -468,6 +463,7 @@
           <div class="tabpanel hidden" data-tabpanel="terrain">
             <div class="section-title"><span>스타일 프리셋</span></div>
             <div class="preset-grid" id="stylePresets"></div>
+            <button class="btn small" id="savePresetBtn" style="width:100%;margin-top:6px">＋ 현재 색상을 프리셋으로 저장</button>
             <div class="section-title"><span>지형</span></div>
             <div class="terrain-list" id="terrainList"></div>
           </div>
@@ -532,7 +528,7 @@
       </div>
 
       <div class="panel-bottom-layers">
-        <div class="section-title"><span>레이어</span><span class="muted">포토샵 방식</span></div>
+        <div class="section-title"><span>레이어</span></div>
         <div class="layer-toolbar">
           <button class="btn" id="addLayerBtn">＋ 새 레이어</button>
           <button class="btn" id="duplicateLayerBtn">복제</button>

@@ -91,9 +91,16 @@ const STYLE_PRESETS=[
   {name:'초원',terrains:{water:'#8FAFB0',grassland:'#AE987B',forest:'#8E9E6F',desert:'#C7B389',snow:'#DCD3B8'},coast:'#5d5a3f'},
   {name:'다크',terrains:{water:'#3E4A52',grassland:'#5B5546',forest:'#454A3B',desert:'#6B5F49',snow:'#7C7A6E'},coast:'#1c1c1c'},
   {name:'빙하',terrains:{water:'#5C7A99',grassland:'#AAB9C4',forest:'#8FA0AE',desert:'#C7D2D8',snow:'#EFF4F6'},coast:'#3a4b5c'},
-  {name:'황무지',terrains:{water:'#918383',grassland:'#AE987B',forest:'#8C7A63',desert:'#B08F6C',snow:'#C9BBA6'},coast:'#4a4038'},
   {name:'모래빛',terrains:{water:'#969D8E',grassland:'#E5C494',forest:'#C9A46E',desert:'#EE987B',snow:'#F2E4C9'},coast:'#6b5a3f'}
 ];
+const CUSTOM_PRESETS_KEY='wme-custom-presets-v1';
+function loadCustomPresets(){
+  try{return JSON.parse(localStorage.getItem(CUSTOM_PRESETS_KEY))||[];}catch{return [];}
+}
+function saveCustomPresets(list){
+  try{localStorage.setItem(CUSTOM_PRESETS_KEY,JSON.stringify(list));}catch{}
+}
+let customPresets=loadCustomPresets();
 
 function activeTerrain(){return state.terrains.find(t=>t.id===state.activeTerrainId)||state.terrains[1]}
 function terrainColorById(id){return state.terrains.find(t=>t.id===id)?.color||'#AE987B'}
@@ -432,22 +439,50 @@ function composite(){
   drawShapeDraftPreview();
   updateStampSelectionOverlay();
 }
+function applyPreset(preset){
+  if(!preset)return;
+  state.terrains.forEach(t=>{ if(preset.terrains[t.id]) t.color=preset.terrains[t.id]; });
+  state.coastColor=preset.coast;
+  $('#coastColor').value=state.coastColor;
+  renderTerrainList();
+  composite();
+  showStatus(`"${preset.name}" 스타일 적용됨`);
+}
 function renderStylePresets(){
-  $('#stylePresets').innerHTML=STYLE_PRESETS.map((p,i)=>`
-    <button class="preset-swatch" data-index="${i}" title="${p.name}" style="background:linear-gradient(135deg, ${p.terrains.water}, ${p.terrains.grassland} 50%, ${p.terrains.forest})"></button>
+  const builtinHtml=STYLE_PRESETS.map((p,i)=>`
+    <button class="preset-swatch" data-custom="false" data-index="${i}" title="${p.name}" style="background:linear-gradient(135deg, ${p.terrains.water}, ${p.terrains.grassland} 50%, ${p.terrains.forest})"></button>
   `).join('');
+  const customHtml=customPresets.map((p,i)=>`
+    <button class="preset-swatch custom" data-custom="true" data-index="${i}" title="${p.name}" style="background:linear-gradient(135deg, ${p.terrains.water}, ${p.terrains.grassland} 50%, ${p.terrains.forest})">
+      <span class="preset-swatch-del" data-del-custom="${i}" title="삭제">×</span>
+    </button>
+  `).join('');
+  $('#stylePresets').innerHTML=builtinHtml+customHtml;
   $$('.preset-swatch').forEach(b=>{
-    b.onclick=()=>{
-      const preset=STYLE_PRESETS[Number(b.dataset.index)];
-      if(!preset)return;
-      state.terrains.forEach(t=>{ if(preset.terrains[t.id]) t.color=preset.terrains[t.id]; });
-      state.coastColor=preset.coast;
-      $('#coastColor').value=state.coastColor;
-      renderTerrainList();
-      composite();
-      showStatus(`"${preset.name}" 스타일 적용됨`);
+    b.onclick=(e)=>{
+      if(e.target.closest('[data-del-custom]'))return;
+      const isCustom=b.dataset.custom==='true';
+      applyPreset(isCustom?customPresets[Number(b.dataset.index)]:STYLE_PRESETS[Number(b.dataset.index)]);
     };
   });
+  $$('[data-del-custom]').forEach(b=>{
+    b.onclick=(e)=>{
+      e.stopPropagation();
+      customPresets.splice(Number(b.dataset.delCustom),1);
+      saveCustomPresets(customPresets);
+      renderStylePresets();
+    };
+  });
+}
+function saveCurrentAsPreset(){
+  const name=(prompt('프리셋 이름을 입력하세요')||'').trim();
+  if(!name)return;
+  const terrains={};
+  state.terrains.forEach(t=>{terrains[t.id]=t.color;});
+  customPresets.push({name,terrains,coast:state.coastColor});
+  saveCustomPresets(customPresets);
+  renderStylePresets();
+  showStatus(`"${name}" 프리셋 저장됨`);
 }
 function renderTerrainList(){
   $('#terrainList').innerHTML=state.terrains.map((t,i)=>`
@@ -934,13 +969,24 @@ function organicBrushPoints(cx,cy,r){
   }
   return pts;
 }
+function traceSmoothClosedPath(c,pts){
+  const n=pts.length;
+  const mid=(a,b)=>({x:(a.x+b.x)/2,y:(a.y+b.y)/2});
+  const start=mid(pts[n-1],pts[0]);
+  c.moveTo(start.x,start.y);
+  for(let i=0;i<n;i++){
+    const cur=pts[i],next=pts[(i+1)%n];
+    const m=mid(cur,next);
+    c.quadraticCurveTo(cur.x,cur.y,m.x,m.y);
+  }
+}
 function traceBrushShape(c,x,y,s){
   const r=s/2;
   c.beginPath();
-  if(state.shape==='star'){
-    starPoints(x,y,r).forEach((p,i)=>{if(i===0)c.moveTo(p.x,p.y);else c.lineTo(p.x,p.y);});
-  }else if(state.shape==='organic'){
+  if(state.shape==='organic-sharp'){
     organicBrushPoints(x,y,r).forEach((p,i)=>{if(i===0)c.moveTo(p.x,p.y);else c.lineTo(p.x,p.y);});
+  }else if(state.shape==='organic-soft'){
+    traceSmoothClosedPath(c,organicBrushPoints(x,y,r));
   }else{
     c.arc(x,y,r,0,Math.PI*2);
   }
@@ -1610,6 +1656,7 @@ $('#addCoastBandBtn').onclick=()=>{
   state.coastBands.push({id:uid(),type:'soft',width:11,strength:0.5});
   renderCoastBands();composite();pushHistory();
 };
+$('#savePresetBtn').onclick=saveCurrentAsPreset;
 $('#textureTileSize').oninput=e=>{activeTerrain().texture.tileSize=+e.target.value;$('#textureTileSizeNum').textContent=e.target.value;composite();}
 $('#textureStrength').oninput=e=>{activeTerrain().texture.strength=+e.target.value/100;$('#textureStrengthNum').textContent=e.target.value;composite();}
 $('#textureDepth').oninput=e=>{activeTerrain().texture.depth=+e.target.value/100;$('#textureDepthNum').textContent=e.target.value;composite();}
@@ -1644,10 +1691,13 @@ function syncPerfPanel(){
   $('#perfDprCap').value=state.perf.dprCap;
   $('#perfSelectScope').value=state.perf.selectScope;
 }
-$('#perfSettingsBtn').onclick=()=>{
-  syncPerfPanel();
-  $('#perfPanel').classList.toggle('hidden');
-};
+const railPerfBtn=document.getElementById('wmeRailPerfBtn');
+if(railPerfBtn){
+  railPerfBtn.onclick=()=>{
+    syncPerfPanel();
+    $('#perfPanel').classList.toggle('hidden');
+  };
+}
 $('#perfPanelClose').onclick=()=>$('#perfPanel').classList.add('hidden');
 $('#perfStampMode').onchange=e=>{
   state.perf.stampObjectMode=e.target.value;
@@ -1680,10 +1730,6 @@ $$('#wmeMenubar .menu-item').forEach(item=>{
   };
 });
 const MENU_ACTIONS={
-  new:()=>$('#newBtn').click(),
-  load:()=>$('#loadBtn').click(),
-  save:()=>$('#saveBtn').click(),
-  export:()=>$('#exportBtn').click(),
   zoomin:()=>$('#zoomIn').click(),
   zoomout:()=>$('#zoomOut').click(),
   fit:()=>$('#fitBtn').click()
@@ -1737,7 +1783,7 @@ function createNewMap(w,h){
   state.history=[];state.historyIndex=-1;
   renderLayers();composite();pushHistory();fitView();
 }
-$('#newBtn').onclick=openNewMapModal;
+$('#newBtn').onclick=()=>{openNewMapModal();closeAllMenus();};
 $('#newMapModalClose').onclick=closeNewMapModal;
 $('#newMapCancelBtn').onclick=closeNewMapModal;
 $('#newMapBackdrop').onclick=e=>{if(e.target===$('#newMapBackdrop'))closeNewMapModal();};
@@ -1786,6 +1832,7 @@ $('#exportBtn').onclick=()=>{
   a.href=canvas.toDataURL('image/png');
   a.download='world-map.png';
   a.click();
+  closeAllMenus();
 };
 $('#saveBtn').onclick=()=>{
   const blob=new Blob([JSON.stringify(serialize())],{type:'application/json'});
@@ -1794,8 +1841,9 @@ $('#saveBtn').onclick=()=>{
   a.download='world-map-project.json';
   a.click();
   URL.revokeObjectURL(a.href);
+  closeAllMenus();
 };
-$('#loadBtn').onclick=()=>$('#projectInput').click();
+$('#loadBtn').onclick=()=>{$('#projectInput').click();closeAllMenus();};
 $('#projectInput').onchange=e=>{
   const f=e.target.files[0]; if(!f)return;
   const r=new FileReader();
@@ -1872,8 +1920,13 @@ if(typeof ResizeObserver!=='undefined'){
   ro.observe(wmeRoot);
 }
 const mapViewEl=document.getElementById('mapView');
+function syncRailPerfBtnVisibility(){
+  if(railPerfBtn)railPerfBtn.classList.toggle('hidden',!mapViewEl||mapViewEl.classList.contains('hidden'));
+}
+syncRailPerfBtnVisibility();
 if(mapViewEl&&typeof MutationObserver!=='undefined'){
   const mo=new MutationObserver(()=>{
+    syncRailPerfBtnVisibility();
     if(!mapViewEl.classList.contains('hidden')){
       [0,60,150,350].forEach(delay=>setTimeout(fitView,delay));
     }
