@@ -287,11 +287,30 @@
       <section class="map-view hidden" id="mapView">
 <div id="wmeRoot">
 <div class="wme-app">
+  <div class="wme-menubar" id="wmeMenubar">
+    <div class="menu-item" data-menu="file">
+      <button class="menu-label" type="button">파일</button>
+      <div class="menu-dropdown">
+        <button type="button" data-menu-action="new">새 지도</button>
+        <button type="button" data-menu-action="load">불러오기</button>
+        <button type="button" data-menu-action="save">프로젝트 저장</button>
+        <button type="button" data-menu-action="export">PNG 내보내기</button>
+        <div class="menu-sep"></div>
+        <label for="backgroundInput">배경 이미지 불러오기</label>
+      </div>
+    </div>
+    <div class="menu-item" data-menu="view">
+      <button class="menu-label" type="button">보기</button>
+      <div class="menu-dropdown">
+        <button type="button" data-menu-action="zoomin">확대</button>
+        <button type="button" data-menu-action="zoomout">축소</button>
+        <button type="button" data-menu-action="fit">화면 맞춤</button>
+      </div>
+    </div>
+  </div>
   <header class="topbar">
     <div class="brand"><div class="logo">✦</div>월드맵 편집기</div>
     <div class="top-actions">
-      <button class="btn wme-icon-btn" id="undoBtn" title="실행 취소" aria-label="실행 취소">↶</button>
-      <button class="btn wme-icon-btn" id="redoBtn" title="다시 실행" aria-label="다시 실행">↷</button>
       <label class="btn upload-btn" for="backgroundInput" title="배경 이미지 불러오기">🖼</label>
       <button class="btn" id="newBtn">새 지도</button>
       <button class="btn" id="loadBtn">불러오기</button>
@@ -329,8 +348,30 @@
     </div>
   </div>
 
+  <div class="wme-modal-backdrop hidden" id="newMapBackdrop">
+    <div class="wme-modal">
+      <div class="wme-modal-head">새 지도<button id="newMapModalClose" aria-label="닫기">×</button></div>
+      <div class="wme-modal-body">
+        <div class="row"><label>가로(px)</label><input type="number" id="newMapWidth" min="200" max="8000" step="10" value="1400"></div>
+        <div class="row"><label>세로(px)</label><input type="number" id="newMapHeight" min="200" max="8000" step="10" value="900"></div>
+        <p class="perf-hint">캔버스의 가로세로 픽셀 크기를 직접 정할 수 있습니다.</p>
+      </div>
+      <div class="wme-modal-actions">
+        <button class="btn" id="newMapCancelBtn">취소</button>
+        <button class="btn primary" id="newMapCreateBtn">만들기</button>
+      </div>
+    </div>
+  </div>
+
   <div class="workspace">
     <aside class="wme-tool-icon-bar" id="wmeToolIconBar">
+      <button class="wme-action-btn" id="undoBtn" title="실행 취소" aria-label="실행 취소">
+        <span class="mode-icon">↶</span>
+      </button>
+      <button class="wme-action-btn" id="redoBtn" title="다시 실행" aria-label="다시 실행">
+        <span class="mode-icon">↷</span>
+      </button>
+      <div class="tool-sep"></div>
       <button class="mode-card" data-tool="select" title="선택 - 놓인 스탬프 선택·이동">
         <span class="mode-icon">⤡</span>
       </button>
@@ -400,9 +441,10 @@
             <div class="row"><label>불투명도</label><input id="opacityRange" type="range" min="10" max="100" value="100"><span class="num" id="opacityNum">100</span></div>
             <div class="row"><label>부드러움</label><input id="softRange" type="range" min="0" max="100" value="35"><span class="num" id="softNum">35</span></div>
             <div class="row"><label>모양</label>
-              <div class="segment" style="flex:1">
+              <div class="segment three" style="flex:1">
                 <button class="active" data-shape="round">원형</button>
-                <button data-shape="square">사각</button>
+                <button data-shape="star">별</button>
+                <button data-shape="organic">랜덤</button>
               </div>
             </div>
             <div class="row"><label>블렌드</label>
@@ -479,7 +521,7 @@
               <label>테두리만</label>
               <input id="shape2Perimeter" type="checkbox">
             </div>
-            <div class="help">원/사각형은 드래그로 크기를 정하고, 다각형은 클릭으로 점을 찍은 뒤 더블클릭(또는 Enter)으로 마무리합니다. Esc로 취소.</div>
+            <div class="help">원/사각형은 한쪽 모서리에서 반대쪽 모서리로 드래그합니다(타원·직사각형도 가능). Ctrl을 누른 채 드래그하면 정원·정사각형이 됩니다. 다각형은 클릭으로 점을 찍은 뒤 더블클릭(또는 Enter)으로 마무리합니다. Esc로 취소.</div>
           </div>
 
           <div class="tabpanel hidden" data-tabpanel="hint">
