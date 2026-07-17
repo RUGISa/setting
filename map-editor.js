@@ -64,7 +64,7 @@ let state={
   shapeDraft:null,
   activeContextTab:'brush',
   terrains:[
-    {id:'water',name:'Water',color:'#8C9184',type:'Sea',texture:{id:'none',tileSize:64,strength:0.4,depth:0.3}},
+    {id:'water',name:'바다',color:'#8C9184',type:'Sea',texture:{id:'none',tileSize:64,strength:0.4,depth:0.3}},
     {id:'grassland',name:'Grassland',color:'#AE987B',type:'Land',texture:{id:'none',tileSize:64,strength:0.4,depth:0.3}},
     {id:'forest',name:'Forest',color:'#9E8B76',type:'Land',texture:{id:'none',tileSize:64,strength:0.4,depth:0.3}},
     {id:'desert',name:'Desert',color:'#B6A591',type:'Land',texture:{id:'none',tileSize:64,strength:0.4,depth:0.3}},
@@ -190,29 +190,6 @@ function drawOcean(){
   g.addColorStop(1,adjustColor(wc,-12));
   ctx.fillStyle=g;
   ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  ctx.save();
-  ctx.globalAlpha=.055;
-  ctx.strokeStyle='#ffffff';
-  ctx.lineWidth=1;
-  for(let y=22;y<canvas.height;y+=34){
-    ctx.beginPath();
-    for(let x=0;x<=canvas.width;x+=18){
-      const yy=y+Math.sin((x+y)*.018)*2.2;
-      if(x===0)ctx.moveTo(x,yy);else ctx.lineTo(x,yy);
-    }
-    ctx.stroke();
-  }
-  ctx.restore();
-
-  ctx.save();
-  ctx.globalAlpha=.045;
-  for(let i=0;i<2200;i++){
-    const x=(i*73)%canvas.width, y=(i*37)%canvas.height;
-    ctx.fillStyle=i%3===0?'#ffffff':'#1f3942';
-    ctx.fillRect(x,y,1,1);
-  }
-  ctx.restore();
 }
 const TEXTURE_DEFS=[
   {id:'none',label:'없음'},
@@ -426,7 +403,7 @@ function composite(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   drawOcean();
   state.layers.forEach(layer=>{
-    if(!layer.visible||layer.locked)return;
+    if(!layer.visible)return;
     drawLayerTerrain(layer);
     ctx.drawImage(layer.art,0,0);
     renderLayerStamps(layer);
@@ -582,11 +559,15 @@ function renderCustomAssets(){
     refreshStampCursorPreview();
   });
 }
+const EYE_OPEN_ICON=`<svg viewBox="0 0 24 24" width="14" height="14"><path d="M2 12s3.8-7 10-7 10 7 10 7-3.8 7-10 7-10-7-10-7Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>`;
+const EYE_CLOSED_ICON=`<svg viewBox="0 0 24 24" width="14" height="14"><path d="M3 3l18 18M10.6 10.7a3 3 0 0 0 4.2 4.2M7.4 7.5C4.7 9 3 12 3 12s3.8 7 10 7c1.7 0 3.2-.4 4.5-1M17.4 15.9C19.6 14.3 21 12 21 12s-3.8-7-10-7c-.9 0-1.7.1-2.5.3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const LOCK_CLOSED_ICON=`<svg viewBox="0 0 24 24" width="13" height="13"><rect x="5" y="10.5" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
+const LOCK_OPEN_ICON=`<svg viewBox="0 0 24 24" width="13" height="13"><rect x="5" y="10.5" width="14" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 10.5V7.5a4 4 0 0 1 7.6-1.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`;
 function renderLayers(){
   $('#layerList').innerHTML=[...state.layers].reverse().map(l=>`
     <div class="layer ${l.id===state.activeLayerId?'active':''} ${l.locked?'locked':''}" data-id="${l.id}">
-      <button class="layer-eye" data-eye="${l.id}">${l.visible?'●':'○'}</button>
-      <button class="layer-lock" data-lock="${l.id}">${l.locked?'🔒':' '}</button>
+      <button class="layer-eye" data-eye="${l.id}" title="${l.visible?'숨기기':'보이기'}" aria-label="${l.visible?'숨기기':'보이기'}">${l.visible?EYE_OPEN_ICON:EYE_CLOSED_ICON}</button>
+      <button class="layer-lock" data-lock="${l.id}" title="${l.locked?'잠금 해제':'잠그기'}" aria-label="${l.locked?'잠금 해제':'잠그기'}">${l.locked?LOCK_CLOSED_ICON:LOCK_OPEN_ICON}</button>
       <div class="layer-name" data-name="${l.id}">${l.name}</div>
       <button class="layer-delete" data-del="${l.id}">×</button>
     </div>`).join('');
@@ -604,9 +585,9 @@ function renderLayers(){
   });
   $$('[data-lock]').forEach(b=>b.onclick=()=>{
     const l=state.layers.find(x=>x.id===b.dataset.lock);
-    if(l.name==='바다')return;
     l.locked=!l.locked;
     renderLayers();
+    composite();
   });
   $$('[data-del]').forEach(b=>b.onclick=()=>{
     const l=state.layers.find(x=>x.id===b.dataset.del);

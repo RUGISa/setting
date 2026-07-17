@@ -4024,7 +4024,10 @@ body.tl-no-select, body.tl-no-select * {
 #wmeRoot .layer.locked {opacity:.72}
 #wmeRoot .layer-eye, #wmeRoot .layer-lock, #wmeRoot .layer-delete {
   width:26px;height:26px;border:1px solid var(--line);border-radius:7px;background:#fff;
+  display:flex;align-items:center;justify-content:center;color:#555;flex:none;padding:0;
 }
+#wmeRoot .layer-lock svg {opacity:.45}
+#wmeRoot .layer.locked .layer-lock svg {opacity:1;color:#c0392b}
 #wmeRoot .layer-name {
   flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   padding:5px 6px;border-radius:6px;
