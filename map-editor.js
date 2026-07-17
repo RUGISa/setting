@@ -62,6 +62,7 @@ let state={
   stampRotation:0,
   shape2:{type:'circle',mode:'paint',perimeterOnly:false},
   shapeDraft:null,
+  activeContextTab:'brush',
   terrains:[
     {id:'water',name:'Water',color:'#8C9184',type:'Sea',texture:{id:'none',tileSize:64,strength:0.4,depth:0.3}},
     {id:'grassland',name:'Grassland',color:'#AE987B',type:'Land',texture:{id:'none',tileSize:64,strength:0.4,depth:0.3}},
@@ -740,14 +741,26 @@ function focusCoastlineSection(){
   el.classList.add('flash-highlight');
   setTimeout(()=>el.classList.remove('flash-highlight'),900);
 }
-function renderToolSettings(){
+const TAB_LABELS={brush:'브러시',texture:'텍스처',terrain:'지형',coastline:'해안선',stamp:'스탬프',icons:'아이콘',shape:'도형',hint:'정보'};
+function tabsForTool(){
   const tool=state.tool;
-  $('#toolPanelBrush').classList.toggle('hidden',tool!=='brush'&&tool!=='eraser');
-  $('#toolPanelStamp').classList.toggle('hidden',tool!=='stamp');
-  $('#toolPanelShape').classList.toggle('hidden',tool!=='shape');
-  const showHint=tool==='select'||tool==='pan'||tool==='zoom';
-  $('#toolPanelHint').classList.toggle('hidden',!showHint);
-  if(showHint){
+  if(tool==='brush'||tool==='eraser')return['brush','texture','terrain','coastline'];
+  if(tool==='stamp')return['stamp','icons'];
+  if(tool==='shape')return state.shape2.mode==='paint'?['shape','texture','terrain','coastline']:['shape','icons'];
+  return['hint'];
+}
+function renderToolSettings(){
+  const tabs=tabsForTool();
+  if(!tabs.includes(state.activeContextTab))state.activeContextTab=tabs[0];
+  const header=$('#topTabHeader');
+  header.innerHTML=tabs.map(id=>`<button class="tab-btn${id===state.activeContextTab?' active':''}" data-tabid="${id}">${TAB_LABELS[id]}</button>`).join('');
+  $$('#topTabHeader [data-tabid]').forEach(b=>b.onclick=()=>{
+    state.activeContextTab=b.dataset.tabid;
+    renderToolSettings();
+  });
+  $$('.tabpanel').forEach(el=>el.classList.toggle('hidden',el.dataset.tabpanel!==state.activeContextTab));
+  const tool=state.tool;
+  if(tool==='select'||tool==='pan'||tool==='zoom'){
     const hints={
       select:`선택 범위: ${state.perf.selectScope==='active'?'현재 레이어만':'보이는 모든 레이어'}. 스탬프를 클릭해 선택하고, Delete 키로 삭제할 수 있습니다.`,
       pan:'캔버스를 드래그해서 이동합니다. 휠 스크롤로도 이동할 수 있습니다.',
@@ -1542,6 +1555,7 @@ $$('[data-shape2-mode]').forEach(b=>b.onclick=()=>{
   $$('[data-shape2-mode]').forEach(x=>x.classList.toggle('active',x===b));
   renderShape2Types();
   cancelShapeDraft();
+  renderToolSettings();
 });
 $('#shape2Type').onchange=e=>{state.shape2.type=e.target.value;cancelShapeDraft();}
 $('#shape2Perimeter').onchange=e=>{state.shape2.perimeterOnly=e.target.checked;}
@@ -1744,6 +1758,7 @@ renderDefaultAssets();
 renderCustomAssets();
 renderLayers();
 syncStampModeButtons();
+renderToolSettings();
 updateCursorPreviewState();
 composite();
 pushHistory();
