@@ -452,7 +452,7 @@ function render() {
 
     if (currentCategory === "timeline") renderTimeline();
     else if (currentCategory === "relations") renderRelations();
-    else if (currentCategory === "map") { /* 지도 편집기는 자체적으로 렌더링을 관리합니다 */ }
+    else if (currentCategory === "map") { renderMapTabs(); }
     else renderCards();
   } catch (error) {
     console.error(error);
@@ -976,6 +976,7 @@ function renderTitle() {
   $("pageDesc").textContent = categoryDesc[currentCategory];
 }
 
+let lastRenderedSpecialView = null;
 function renderMainMode() {
   const specialView = currentCategory === "timeline" ? "timeline"
     : currentCategory === "relations" ? "relations"
@@ -989,7 +990,14 @@ function renderMainMode() {
 
   if (specialView === "map") {
     activateMapEditorFit();
+    // 다른 화면에서 지도 화면으로 "들어올 때"만 다시 불러옵니다 (이미 지도 화면에 있는데
+    // 다른 이유로 render()가 다시 불려도 편집 중인 내용을 덮어쓰지 않도록).
+    if (lastRenderedSpecialView !== "map" && typeof window.wmeLoadDocument === "function") {
+      ensureMaps();
+      window.wmeLoadDocument(getActiveMap().mapData);
+    }
   }
+  lastRenderedSpecialView = specialView;
 
   if (specialView) {
     $("browseView")?.classList.add("hidden");
@@ -2758,6 +2766,7 @@ function ensureMaps() {
     map.image ||= "";
     if (!Array.isArray(map.pins)) map.pins = [];
     if (!Array.isArray(map.polygons)) map.polygons = [];
+    if (map.mapData === undefined) map.mapData = null;
   });
 
   if (!currentMapId) currentMapId = state.currentMapId || state.maps[0].id;
@@ -2775,101 +2784,15 @@ function getActiveMap() {
   return state.map;
 }
 
-function renderMapTabs() {
-  const tabs = $("mapTabs");
-  if (!tabs) return;
+function switchActiveMap(map) {
+  if (!map || map.id === getActiveMap().id) return;
+  if (typeof window.wmeSerializeDocument === "function") {
+    getActiveMap().mapData = window.wmeSerializeDocument();
+  }
 
-  const active = getActiveMap();
-  tabs.innerHTML = "";
-
-  state.maps.forEach((map) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = map.id === active.id ? "active" : "";
-    button.textContent = map.name;
-    button.title = "이 지도로 이동";
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-
-      currentMapId = map.id;
-      state.currentMapId = map.id;
-      state.map = map;
-
-      selectedMapPinId = null;
-      selectedPolygonId = null;
-      selectedVertexIndex = -1;
-      drawingPolygon = false;
-      polygonDraft = [];
-      editingLineMode = false;
-      addPointMode = false;
-      moveRegionMode = false;
-    quickPinMode = false;
-      quickPinMode = false;
-
-      saveState();
-      render();
-    });
-    tabs.appendChild(button);
-  });
-}
-
-function addMap() {
-  const defaultName = `지도 ${state.maps.length + 1}`;
-  const name = prompt("새 지도 이름을 입력해주세요.", defaultName);
-  if (!name) return;
-
-  const map = {
-    id: uid(),
-    name: name.trim() || defaultName,
-    image: "",
-    pins: [],
-    polygons: []
-  };
-
-  state.maps.push(map);
   currentMapId = map.id;
   state.currentMapId = map.id;
   state.map = map;
-
-  selectedMapPinId = null;
-  selectedPolygonId = null;
-  selectedVertexIndex = -1;
-
-  saveState();
-  render();
-}
-
-function renameMap() {
-  const map = getActiveMap();
-  const name = prompt("지도 이름을 입력해주세요.", map.name);
-  if (!name) return;
-
-  map.name = name.trim() || map.name;
-  saveState();
-  render();
-}
-
-function deleteMap() {
-  ensureMaps();
-
-  if (state.maps.length <= 1) {
-    showToast("지도는 최소 1개가 필요합니다.");
-    return;
-  }
-
-  const map = getActiveMap();
-  if (!confirm(`'${map.name}' 지도를 삭제할까요?`)) return;
-
-  const deletedIndex = state.maps.findIndex((item) => item.id === map.id);
-  state.maps = state.maps.filter((item) => item.id !== map.id);
-
-  const nextIndex = Math.max(0, Math.min(deletedIndex, state.maps.length - 1));
-  const nextMap = state.maps[nextIndex];
-
-  currentMapId = nextMap.id;
-  state.currentMapId = nextMap.id;
-  state.map = nextMap;
 
   selectedMapPinId = null;
   selectedPolygonId = null;
@@ -2882,7 +2805,124 @@ function deleteMap() {
   quickPinMode = false;
 
   saveState();
+  renderMapTabs();
+  if (typeof window.wmeLoadDocument === "function") window.wmeLoadDocument(map.mapData);
+}
+
+function renderMapTabs() {
+  const tabs = $("mapTabs");
+  if (!tabs) return;
+
+  const active = getActiveMap();
+  tabs.innerHTML = "";
+
+  state.maps.forEach((map) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `map-tab ${map.id === active.id ? "active" : ""}`;
+    button.title = "이 지도로 이동 (더블클릭: 이름 바꾸기)";
+    button.innerHTML = `<span class="map-tab-icon">${viewIcons.map}</span><span>${escapeHTML(map.name)}</span><span class="map-tab-close" title="삭제">×</span>`;
+    button.addEventListener("click", (event) => {
+      if (event.target.closest(".map-tab-close")) return;
+      switchActiveMap(map);
+    });
+    button.addEventListener("dblclick", (event) => {
+      event.preventDefault();
+      const name = prompt("지도 이름을 입력해주세요.", map.name);
+      if (!name) return;
+      map.name = name.trim() || map.name;
+      saveState();
+      renderMapTabs();
+    });
+    button.querySelector(".map-tab-close").addEventListener("click", (event) => {
+      event.stopPropagation();
+      deleteMapById(map.id);
+    });
+    tabs.appendChild(button);
+  });
+}
+
+function addMap() {
+  const defaultName = `지도 ${state.maps.length + 1}`;
+  const name = prompt("새 지도 이름을 입력해주세요.", defaultName);
+  if (!name) return;
+  if (typeof window.wmeSerializeDocument === "function") {
+    getActiveMap().mapData = window.wmeSerializeDocument();
+  }
+
+  const map = {
+    id: uid(),
+    name: name.trim() || defaultName,
+    image: "",
+    pins: [],
+    polygons: [],
+    mapData: null
+  };
+
+  state.maps.push(map);
+  currentMapId = map.id;
+  state.currentMapId = map.id;
+  state.map = map;
+
+  selectedMapPinId = null;
+  selectedPolygonId = null;
+  selectedVertexIndex = -1;
+
+  saveState();
+  renderMapTabs();
+  if (typeof window.wmeLoadDocument === "function") window.wmeLoadDocument(null);
+}
+
+function renameMap() {
+  const map = getActiveMap();
+  const name = prompt("지도 이름을 입력해주세요.", map.name);
+  if (!name) return;
+
+  map.name = name.trim() || map.name;
+  saveState();
   render();
+}
+
+function deleteMapById(id) {
+  ensureMaps();
+
+  if (state.maps.length <= 1) {
+    showToast("지도는 최소 1개가 필요합니다.");
+    return;
+  }
+
+  const map = state.maps.find((item) => item.id === id);
+  if (!map) return;
+  if (!confirm(`'${map.name}' 지도를 삭제할까요?`)) return;
+
+  const wasActive = map.id === getActiveMap().id;
+  const deletedIndex = state.maps.findIndex((item) => item.id === map.id);
+  state.maps = state.maps.filter((item) => item.id !== map.id);
+
+  if (wasActive) {
+    const nextIndex = Math.max(0, Math.min(deletedIndex, state.maps.length - 1));
+    const nextMap = state.maps[nextIndex];
+
+    currentMapId = nextMap.id;
+    state.currentMapId = nextMap.id;
+    state.map = nextMap;
+
+    selectedMapPinId = null;
+    selectedPolygonId = null;
+    selectedVertexIndex = -1;
+    drawingPolygon = false;
+    polygonDraft = [];
+    editingLineMode = false;
+    addPointMode = false;
+    moveRegionMode = false;
+    quickPinMode = false;
+  }
+
+  saveState();
+  renderMapTabs();
+  if (wasActive && typeof window.wmeLoadDocument === "function") {
+    window.wmeLoadDocument(getActiveMap().mapData);
+  }
 }
 
 
@@ -4348,6 +4388,7 @@ function initEvents() {
     btn.addEventListener("click", () => switchCategory(btn.dataset.view));
   });
   on("railWriteBtn", "click", () => startNewFile());
+  on("addMapTabBtn", "click", () => addMap());
   on("themeToggleBtn", "click", toggleTheme);
   on("sidebarCollapseBtn", "click", toggleSidebarCollapsed);
   on("explorerAllRow", "click", () => switchCategory("all"));
@@ -4636,9 +4677,6 @@ function initEvents() {
     });
   }
   on("timelineBoard", "wheel", handleTimelineWheel);
-  on("addMapBtn", "click", addMap);
-  on("renameMapBtn", "click", renameMap);
-  on("deleteMapBtn", "click", deleteMap);
   on("mapImageInput", "change", (event) => {
     setMapImage(event.target.files[0]);
     event.target.value = "";
