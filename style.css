@@ -4962,3 +4962,52 @@ body.map-view-active .screen {
   letter-spacing: .02em;
 }
 #wmeRoot .asset-category-label:first-child { margin-top: 0; }
+
+
+/* =========================================================================
+   지도 편집기: 모든 버튼/컨트롤의 둥근 모서리를 완전히 제거 (각진 전문적인 느낌)
+   ========================================================================= */
+#wmeRoot .btn,
+#wmeRoot .wme-action-btn,
+#wmeRoot .mode-card,
+#wmeRoot .mode-icon,
+#wmeRoot .upload,
+#wmeRoot .segment,
+#wmeRoot .segment button,
+#wmeRoot .asset,
+#wmeRoot .swatch,
+#wmeRoot .layer,
+#wmeRoot .layer-eye,
+#wmeRoot .layer-lock,
+#wmeRoot .layer-delete,
+#wmeRoot .layer-name,
+#wmeRoot .zoom,
+#wmeRoot .zoom button,
+#wmeRoot .status,
+#wmeRoot .help,
+#wmeRoot .cursor-label,
+#wmeRoot .menu-dropdown,
+#wmeRoot .menu-dropdown button,
+#wmeRoot .menu-dropdown label,
+#wmeRoot .menu-label,
+#wmeRoot .wme-modal,
+#wmeRoot .wme-modal-body .row input[type=number],
+#wmeRoot .perf-panel,
+#wmeRoot .perf-row select,
+#wmeRoot .terrain-row,
+#wmeRoot .terrain-key,
+#wmeRoot .terrain-type,
+#wmeRoot .preset-swatch,
+#wmeRoot .texture-swatch,
+#wmeRoot .coast-band,
+#wmeRoot .coast-band-head select,
+#wmeRoot .coast-band-head button,
+#wmeRoot .stamp-select-box,
+#wmeRoot .stamp-prop-panel,
+#wmeRoot .tab-btn,
+#wmeRoot button,
+#wmeRoot input[type="text"],
+#wmeRoot input[type="color"],
+#wmeRoot select {
+  border-radius: 0 !important;
+}
