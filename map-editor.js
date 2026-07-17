@@ -308,6 +308,35 @@ function combinedMask(layer,predicate,scratchIndex){
   });
   return out;
 }
+function combinedVisibleLandMask(scratchIndex){
+  const out=getScratch(scratchIndex);
+  const c=out.getContext('2d');
+  c.globalCompositeOperation='source-over';
+  state.layers.forEach(layer=>{
+    if(!layer.visible)return;
+    ensureLayerMasks(layer);
+    state.terrains.forEach(t=>{
+      if(t.type!=='Land')return;
+      const m=layer.masks[t.id];
+      if(m)c.drawImage(m,0,0);
+    });
+  });
+  return out;
+}
+// 종이 질감/그레인 효과가 (드로우오션이 이미 캔버스 전체를 칠해놓아서) 바다까지 번지지 않도록,
+// 스크래치 캔버스에 그린 뒤 육지 마스크로 잘라내고 나서 합성합니다.
+function drawMaskedEffect(mask,scratchIndex,painter,outerBlend='source-over'){
+  const t=getScratch(scratchIndex);
+  const c=t.getContext('2d');
+  c.globalCompositeOperation='source-over';
+  painter(c);
+  c.globalCompositeOperation='destination-in';
+  c.drawImage(mask,0,0);
+  ctx.save();
+  ctx.globalCompositeOperation=outerBlend;
+  ctx.drawImage(t,0,0);
+  ctx.restore();
+}
 function drawLayerTerrain(layer){
   ensureLayerMasks(layer);
   const landUnion=combinedMask(layer,t=>t.type==='Land',0);
@@ -329,30 +358,28 @@ function drawLayerTerrain(layer){
     applyTerrainTexture(t,m);
   });
 
-  ctx.save();
-  ctx.globalCompositeOperation='source-atop';
-  ctx.globalAlpha=.085;
-  ctx.strokeStyle='#fff3da';
-  ctx.lineWidth=1;
-  for(let y=12;y<canvas.height;y+=20){
-    ctx.beginPath();
-    for(let x=0;x<=canvas.width;x+=16){
-      const yy=y+Math.sin((x+y)*.025)*1.5;
-      if(x===0)ctx.moveTo(x,yy);else ctx.lineTo(x,yy);
+  drawMaskedEffect(landUnion,3,c=>{
+    c.globalAlpha=.085;
+    c.strokeStyle='#fff3da';
+    c.lineWidth=1;
+    for(let y=12;y<canvas.height;y+=20){
+      c.beginPath();
+      for(let x=0;x<=canvas.width;x+=16){
+        const yy=y+Math.sin((x+y)*.025)*1.5;
+        if(x===0)c.moveTo(x,yy);else c.lineTo(x,yy);
+      }
+      c.stroke();
     }
-    ctx.stroke();
-  }
-  ctx.restore();
+  });
 
-  ctx.save();
-  ctx.globalCompositeOperation='source-atop';
-  ctx.globalAlpha=.055;
-  ctx.fillStyle='#3b3024';
-  for(let i=0;i<1800;i++){
-    const x=(i*53)%canvas.width, y=(i*31)%canvas.height;
-    ctx.fillRect(x,y,1,1);
-  }
-  ctx.restore();
+  drawMaskedEffect(landUnion,3,c=>{
+    c.globalAlpha=.055;
+    c.fillStyle='#3b3024';
+    for(let i=0;i<1800;i++){
+      const x=(i*53)%canvas.width, y=(i*31)%canvas.height;
+      c.fillRect(x,y,1,1);
+    }
+  });
 }
 let paperTextureCanvas=null;
 function buildPaperTexture(){
@@ -379,12 +406,12 @@ function buildPaperTexture(){
 }
 function drawPaperTexture(){
   if(!paperTextureCanvas)buildPaperTexture();
-  ctx.save();
-  ctx.globalCompositeOperation='multiply';
-  ctx.globalAlpha=.14;
-  ctx.fillStyle=ctx.createPattern(paperTextureCanvas,'repeat');
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-  ctx.restore();
+  const landMask=combinedVisibleLandMask(4);
+  drawMaskedEffect(landMask,5,c=>{
+    c.globalAlpha=.14;
+    c.fillStyle=c.createPattern(paperTextureCanvas,'repeat');
+    c.fillRect(0,0,canvas.width,canvas.height);
+  },'multiply');
   ctx.save();
   const vg=ctx.createRadialGradient(canvas.width/2,canvas.height/2,canvas.height*.35,canvas.width/2,canvas.height/2,canvas.height*.78);
   vg.addColorStop(0,'rgba(0,0,0,0)');
@@ -903,6 +930,29 @@ function renderLayerStamps(layer){
     drawBrushStampOnContext(ctx,item,st.kind,st.color,st.x*dpr,st.y*dpr,st.size*dpr,st.opacity==null?1:st.opacity,st.rotation||0);
   });
 }
+function organicBrushPoints(cx,cy,r){
+  const count=10;
+  const seed=Math.random()*1000;
+  const pts=[];
+  for(let i=0;i<count;i++){
+    const a=Math.PI*2*i/count;
+    const rr=r*(0.72+((Math.sin(seed+i*2.3)+1)*0.19));
+    pts.push({x:cx+Math.cos(a)*rr,y:cy+Math.sin(a)*rr});
+  }
+  return pts;
+}
+function traceBrushShape(c,x,y,s){
+  const r=s/2;
+  c.beginPath();
+  if(state.shape==='star'){
+    starPoints(x,y,r).forEach((p,i)=>{if(i===0)c.moveTo(p.x,p.y);else c.lineTo(p.x,p.y);});
+  }else if(state.shape==='organic'){
+    organicBrushPoints(x,y,r).forEach((p,i)=>{if(i===0)c.moveTo(p.x,p.y);else c.lineTo(p.x,p.y);});
+  }else{
+    c.arc(x,y,r,0,Math.PI*2);
+  }
+  c.closePath();
+}
 function drawBrush(x,y){
   const layer=editableLayer(); if(!layer)return;
   ensureLayerMasks(layer);
@@ -914,11 +964,8 @@ function drawBrush(x,y){
       const c=canvas2d.getContext('2d'),s=state.size*dpr;
       c.save();
       c.globalCompositeOperation='destination-out';
-      if(state.shape==='round'){
-        c.beginPath();c.arc(x,y,s/2,0,Math.PI*2);c.fill();
-      }else{
-        c.fillRect(x-s/2,y-s/2,s,s);
-      }
+      traceBrushShape(c,x,y,s);
+      c.fill();
       c.restore();
     };
     state.terrains.forEach(t=>eraseOne(layer.masks[t.id]));
@@ -941,11 +988,8 @@ function drawBrush(x,y){
     const c=canvas2d.getContext('2d');
     c.save();
     c.globalCompositeOperation='destination-out';
-    if(state.shape==='round'){
-      c.beginPath();c.arc(x,y,s/2,0,Math.PI*2);c.fill();
-    }else{
-      c.fillRect(x-s/2,y-s/2,s,s);
-    }
+    traceBrushShape(c,x,y,s);
+    c.fill();
     c.restore();
   };
   // 다른 지형 마스크와 겹치지 않도록, 칠하기 전에 같은 자리를 다른 지형에서 지워둡니다.
@@ -957,21 +1001,17 @@ function drawBrush(x,y){
   c.save();
   c.globalAlpha=state.opacity;
   c.globalCompositeOperation=state.blendMode;
-  if(state.shape==='round'){
-    if(state.softness>0){
-      const g=c.createRadialGradient(x,y,s*.08,x,y,s/2);
-      g.addColorStop(0,'rgba(255,255,255,1)');
-      g.addColorStop(Math.max(.08,1-state.softness),'rgba(255,255,255,1)');
-      g.addColorStop(1,'rgba(255,255,255,0)');
-      c.fillStyle=g;
-    }else{
-      c.fillStyle='#fff';
-    }
-    c.beginPath();c.arc(x,y,s/2,0,Math.PI*2);c.fill();
+  if(state.shape==='round'&&state.softness>0){
+    const g=c.createRadialGradient(x,y,s*.08,x,y,s/2);
+    g.addColorStop(0,'rgba(255,255,255,1)');
+    g.addColorStop(Math.max(.08,1-state.softness),'rgba(255,255,255,1)');
+    g.addColorStop(1,'rgba(255,255,255,0)');
+    c.fillStyle=g;
   }else{
     c.fillStyle='#fff';
-    c.fillRect(x-s/2,y-s/2,s,s);
   }
+  traceBrushShape(c,x,y,s);
+  c.fill();
   c.restore();
   scheduleComposite();
 }
@@ -1179,15 +1219,15 @@ function shapeOutlinePoints(shape){
     const steps=48;
     for(let i=0;i<steps;i++){
       const a=(i/steps)*Math.PI*2;
-      pts.push({x:shape.cx+Math.cos(a)*shape.r,y:shape.cy+Math.sin(a)*shape.r});
+      pts.push({x:shape.cx+Math.cos(a)*shape.rx,y:shape.cy+Math.sin(a)*shape.ry});
     }
     return pts;
   }
   if(shape.type==='square'){
-    const r=shape.r;
+    const rx=shape.rx,ry=shape.ry;
     return [
-      {x:shape.cx-r,y:shape.cy-r},{x:shape.cx+r,y:shape.cy-r},
-      {x:shape.cx+r,y:shape.cy+r},{x:shape.cx-r,y:shape.cy+r}
+      {x:shape.cx-rx,y:shape.cy-ry},{x:shape.cx+rx,y:shape.cy-ry},
+      {x:shape.cx+rx,y:shape.cy+ry},{x:shape.cx-rx,y:shape.cy+ry}
     ];
   }
   if(shape.type==='star')return starPoints(shape.cx,shape.cy,shape.r);
@@ -1195,8 +1235,11 @@ function shapeOutlinePoints(shape){
   return [];
 }
 function pointInShape(px,py,shape){
-  if(shape.type==='circle')return Math.hypot(px-shape.cx,py-shape.cy)<=shape.r;
-  if(shape.type==='square')return Math.abs(px-shape.cx)<=shape.r&&Math.abs(py-shape.cy)<=shape.r;
+  if(shape.type==='circle'){
+    const dx=(px-shape.cx)/(shape.rx||1),dy=(py-shape.cy)/(shape.ry||1);
+    return dx*dx+dy*dy<=1;
+  }
+  if(shape.type==='square')return Math.abs(px-shape.cx)<=shape.rx&&Math.abs(py-shape.cy)<=shape.ry;
   const pts=shapeOutlinePoints(shape);
   if(pts.length<3)return false;
   let inside=false;
@@ -1209,9 +1252,9 @@ function pointInShape(px,py,shape){
 function traceShapePath(c,shape){
   c.beginPath();
   if(shape.type==='circle'){
-    c.arc(shape.cx,shape.cy,Math.max(0,shape.r),0,Math.PI*2);
+    c.ellipse(shape.cx,shape.cy,Math.max(0,shape.rx),Math.max(0,shape.ry),0,0,Math.PI*2);
   }else if(shape.type==='square'){
-    c.rect(shape.cx-shape.r,shape.cy-shape.r,shape.r*2,shape.r*2);
+    c.rect(shape.cx-shape.rx,shape.cy-shape.ry,shape.rx*2,shape.ry*2);
   }else{
     const pts=shapeOutlinePoints(shape);
     pts.forEach((p,i)=>{if(i===0)c.moveTo(p.x,p.y);else c.lineTo(p.x,p.y);});
@@ -1220,7 +1263,7 @@ function traceShapePath(c,shape){
 }
 function shapeBounds(shape){
   const pts=shape.type==='circle'||shape.type==='square'
-    ?[{x:shape.cx-shape.r,y:shape.cy-shape.r},{x:shape.cx+shape.r,y:shape.cy+shape.r}]
+    ?[{x:shape.cx-shape.rx,y:shape.cy-shape.ry},{x:shape.cx+shape.rx,y:shape.cy+shape.ry}]
     :shapeOutlinePoints(shape);
   const xs=pts.map(p=>p.x),ys=pts.map(p=>p.y);
   return {minX:Math.min(...xs),maxX:Math.max(...xs),minY:Math.min(...ys),maxY:Math.max(...ys)};
@@ -1230,7 +1273,7 @@ function sampleShapePerimeter(shape,count){
     const pts=[];
     for(let i=0;i<count;i++){
       const a=(i/count)*Math.PI*2;
-      pts.push({x:shape.cx+Math.cos(a)*shape.r,y:shape.cy+Math.sin(a)*shape.r});
+      pts.push({x:shape.cx+Math.cos(a)*shape.rx,y:shape.cy+Math.sin(a)*shape.ry});
     }
     return pts;
   }
@@ -1264,31 +1307,61 @@ function beginShapeDraft(x,y,e){
     scheduleComposite();
     return;
   }
-  state.shapeDraft={type,cx:x,cy:y,r:0};
+  if(type==='star'){
+    state.shapeDraft={type,cx:x,cy:y,r:0};
+  }else{
+    // 원/사각형은 중심-반지름이 아니라 대각선 모서리 드래그로 정의합니다(타원/직사각형도 가능).
+    state.shapeDraft={type,x0:x,y0:y,cx:x,cy:y,rx:0,ry:0};
+  }
   drag={type:'shapeDrag'};
   changed=false;
 }
-function updateShapeDraftDrag(x,y){
+function updateShapeDraftDrag(x,y,ctrlKey){
   if(!state.shapeDraft)return;
-  state.shapeDraft.r=Math.hypot(x-state.shapeDraft.cx,y-state.shapeDraft.cy);
+  const s=state.shapeDraft;
+  if(s.type==='star'){
+    s.r=Math.hypot(x-s.cx,y-s.cy);
+  }else{
+    let x1=x,y1=y;
+    if(ctrlKey){
+      // Ctrl을 누르면 정원/정사각형이 되도록 가로세로 폭을 같게 맞춥니다.
+      const dx=x1-s.x0,dy=y1-s.y0;
+      const d=Math.max(Math.abs(dx),Math.abs(dy));
+      x1=s.x0+(dx<0?-d:d);
+      y1=s.y0+(dy<0?-d:d);
+    }
+    s.cx=(s.x0+x1)/2;
+    s.cy=(s.y0+y1)/2;
+    s.rx=Math.abs(x1-s.x0)/2;
+    s.ry=Math.abs(y1-s.y0)/2;
+  }
   scheduleComposite();
 }
 function cancelShapeDraft(){
   state.shapeDraft=null;
   scheduleComposite();
 }
+function shapeEffectiveRadius(shape){
+  if(shape.type==='star')return shape.r||80;
+  if(shape.type==='circle'||shape.type==='square')return Math.max(shape.rx||0,shape.ry||0)||80;
+  return 80;
+}
+function bufShapeOf(shape,dpr){
+  if(shape.type==='polygon')return {type:'polygon',points:shape.points.map(p=>({x:p.x*dpr,y:p.y*dpr}))};
+  if(shape.type==='star')return {type:'star',cx:shape.cx*dpr,cy:shape.cy*dpr,r:shape.r*dpr};
+  return {type:shape.type,cx:shape.cx*dpr,cy:shape.cy*dpr,rx:shape.rx*dpr,ry:shape.ry*dpr};
+}
 function commitShapeDraft(){
   const shape=state.shapeDraft;
   state.shapeDraft=null;
   if(!shape)return;
   if(shape.type==='polygon'&&shape.points.length<3)return;
-  if((shape.type==='circle'||shape.type==='square')&&shape.r<2)return;
+  if(shape.type==='star'&&shape.r<2)return;
+  if((shape.type==='circle'||shape.type==='square')&&(shape.rx<2||shape.ry<2))return;
   const layer=editableLayer();
   if(!layer){scheduleComposite();return;}
   const dpr=state.dpr;
-  const bufShape=shape.type==='polygon'
-    ?{type:'polygon',points:shape.points.map(p=>({x:p.x*dpr,y:p.y*dpr}))}
-    :{type:shape.type,cx:shape.cx*dpr,cy:shape.cy*dpr,r:shape.r*dpr};
+  const bufShape=bufShapeOf(shape,dpr);
 
   if(state.shape2.mode==='paint'){
     ensureLayerMasks(layer);
@@ -1314,7 +1387,7 @@ function commitShapeDraft(){
     const item=currentStamp();
     if(!item){scheduleComposite();return;}
     if(!layer.stamps)layer.stamps=[];
-    const targetCount=Math.max(4,Math.round((shape.r||80)/Math.max(10,state.stampSize*0.5)*4));
+    const targetCount=Math.max(4,Math.round(shapeEffectiveRadius(shape)/Math.max(10,state.stampSize*0.5)*4));
     const points=state.shape2.perimeterOnly
       ? sampleShapePerimeter(shape,targetCount)
       : (()=>{
@@ -1344,9 +1417,7 @@ function drawShapeDraftPreview(){
   if(!state.shapeDraft)return;
   const dpr=state.dpr;
   const shape=state.shapeDraft;
-  const bufShape=shape.type==='polygon'
-    ?{type:'polygon',points:shape.points.map(p=>({x:p.x*dpr,y:p.y*dpr}))}
-    :{type:shape.type,cx:shape.cx*dpr,cy:shape.cy*dpr,r:shape.r*dpr};
+  const bufShape=bufShapeOf(shape,dpr);
   ctx.save();
   ctx.strokeStyle='#1473e6';
   ctx.lineWidth=Math.max(1,1.5*dpr);
@@ -1453,7 +1524,7 @@ window.onpointermove=e=>{
     changed=true;
     scheduleComposite();
   }else if(drag.type==='shapeDrag'){
-    updateShapeDraftDrag(p.x,p.y);
+    updateShapeDraftDrag(p.x,p.y,e.ctrlKey);
   }
 };
 window.onpointerup=e=>{
@@ -1620,8 +1691,6 @@ const MENU_ACTIONS={
   load:()=>$('#loadBtn').click(),
   save:()=>$('#saveBtn').click(),
   export:()=>$('#exportBtn').click(),
-  undo:()=>$('#undoBtn').click(),
-  redo:()=>$('#redoBtn').click(),
   zoomin:()=>$('#zoomIn').click(),
   zoomout:()=>$('#zoomOut').click(),
   fit:()=>$('#fitBtn').click()
@@ -1636,7 +1705,7 @@ $$('#wmeMenubar .menu-dropdown label').forEach(l=>{
   l.onclick=()=>closeAllMenus();
 });
 document.addEventListener('click',()=>closeAllMenus());
-window.addEventListener('keydown',e=>{if(e.key==='Escape')closeAllMenus();});
+window.addEventListener('keydown',e=>{if(e.key==='Escape'){closeAllMenus();closeNewMapModal();}});
 
 $('#addLayerBtn').onclick=()=>{
   const l=makeLayer('레이어 '+state.layers.length);
@@ -1661,18 +1730,41 @@ $('#duplicateLayerBtn').onclick=()=>{
   pushHistory();
 };
 
-$('#newBtn').onclick=()=>{
-  setDocSize(1400,900);
+function openNewMapModal(){
+  $('#newMapWidth').value=state.docWidth||1400;
+  $('#newMapHeight').value=state.docHeight||900;
+  $('#newMapBackdrop').classList.remove('hidden');
+}
+function closeNewMapModal(){
+  $('#newMapBackdrop').classList.add('hidden');
+}
+function createNewMap(w,h){
+  setDocSize(w,h);
   resetLayers();
   state.history=[];state.historyIndex=-1;
   renderLayers();composite();pushHistory();fitView();
+}
+$('#newBtn').onclick=openNewMapModal;
+$('#newMapModalClose').onclick=closeNewMapModal;
+$('#newMapCancelBtn').onclick=closeNewMapModal;
+$('#newMapBackdrop').onclick=e=>{if(e.target===$('#newMapBackdrop'))closeNewMapModal();};
+$('#newMapCreateBtn').onclick=()=>{
+  const w=clamp(Math.round(+$('#newMapWidth').value||1400),200,8000);
+  const h=clamp(Math.round(+$('#newMapHeight').value||900),200,8000);
+  closeNewMapModal();
+  createNewMap(w,h);
 };
 $('#backgroundInput').onchange=e=>{
   const f=e.target.files[0]; if(!f)return;
   const r=new FileReader();
   r.onload=async()=>{
     const img=await loadImage(r.result);
-    setDocSize(img.width,img.height);
+    // 사진 원본 픽셀 크기로 캔버스를 맞추면 너무 큰 사진에서 캔버스 할당이 실패해
+    // 하얀 화면이 되고 축소도 안 되므로, 현재 캔버스 가로폭에 사진을 100% 맞추고
+    // 세로는 비율대로 계산해 캔버스 크기를 정합니다.
+    const targetW=state.docWidth||1400;
+    const targetH=Math.max(1,Math.round(img.height*(targetW/img.width)));
+    setDocSize(targetW,targetH);
     resetLayers();
     const l=makeLayer('배경 이미지');
     l.art.getContext('2d').drawImage(img,0,0,l.art.width,l.art.height);

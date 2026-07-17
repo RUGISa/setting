@@ -4736,10 +4736,21 @@ body.map-view-active .screen {
 #wmeRoot .wme-tool-icon-bar .tool-sep {
   width: 26px; height: 1px; background: #161616; margin: 3px 0;
 }
+#wmeRoot .wme-action-btn {
+  width: 40px; height: 40px; padding: 0; display: flex; align-items: center; justify-content: center;
+  background: #303030; border: 1px solid #161616; border-radius: 8px; color: #cfcfcf; cursor: pointer;
+  font-size: 16px;
+}
+#wmeRoot .wme-action-btn:hover { background: #3a3a3a; }
+#wmeRoot .wme-action-btn:disabled { opacity: .4; cursor: default; }
+#wmeRoot .wme-action-btn:disabled:hover { background: #303030; }
 :root[data-theme="light"] #wmeRoot .wme-tool-icon-bar { background: #ececef; border-color: #dcdce0; }
 :root[data-theme="light"] #wmeRoot .wme-tool-icon-bar .mode-card { background: #f7f7f9; border-color: #d3d3d9; color: #303038; }
 :root[data-theme="light"] #wmeRoot .wme-tool-icon-bar .mode-card:hover { background: #fff; }
 :root[data-theme="light"] #wmeRoot .wme-tool-icon-bar .tool-sep { background: #d3d3d9; }
+:root[data-theme="light"] #wmeRoot .wme-action-btn { background: #f7f7f9; border-color: #d3d3d9; color: #303038; }
+:root[data-theme="light"] #wmeRoot .wme-action-btn:hover { background: #fff; }
+:root[data-theme="light"] #wmeRoot .wme-action-btn:disabled:hover { background: #f7f7f9; }
 
 #wmeRoot .upload-btn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -4815,6 +4826,24 @@ body.map-view-active .screen {
 :root[data-theme="light"] #wmeRoot .perf-row label { color: #6e6e76; }
 :root[data-theme="light"] #wmeRoot .perf-row select { background: #fff; border-color: #d3d3d9; color: #303038; }
 :root[data-theme="light"] #wmeRoot .perf-hint { color: #9a9aa2; }
+
+#wmeRoot .wme-modal-backdrop {
+  position: absolute; inset: 0; z-index: 100; display: grid; place-items: center;
+  background: rgba(20,20,20,.4);
+}
+#wmeRoot .wme-modal {
+  width: 260px; background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: var(--shadow); overflow: hidden;
+}
+#wmeRoot .wme-modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; font-weight: 750; font-size: 13px; border-bottom: 1px solid var(--line);
+}
+#wmeRoot .wme-modal-head button { background: none; border: 0; font-size: 16px; color: #888; cursor: pointer; min-height: auto; padding: 0 2px; }
+#wmeRoot .wme-modal-body { padding: 12px 14px 4px; }
+#wmeRoot .wme-modal-body .row input[type=number] { flex: 1; width: 100%; padding: 5px 8px; background: var(--soft); color: var(--text); border: 1px solid var(--line); border-radius: 6px; }
+#wmeRoot .wme-modal-actions { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); }
+#wmeRoot .wme-modal-actions .btn { flex: 1; }
 
 
 /* =========================================================================
