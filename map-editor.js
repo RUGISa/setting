@@ -753,11 +753,19 @@ async function restore(s){
   renderLayers();
   composite();
 }
+let mapDocNotifyTimer=null;
+function notifyMapDocChanged(){
+  clearTimeout(mapDocNotifyTimer);
+  mapDocNotifyTimer=setTimeout(()=>{
+    window.wmeOnDocChanged?.(state.history[state.historyIndex]);
+  },1200);
+}
 function pushHistory(){
   state.history=state.history.slice(0,state.historyIndex+1);
   state.history.push(serialize());
   if(state.history.length>30)state.history.shift();
   state.historyIndex=state.history.length-1;
+  notifyMapDocChanged();
 }
 function undo(){if(state.historyIndex<=0)return;state.historyIndex--;restore(state.history[state.historyIndex]);}
 function redo(){if(state.historyIndex>=state.history.length-1)return;state.historyIndex++;restore(state.history[state.historyIndex]);}
@@ -1910,6 +1918,21 @@ composite();
 pushHistory();
 
 window.wmeActivate=function(){ fitView(); };
+window.wmeSerializeDocument=function(){ return serialize(); };
+window.wmeLoadDocument=function(data){
+  clearTimeout(mapDocNotifyTimer);
+  if(data){
+    restore(data).then(()=>{
+      state.history=[];state.historyIndex=-1;
+      pushHistory();fitView();
+    });
+  }else{
+    setDocSize(1400,900);
+    resetLayers();
+    state.history=[];state.historyIndex=-1;
+    renderLayers();composite();pushHistory();fitView();
+  }
+};
 
 if(typeof ResizeObserver!=='undefined'){
   const ro=new ResizeObserver(()=>{
