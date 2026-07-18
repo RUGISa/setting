@@ -2172,9 +2172,7 @@ button.danger,
 #deleteMapBtn,
 #deleteLineBtn,
 #deleteMapPinBtn,
-#relEdgeDeleteBtn,
-#relCardDeleteBtn,
-#relOrgDeleteBtn {
+#relEdgeDeleteBtn {
   background: #fff8f1 !important;
   color: var(--danger) !important;
   border-color: #d9bdab !important;
@@ -3430,8 +3428,6 @@ button.danger,
 #deleteLineBtn,
 #deleteMapPinBtn,
 #relEdgeDeleteBtn,
-#relCardDeleteBtn,
-#relOrgDeleteBtn,
 #editorDeleteBtn,
 #deleteFolderBtn,
 #deleteCardBtn {
@@ -5121,4 +5117,46 @@ body.map-view-active .screen {
     max-width: calc(100% - 16px);
     bottom: 10px;
   }
+}
+
+
+/* =========================================================================
+   관계도: 하단 바를 연결 생성/삭제 아이콘 + 줌으로 단순화,
+   카드/조직 삭제는 우클릭 메뉴로 이동, 조직 타이틀 다크모드 배경 수정
+   ========================================================================= */
+.rel-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  min-height: 0;
+  padding: 0;
+}
+
+.relation-node-menu {
+  position: fixed;
+  z-index: 200;
+  padding: 6px;
+  min-width: 128px;
+  border-radius: 12px;
+  border: 1px solid var(--ob-line);
+  background: var(--ob-bg-elevated);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, .5);
+}
+.relation-node-menu button {
+  display: block;
+  width: 100%;
+  min-height: 34px !important;
+  padding: 0 12px !important;
+  border-radius: 8px !important;
+  text-align: left;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.relation-node.organization .org-title {
+  background: var(--ob-bg-elevated) !important;
+  border-color: var(--ob-line) !important;
+  color: var(--ob-text-strong) !important;
 }
