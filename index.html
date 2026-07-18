@@ -246,8 +246,9 @@
         <div class="sub-tools relation-top-tools">
           <button class="primary" id="addNodeBtn" type="button">카드 생성</button>
           <button id="importNodeBtn" type="button">카드 불러오기</button>
+          <button id="relOrgCreateBtn" type="button">조직 생성</button>
         </div>
-        <p class="hint">아카이브형 관계도입니다. 카드를 가져오거나 탐색기에서 파일을 끌어다 놓아보세요. 카드 2개를 선택한 뒤 선 생성을 누르면 연결됩니다.</p>
+        <p class="hint">아카이브형 관계도입니다. 카드를 가져오거나 탐색기에서 파일을 끌어다 놓아보세요. 카드 2개를 선택한 뒤 연결 생성을 누르면 이어집니다. 카드를 우클릭하면 삭제할 수 있습니다.</p>
         <div class="relation-board-row">
           <div class="relation-board" id="relationBoard">
             <div class="relation-canvas" id="relationCanvas">
@@ -264,20 +265,12 @@
         </div>
         <div class="relation-bottom-bar">
           <div class="relation-tool-group">
-            <strong>카드</strong>
-            <button id="relCardCreateBtn" type="button">카드 생성</button>
-            <button id="relCardImportBtn" type="button">카드 불러오기</button>
-            <button id="relCardDeleteBtn" type="button">카드 삭제</button>
-          </div>
-          <div class="relation-tool-group">
-            <strong>연결</strong>
-            <button id="relEdgeCreateBtn" type="button">선 생성</button>
-            <button id="relEdgeDeleteBtn" type="button">선 삭제</button>
-          </div>
-          <div class="relation-tool-group">
-            <strong>조직</strong>
-            <button id="relOrgCreateBtn" type="button">조직 생성</button>
-            <button id="relOrgDeleteBtn" type="button">조직 삭제</button>
+            <button class="rel-icon-btn" id="relEdgeCreateBtn" type="button" title="연결 생성" aria-label="연결 생성">
+              <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="6" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="9" y1="12" x2="15" y2="12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
+            <button class="rel-icon-btn" id="relEdgeDeleteBtn" type="button" title="연결 삭제" aria-label="연결 삭제">
+              <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="6" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="18" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/><line x1="9.5" y1="9.5" x2="14.5" y2="14.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="14.5" y1="9.5" x2="9.5" y2="14.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            </button>
           </div>
           <div class="relation-tool-group zoom">
             <button id="relationZoomOutBtn" type="button">-</button>

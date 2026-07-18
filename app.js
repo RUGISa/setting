@@ -2165,7 +2165,6 @@ function renderRelations() {
   legend.className = "relation-legend";
   legend.innerHTML = `
     <span><b class="legend-character"></b>캐릭터</span>
-    <span><b class="legend-faction"></b>조직</span>
     <span><b class="legend-place"></b>지역</span>
     <span><b class="legend-ability"></b>능력</span>
     <span><b class="legend-event"></b>사건</span>
@@ -2219,7 +2218,6 @@ function renderRelations() {
         el.style.setProperty("--org-border", node.color);
         el.innerHTML = `
           <div class="org-title">${escapeHTML(title)}</div>
-          <em>${categories[category] || "조직"}</em>
           ${selected ? `<div class="org-resize-handle" title="크기 조절"></div>` : ""}
         `;
       } else {
@@ -2236,6 +2234,14 @@ function renderRelations() {
       el.addEventListener("dblclick", (event) => {
         event.stopPropagation();
         source ? openDetail(node.sourceCategory, node.sourceId) : openNodeModal(node.id);
+      });
+      el.addEventListener("contextmenu", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        selectedEdgeId = null;
+        selectedNodeId = node.id;
+        renderRelations();
+        showRelationNodeMenu(event.clientX, event.clientY, isOrg);
       });
 
       dragNode(el, node);
@@ -2617,6 +2623,46 @@ function deleteSelectedNode() {
   connectNodes = [];
   saveState();
   renderRelations();
+}
+
+function closeRelationNodeMenu() {
+  document.getElementById("relationNodeMenu")?.remove();
+  document.removeEventListener("pointerdown", handleRelationNodeMenuOutsideClick, true);
+  document.removeEventListener("keydown", handleRelationNodeMenuEscape, true);
+}
+
+function handleRelationNodeMenuOutsideClick(event) {
+  if (event.target.closest("#relationNodeMenu")) return;
+  closeRelationNodeMenu();
+}
+
+function handleRelationNodeMenuEscape(event) {
+  if (event.key === "Escape") closeRelationNodeMenu();
+}
+
+function showRelationNodeMenu(x, y, isOrg) {
+  closeRelationNodeMenu();
+
+  const menu = document.createElement("div");
+  menu.id = "relationNodeMenu";
+  menu.className = "relation-node-menu";
+  menu.innerHTML = `<button type="button" class="danger">${isOrg ? "조직 삭제" : "카드 삭제"}</button>`;
+  menu.querySelector("button").addEventListener("click", () => {
+    deleteSelectedNode();
+    closeRelationNodeMenu();
+  });
+  document.body.appendChild(menu);
+
+  const rect = menu.getBoundingClientRect();
+  const left = Math.min(x, window.innerWidth - rect.width - 8);
+  const top = Math.min(y, window.innerHeight - rect.height - 8);
+  menu.style.left = `${Math.max(8, left)}px`;
+  menu.style.top = `${Math.max(8, top)}px`;
+
+  setTimeout(() => {
+    document.addEventListener("pointerdown", handleRelationNodeMenuOutsideClick, true);
+    document.addEventListener("keydown", handleRelationNodeMenuEscape, true);
+  }, 0);
 }
 
 function openImportNodes() {
@@ -4627,9 +4673,6 @@ function initEvents() {
   on("timelineZoomOutBtn", "click", () => zoomTimeline(-0.2));
   on("timelineZoomResetBtn", "click", resetTimelineZoom);
 
-  on("relCardCreateBtn", "click", () => openNodeModal());
-  on("relCardImportBtn", "click", openImportNodes);
-  on("relCardDeleteBtn", "click", deleteSelectedNode);
   on("relEdgeCreateBtn", "click", connectNodesNow);
   on("relEdgeDeleteBtn", "click", deleteSelectedEdge);
   on("closeRelationStyleBtn", "click", () => {
@@ -4644,7 +4687,6 @@ function initEvents() {
     saveState();
     renderRelations();
   });
-  on("relOrgDeleteBtn", "click", deleteSelectedNode);
   on("relationZoomInBtn", "click", () => zoomRelation(0.2));
   on("relationZoomOutBtn", "click", () => zoomRelation(-0.2));
   on("relationZoomResetBtn", "click", resetRelationZoom);
