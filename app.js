@@ -2176,7 +2176,7 @@ function renderRelations() {
   if (!state.relation.nodes.length) {
     const empty = document.createElement("div");
     empty.className = "relation-empty";
-    empty.innerHTML = `<strong>관계도가 비어 있습니다.</strong><span>카드 불러오기를 눌러 카드를 배치해보세요.</span>`;
+    empty.innerHTML = `<strong>관계도가 비어 있습니다.</strong><span>빈 곳을 우클릭해서 카드를 만들거나 불러와보세요.</span>`;
     board.appendChild(empty);
   }
 
@@ -2227,6 +2227,17 @@ function renderRelations() {
           <strong>${escapeHTML(title)}</strong>
         `;
       }
+
+      ["top", "right", "bottom", "left"].forEach((side) => {
+        const handle = document.createElement("div");
+        handle.className = `rel-handle rel-handle-${side}`;
+        handle.title = "드래그해서 다른 카드와 연결";
+        handle.addEventListener("pointerdown", (event) => {
+          if (event.button !== 0) return;
+          startEdgeDrag(event, node.id, side);
+        });
+        el.appendChild(handle);
+      });
 
       el.addEventListener("click", (event) => {
         event.stopPropagation();
@@ -2340,18 +2351,26 @@ function renderRelationStylePanel() {
       <label>색상
         <input id="styleEdgeColor" type="color" />
       </label>
-      <label>방향
-        <select id="styleEdgeDirection">
-          <option value="forward">→ 정방향</option>
-          <option value="back">← 역방향</option>
-          <option value="both">↔ 양방향</option>
-          <option value="none">— 선만</option>
+      <label>선 스타일
+        <select id="styleEdgeLineStyle">
+          <option value="solid">실선</option>
+          <option value="dashed">점선</option>
         </select>
+      </label>
+      <label class="style-checkbox-row">
+        <input id="styleEdgeStartArrow" type="checkbox" />
+        시작점 화살표
+      </label>
+      <label class="style-checkbox-row">
+        <input id="styleEdgeEndArrow" type="checkbox" />
+        끝점 화살표
       </label>
     `;
     $("styleEdgeLabel").value = edge.label || "";
     $("styleEdgeColor").value = edge.color || "#6d5038";
-    $("styleEdgeDirection").value = edge.direction || "forward";
+    $("styleEdgeLineStyle").value = edge.lineStyle || "solid";
+    $("styleEdgeStartArrow").checked = edge.startArrow ?? (edge.direction === "back" || edge.direction === "both");
+    $("styleEdgeEndArrow").checked = edge.endArrow ?? (edge.direction !== "back" && edge.direction !== "none");
 
     const debouncedLabel = debounce((value) => {
       edge.label = value.trim();
@@ -2364,8 +2383,18 @@ function renderRelationStylePanel() {
       saveState();
       redrawEdgesOnly();
     });
-    $("styleEdgeDirection").addEventListener("change", (event) => {
-      edge.direction = event.target.value;
+    $("styleEdgeLineStyle").addEventListener("change", (event) => {
+      edge.lineStyle = event.target.value;
+      saveState();
+      redrawEdgesOnly();
+    });
+    $("styleEdgeStartArrow").addEventListener("change", (event) => {
+      edge.startArrow = event.target.checked;
+      saveState();
+      redrawEdgesOnly();
+    });
+    $("styleEdgeEndArrow").addEventListener("change", (event) => {
+      edge.endArrow = event.target.checked;
       saveState();
       redrawEdgesOnly();
     });
@@ -2421,16 +2450,58 @@ function nodeCenter(id) {
   return { x: el.offsetLeft + el.offsetWidth / 2, y: el.offsetTop + el.offsetHeight / 2 };
 }
 
+function nodeRect(id) {
+  const node = state.relation.nodes.find((item) => item.id === id);
+  if (!node) return null;
+  const isOrg = node.sourceCategory === "factions";
+  const x = node.x ?? 100;
+  const y = node.y ?? 120;
+  let width;
+  let height;
+  if (isOrg) {
+    width = node.width ?? 360;
+    height = node.height ?? 240;
+  } else {
+    const el = $("relationCanvas").querySelector(`[data-id="${id}"]`);
+    width = el?.offsetWidth || 178;
+    height = el?.offsetHeight || 56;
+  }
+  return { x, y, width, height, cx: x + width / 2, cy: y + height / 2 };
+}
+
+// 상대 위치에 따라 상자가 마주보는 변(위/아래/좌/우) 위의 접점을 고른다 (피그마식 커넥터).
+function sideAnchor(rect, otherRect) {
+  const dx = otherRect.cx - rect.cx;
+  const dy = otherRect.cy - rect.cy;
+  const nx = rect.width ? dx / (rect.width / 2) : dx;
+  const ny = rect.height ? dy / (rect.height / 2) : dy;
+  if (Math.abs(nx) >= Math.abs(ny)) {
+    return dx >= 0
+      ? { x: rect.x + rect.width, y: rect.cy, side: "right" }
+      : { x: rect.x, y: rect.cy, side: "left" };
+  }
+  return dy >= 0
+    ? { x: rect.cx, y: rect.y + rect.height, side: "bottom" }
+    : { x: rect.cx, y: rect.y, side: "top" };
+}
+
 function drawEdge(edge) {
   edge.color ??= "#6d5038";
-  edge.direction ??= "forward";
+  if (edge.startArrow === undefined || edge.endArrow === undefined) {
+    edge.startArrow = edge.direction === "back" || edge.direction === "both";
+    edge.endArrow = edge.direction !== "back" && edge.direction !== "none";
+  }
+  edge.lineStyle ??= "solid";
 
-  const from = nodeCenter(edge.from);
-  const to = nodeCenter(edge.to);
+  const rectFrom = nodeRect(edge.from);
+  const rectTo = nodeRect(edge.to);
+  if (!rectFrom || !rectTo) return;
   const fromNode = state.relation.nodes.find((node) => node.id === edge.from);
   const toNode = state.relation.nodes.find((node) => node.id === edge.to);
 
-  const horizontal = Math.abs(to.x - from.x) > Math.abs(to.y - from.y);
+  const from = sideAnchor(rectFrom, rectTo);
+  const to = sideAnchor(rectTo, rectFrom);
+  const horizontal = from.side === "left" || from.side === "right";
   const midX = edge.midX ?? ((from.x + to.x) / 2);
   const midY = edge.midY ?? ((from.y + to.y) / 2);
 
@@ -2441,13 +2512,10 @@ function drawEdge(edge) {
   const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
   path.setAttribute("d", pathData);
   path.style.stroke = edge.color;
+  if (edge.lineStyle === "dashed") path.setAttribute("stroke-dasharray", "7 5");
 
-  if (edge.direction === "forward" || edge.direction === "both") {
-    path.setAttribute("marker-end", "url(#arrow-brown)");
-  }
-  if (edge.direction === "back" || edge.direction === "both") {
-    path.setAttribute("marker-start", "url(#arrow-brown)");
-  }
+  if (edge.endArrow) path.setAttribute("marker-end", "url(#arrow-brown)");
+  if (edge.startArrow) path.setAttribute("marker-start", "url(#arrow-brown)");
 
   if (selectedEdgeId === edge.id) path.classList.add("selected");
   if (fromNode?.sourceCategory === "factions" || toNode?.sourceCategory === "factions") path.classList.add("from-org");
@@ -2594,18 +2662,74 @@ function saveNode() {
   renderRelations();
 }
 
-function connectNodesNow() {
-  if (connectNodes.length !== 2) return showToast("노드 2개를 먼저 선택해주세요.");
-  const [from, to] = connectNodes;
-  const exists = state.relation.edges.some((edge) => (edge.from === from && edge.to === to) || (edge.from === to && edge.to === from));
-  if (exists) return showToast("이미 연결된 노드입니다.");
-  const edge = { id: uid(), from, to, label: "", color: "#6d5038", direction: "forward" };
+function createEdgeBetween(fromId, toId) {
+  const exists = state.relation.edges.some((edge) => (edge.from === fromId && edge.to === toId) || (edge.from === toId && edge.to === fromId));
+  if (exists) return showToast("이미 연결된 카드입니다.");
+  const edge = { id: uid(), from: fromId, to: toId, label: "", color: "#6d5038", lineStyle: "solid", startArrow: false, endArrow: true };
   state.relation.edges.push(edge);
   selectedEdgeId = edge.id;
   selectedNodeId = null;
-  connectNodes = [];
   saveState();
   renderRelations();
+}
+
+function connectNodesNow() {
+  if (connectNodes.length !== 2) return showToast("카드 2개를 먼저 선택해주세요.");
+  const [from, to] = connectNodes;
+  connectNodes = [];
+  createEdgeBetween(from, to);
+}
+
+function sideAnchorForSide(rect, side) {
+  switch (side) {
+    case "right": return { x: rect.x + rect.width, y: rect.cy };
+    case "left": return { x: rect.x, y: rect.cy };
+    case "bottom": return { x: rect.cx, y: rect.y + rect.height };
+    default: return { x: rect.cx, y: rect.y };
+  }
+}
+
+function startEdgeDrag(event, fromNodeId, side) {
+  event.preventDefault();
+  event.stopPropagation();
+
+  const svg = $("relationSvg");
+  const preview = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  preview.setAttribute("id", "relationDragPreview");
+  preview.setAttribute("fill", "none");
+  preview.setAttribute("stroke-width", "2.5");
+  preview.setAttribute("stroke-dasharray", "6 5");
+  preview.style.stroke = "var(--ob-accent, #ac7f5e)";
+  svg.appendChild(preview);
+
+  const rectFrom = nodeRect(fromNodeId);
+  const startPoint = sideAnchorForSide(rectFrom, side);
+
+  const clearTargetHighlight = () => {
+    document.querySelectorAll(".relation-node.connect-target").forEach((el) => el.classList.remove("connect-target"));
+  };
+
+  const move = (e) => {
+    const world = relationScreenToWorld(e.clientX, e.clientY);
+    preview.setAttribute("d", `M ${startPoint.x} ${startPoint.y} L ${world.x} ${world.y}`);
+    clearTargetHighlight();
+    const targetEl = document.elementFromPoint(e.clientX, e.clientY)?.closest(".relation-node");
+    if (targetEl && targetEl.dataset.id !== fromNodeId) targetEl.classList.add("connect-target");
+  };
+
+  const up = (e) => {
+    window.removeEventListener("pointermove", move);
+    window.removeEventListener("pointerup", up);
+    preview.remove();
+    clearTargetHighlight();
+
+    const targetEl = document.elementFromPoint(e.clientX, e.clientY)?.closest(".relation-node");
+    const toNodeId = targetEl?.dataset.id;
+    if (toNodeId && toNodeId !== fromNodeId) createEdgeBetween(fromNodeId, toNodeId);
+  };
+
+  window.addEventListener("pointermove", move);
+  window.addEventListener("pointerup", up);
 }
 
 function deleteSelectedEdge() {
@@ -2626,6 +2750,16 @@ function deleteSelectedNode() {
   renderRelations();
 }
 
+function createOrgNode() {
+  const node = { id: uid(), name: "조직", desc: "", sourceCategory: "factions", x: 70, y: 70, width: 360, height: 240, color: "#e0b791", opacity: 0.2 };
+  state.relation.nodes.push(node);
+  selectedNodeId = node.id;
+  saveState();
+  renderRelations();
+}
+
+const trashIconSvg = `<svg viewBox="0 0 24 24" width="16" height="16"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
 function closeRelationNodeMenu() {
   document.getElementById("relationNodeMenu")?.remove();
   document.removeEventListener("pointerdown", handleRelationNodeMenuOutsideClick, true);
@@ -2641,16 +2775,29 @@ function handleRelationNodeMenuEscape(event) {
   if (event.key === "Escape") closeRelationNodeMenu();
 }
 
-function showRelationNodeMenu(x, y, isOrg) {
+function openRelationContextMenu(x, y, buttons) {
   closeRelationNodeMenu();
 
   const menu = document.createElement("div");
   menu.id = "relationNodeMenu";
   menu.className = "relation-node-menu";
-  menu.innerHTML = `<button type="button" class="danger">${isOrg ? "조직 삭제" : "카드 삭제"}</button>`;
-  menu.querySelector("button").addEventListener("click", () => {
-    deleteSelectedNode();
-    closeRelationNodeMenu();
+  buttons.forEach((buttonDef) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    if (buttonDef.danger) btn.classList.add("danger");
+    if (buttonDef.icon) {
+      btn.classList.add("rel-menu-icon-btn");
+      btn.innerHTML = buttonDef.icon;
+      btn.title = buttonDef.label;
+      btn.setAttribute("aria-label", buttonDef.label);
+    } else {
+      btn.textContent = buttonDef.label;
+    }
+    btn.addEventListener("click", () => {
+      closeRelationNodeMenu();
+      buttonDef.onClick();
+    });
+    menu.appendChild(btn);
   });
   document.body.appendChild(menu);
 
@@ -2664,6 +2811,20 @@ function showRelationNodeMenu(x, y, isOrg) {
     document.addEventListener("pointerdown", handleRelationNodeMenuOutsideClick, true);
     document.addEventListener("keydown", handleRelationNodeMenuEscape, true);
   }, 0);
+}
+
+function showRelationNodeMenu(x, y, isOrg) {
+  openRelationContextMenu(x, y, [
+    { label: isOrg ? "조직 삭제" : "카드 삭제", icon: trashIconSvg, danger: true, onClick: deleteSelectedNode }
+  ]);
+}
+
+function showRelationCanvasMenu(x, y) {
+  openRelationContextMenu(x, y, [
+    { label: "카드 생성", onClick: () => openNodeModal() },
+    { label: "카드 불러오기", onClick: openImportNodes },
+    { label: "조직 생성", onClick: createOrgNode }
+  ]);
 }
 
 function openImportNodes() {
@@ -4660,9 +4821,7 @@ function initEvents() {
     renderTimeline();
   });
 
-  $("addNodeBtn").addEventListener("click", () => openNodeModal());
   $("saveNodeBtn").addEventListener("click", saveNode);
-  $("importNodeBtn").addEventListener("click", openImportNodes);
   $("importSearch").addEventListener("input", renderImportList);
   $("importCategory").addEventListener("change", renderImportList);
   on("connectBtn", "click", connectNodesNow);
@@ -4681,12 +4840,14 @@ function initEvents() {
     selectedNodeId = null;
     renderRelations();
   });
-  on("relOrgCreateBtn", "click", () => {
-    const node = { id: uid(), name: "조직", desc: "", sourceCategory: "factions", x: 70, y: 70, width: 360, height: 240, color: "#e0b791", opacity: 0.2 };
-    state.relation.nodes.push(node);
-    selectedNodeId = node.id;
-    saveState();
+  on("relationBoard", "contextmenu", (event) => {
+    if (event.target.closest(".relation-node") || event.target.closest(".edge-label") || event.target.closest("#relationNodeMenu")) return;
+    event.preventDefault();
+    selectedNodeId = null;
+    selectedEdgeId = null;
+    connectNodes = [];
     renderRelations();
+    showRelationCanvasMenu(event.clientX, event.clientY);
   });
   on("relationZoomInBtn", "click", () => zoomRelation(0.2));
   on("relationZoomOutBtn", "click", () => zoomRelation(-0.2));

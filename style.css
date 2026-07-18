@@ -3758,6 +3758,7 @@ body.tl-no-select, body.tl-no-select * {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  align-self: start;
   gap: 4px;
   cursor: pointer;
   padding: 18px 16px !important;
@@ -5211,4 +5212,78 @@ body.relation-view-active .screen {
 }
 :root[data-theme="light"] .relation-node.organization {
   filter: saturate(1.4) contrast(1.08);
+}
+
+
+/* =========================================================================
+   관계도: 피그마식 커넥터 핸들(카드 4변 드래그로 연결), 우클릭 메뉴 아이콘,
+   선 스타일 체크박스 행
+   ========================================================================= */
+.rel-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ob-accent);
+  border: 2px solid var(--ob-bg-panel);
+  opacity: 0;
+  transition: opacity .12s ease;
+  cursor: crosshair;
+  z-index: 6;
+}
+.relation-node:hover .rel-handle,
+.relation-node.selected .rel-handle {
+  opacity: 1;
+}
+.rel-handle-top { top: -5px; left: 50%; transform: translateX(-50%); }
+.rel-handle-bottom { bottom: -5px; left: 50%; transform: translateX(-50%); }
+.rel-handle-left { left: -5px; top: 50%; transform: translateY(-50%); }
+.rel-handle-right { right: -5px; top: 50%; transform: translateY(-50%); }
+
+.relation-node.connect-target {
+  outline: 2px solid var(--ob-accent);
+  outline-offset: 3px;
+}
+
+.rel-menu-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  min-height: 34px !important;
+  padding: 0 !important;
+}
+
+.style-checkbox-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+}
+.style-checkbox-row input {
+  width: auto !important;
+  margin-top: 0 !important;
+}
+
+
+/* =========================================================================
+   전체(탐색) 화면: 관계도/지도처럼 화면 끝까지 채우고, 카드 그리드만
+   내부 스크롤 (헤더/도구줄은 고정) + 폴더 타일이 파일 카드 높이에
+   맞춰 늘어나 빈 칸이 생기던 버그 수정 (align-self: start로 해결)
+   ========================================================================= */
+#browseView:not(.hidden) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+#browseView .card-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  align-content: start;
+  padding-bottom: 24px;
+}
+#browseView .empty {
+  flex: 1;
 }
