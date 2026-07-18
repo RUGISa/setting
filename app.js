@@ -2164,11 +2164,12 @@ function renderRelations() {
   const legend = document.createElement("div");
   legend.className = "relation-legend";
   legend.innerHTML = `
-    <span><b class="legend-character"></b>카드</span>
+    <span><b class="legend-character"></b>캐릭터</span>
     <span><b class="legend-faction"></b>조직</span>
     <span><b class="legend-place"></b>지역</span>
     <span><b class="legend-ability"></b>능력</span>
     <span><b class="legend-event"></b>사건</span>
+    <span><b class="legend-item"></b>아이템</span>
   `;
   board.appendChild(legend);
 
@@ -2193,7 +2194,7 @@ function renderRelations() {
         node.y ??= 70;
         node.width ??= 360;
         node.height ??= 240;
-        node.color ??= "#c27322";
+        node.color ??= "#e0b791";
         node.opacity ??= 0.2;
       }
 
@@ -2255,7 +2256,7 @@ function renderRelations() {
 }
 
 function hexToRgba(hex, alpha) {
-  const clean = String(hex || "#c27322").replace("#", "");
+  const clean = String(hex || "#e0b791").replace("#", "");
   const full = clean.length === 3 ? clean.split("").map((c) => c + c).join("") : clean;
   const r = parseInt(full.slice(0, 2), 16) || 0;
   const g = parseInt(full.slice(2, 4), 16) || 0;
@@ -2377,7 +2378,7 @@ function renderRelationStylePanel() {
       <p class="style-panel-hint">테두리를 드래그하면 크기를 바꿀 수 있어요.</p>
     `;
     $("styleOrgName").value = node.name || "";
-    $("styleOrgColor").value = node.color || "#c27322";
+    $("styleOrgColor").value = node.color || "#e0b791";
     $("styleOrgOpacity").value = opacityPct;
 
     const debouncedName = debounce((value) => {
@@ -4637,7 +4638,7 @@ function initEvents() {
     renderRelations();
   });
   on("relOrgCreateBtn", "click", () => {
-    const node = { id: uid(), name: "조직", desc: "", sourceCategory: "factions", x: 70, y: 70, width: 360, height: 240, color: "#c27322", opacity: 0.2 };
+    const node = { id: uid(), name: "조직", desc: "", sourceCategory: "factions", x: 70, y: 70, width: 360, height: 240, color: "#e0b791", opacity: 0.2 };
     state.relation.nodes.push(node);
     selectedNodeId = node.id;
     saveState();
