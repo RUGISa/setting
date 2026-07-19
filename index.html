@@ -75,7 +75,12 @@
           <span>⌕</span>
           <input id="sidebarSearchInput" type="search" placeholder="모든 서랍에서 검색" />
         </label>
-        <div class="search-filter-row" id="searchFilterRow"></div>
+        <div class="search-filter-bar">
+          <button type="button" class="search-filter-btn" id="searchFilterBtn">
+            <svg viewBox="0 0 24 24" width="14" height="14"><path d="M4 5h16l-6 8v6l-4-2v-4z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>
+            <span id="searchFilterLabel">필터</span>
+          </button>
+        </div>
         <div class="search-results" id="sidebarSearchResults"></div>
       </div>
 
