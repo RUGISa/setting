@@ -875,6 +875,30 @@ function renderExplorerTree() {
     .forEach(({ item, category }) => tree.appendChild(createExplorerNoteRow(item, category)));
 }
 
+let searchCategoryFilter = new Set(dataCategories);
+
+function renderSearchFilterRow() {
+  const row = $("searchFilterRow");
+  if (!row) return;
+  row.innerHTML = "";
+  dataCategories.forEach((category) => {
+    const badge = categoryBadge[category] || { color: "#999" };
+    const chip = document.createElement("label");
+    chip.className = "search-filter-chip";
+    chip.style.setProperty("--chip-color", badge.color);
+    chip.innerHTML = `
+      <input type="checkbox" ${searchCategoryFilter.has(category) ? "checked" : ""} />
+      <span>${categories[category]}</span>
+    `;
+    chip.querySelector("input").addEventListener("change", (event) => {
+      if (event.target.checked) searchCategoryFilter.add(category);
+      else searchCategoryFilter.delete(category);
+      renderSidebarSearch();
+    });
+    row.appendChild(chip);
+  });
+}
+
 function renderSidebarSearch() {
   const input = $("sidebarSearchInput");
   const results = $("sidebarSearchResults");
@@ -884,6 +908,7 @@ function renderSidebarSearch() {
 
   const matches = [];
   dataCategories.forEach((category) => {
+    if (!searchCategoryFilter.has(category)) return;
     state[category].forEach((item) => {
       if (!keyword) {
         matches.push({ category, item });
@@ -959,6 +984,7 @@ function renderTagCloud() {
 function renderSidebar() {
   renderExplorerAll();
   renderExplorerTree();
+  renderSearchFilterRow();
   renderSidebarSearch();
   renderTagCloud();
 
