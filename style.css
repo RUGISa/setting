@@ -3162,7 +3162,17 @@ input:focus, select:focus, textarea:focus { outline: none !important; border-col
 }
 .search-result-row:hover { background: var(--ob-bg-hover); }
 .search-result-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.search-result-cat { font-size: 10.5px; color: var(--ob-muted); flex-shrink: 0; }
+.search-result-pin {
+  display: inline-flex !important;
+  align-items: center; justify-content: center;
+  width: 20px; height: 20px; min-height: 0 !important; padding: 0 !important;
+  flex-shrink: 0;
+  border: 0 !important; border-radius: 999px;
+  background: transparent !important; color: var(--ob-muted);
+  opacity: .6;
+}
+.search-result-pin:hover { opacity: 1; background: var(--ob-bg-active) !important; }
+.search-result-pin.pinned { opacity: 1; color: var(--ob-accent); }
 .search-empty { padding: 10px 6px; color: var(--ob-muted); font-size: 12.5px; }
 
 /* 태그 패널 */
