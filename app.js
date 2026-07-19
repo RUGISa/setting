@@ -1586,7 +1586,8 @@ function deleteCard(category, id) {
 }
 
 function pinIconSvg(filled) {
-  return `<svg viewBox="0 0 24 24" width="16" height="16"><g transform="rotate(-45 12 12)"><rect x="9.5" y="2" width="5" height="8" rx="2.5" fill="${filled ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><line x1="12" y1="10" x2="12" y2="22" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></g></svg>`;
+  const color = filled ? "currentColor" : "none";
+  return `<svg viewBox="0 0 24 24" width="16" height="16"><g transform="rotate(-45 12 12)"><circle cx="12" cy="7" r="5" fill="${color}" stroke="currentColor" stroke-width="1.6"/><path d="M8.5 10 L12 22 L15.5 10 Z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></g></svg>`;
 }
 
 function closeCardMenu() {
