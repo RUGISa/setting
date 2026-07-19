@@ -447,7 +447,6 @@ function render() {
     renderTitle();
     renderTabStrip();
     renderMainMode();
-    renderFolders();
     renderTags();
 
     if (currentCategory === "timeline") renderTimeline();
@@ -1016,35 +1015,6 @@ function createPill(text, active, onClick) {
   return button;
 }
 
-function renderFolders() {
-  const row = $("folderRow");
-  row.innerHTML = "";
-  if (currentCategory !== "all") {
-    row.classList.add("hidden");
-    return;
-  }
-  row.classList.remove("hidden");
-  row.appendChild(createPill("폴더 전체", !currentFolderId, () => {
-    currentFolderId = "";
-    render();
-  }));
-  row.appendChild(createPill("폴더 없음", currentFolderId === "__none", () => {
-    currentFolderId = "__none";
-    render();
-  }));
-  state.folders.forEach((folder) => {
-    const count = getAllItems().filter((item) => item.folderId === folder.id).length;
-    row.appendChild(createPill(`${folder.name} ${count}`, currentFolderId === folder.id, () => {
-      currentFolderId = folder.id;
-      render();
-    }));
-  });
-  row.appendChild(createPill("폴더 추가", false, () => openFolderModal()));
-  if (currentFolderId && currentFolderId !== "__none") {
-    row.appendChild(createPill("폴더 수정", false, () => openFolderModal(currentFolderId)));
-  }
-}
-
 function renderTags() {
   const row = $("tagRow");
   row.innerHTML = "";
@@ -1170,6 +1140,7 @@ function createCard(item) {
 
   const image = item.image ? `<img src="${item.image}" alt="">` : "이미지 없음";
   card.innerHTML = `
+    <button type="button" class="card-pin-btn ${item.pinned ? "pinned" : ""}" title="${item.pinned ? "고정 해제" : "고정"}" aria-label="${item.pinned ? "고정 해제" : "고정"}">${pinIconSvg(item.pinned)}</button>
     <div class="card-image">${image}</div>
     <h3>${escapeHTML(item.title || "제목 없음")}</h3>
     <div class="card-summary">${escapeHTML(item.summary || item.body || "내용 없음")}</div>
@@ -1178,18 +1149,17 @@ function createCard(item) {
       ${item.folderId ? `<span class="tag">${escapeHTML(getFolderName(item.folderId))}</span>` : ""}
       ${(item.tags || []).slice(0, 3).map((tag) => `<span class="tag">${escapeHTML(tag)}</span>`).join("")}
     </div>
-    <div class="card-actions">
-      <button class="primary" data-open>열기</button>
-      <button data-edit>수정</button>
-      <button data-pin>${item.pinned ? "고정 해제" : "고정"}</button>
-      <button class="danger" data-delete>삭제</button>
-    </div>
   `;
 
-  card.querySelector("[data-open]").addEventListener("click", () => openDetail(item.category, item.id));
-  card.querySelector("[data-edit]").addEventListener("click", () => openCardModal(item.category, item.id));
-  card.querySelector("[data-pin]").addEventListener("click", () => togglePin(item.category, item.id));
-  card.querySelector("[data-delete]").addEventListener("click", () => deleteCard(item.category, item.id));
+  card.querySelector(".card-pin-btn").addEventListener("click", (event) => {
+    event.stopPropagation();
+    togglePin(item.category, item.id);
+  });
+  card.addEventListener("dblclick", () => openDetail(item.category, item.id));
+  card.addEventListener("contextmenu", (event) => {
+    event.preventDefault();
+    showCardMenu(event.clientX, event.clientY, item);
+  });
 
   card.addEventListener("dragstart", (event) => {
     event.dataTransfer.setData("text/plain", item.id);
@@ -1608,6 +1578,64 @@ function deleteCard(category, id) {
   saveState();
   if (closingActiveTab) navigateToTab(openTabs[openTabs.length - 1]);
   else { render(); renderTabStrip(); }
+}
+
+function pinIconSvg(filled) {
+  return `<svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 2a4 4 0 0 1 4 4c0 1.9-1 3-1 3l3 3-1.5 1.5L13 10l-3 3-1-1 3-3-3.5-3.5S9 4 12 2z" fill="${filled ? "currentColor" : "none"}" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><line x1="7" y1="17" x2="3" y2="21" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`;
+}
+
+function closeCardMenu() {
+  document.getElementById("cardActionMenu")?.remove();
+  document.removeEventListener("pointerdown", handleCardMenuOutsideClick, true);
+  document.removeEventListener("keydown", handleCardMenuEscape, true);
+}
+
+function handleCardMenuOutsideClick(event) {
+  if (event.target.closest("#cardActionMenu")) return;
+  closeCardMenu();
+}
+
+function handleCardMenuEscape(event) {
+  if (event.key === "Escape") closeCardMenu();
+}
+
+function showCardMenu(x, y, item) {
+  closeCardMenu();
+
+  const menu = document.createElement("div");
+  menu.id = "cardActionMenu";
+  menu.className = "relation-node-menu";
+  const editBtn = document.createElement("button");
+  editBtn.type = "button";
+  editBtn.textContent = "수정";
+  editBtn.addEventListener("click", () => {
+    closeCardMenu();
+    openCardModal(item.category, item.id);
+  });
+  const deleteBtn = document.createElement("button");
+  deleteBtn.type = "button";
+  deleteBtn.className = "danger rel-menu-icon-btn";
+  deleteBtn.innerHTML = trashIconSvg;
+  deleteBtn.title = "삭제";
+  deleteBtn.setAttribute("aria-label", "삭제");
+  deleteBtn.addEventListener("click", () => {
+    closeCardMenu();
+    deleteCard(item.category, item.id);
+  });
+  menu.appendChild(editBtn);
+  menu.appendChild(deleteBtn);
+  document.body.appendChild(menu);
+
+  const rect = menu.getBoundingClientRect();
+  const left = Math.min(x, window.innerWidth - rect.width - 8);
+  const top = Math.min(y, window.innerHeight - rect.height - 8);
+  menu.style.left = `${Math.max(8, left)}px`;
+  menu.style.top = `${Math.max(8, top)}px`;
+
+  setTimeout(() => {
+    document.addEventListener("pointerdown", handleCardMenuOutsideClick, true);
+    document.addEventListener("keydown", handleCardMenuEscape, true);
+  }, 0);
 }
 
 function openFolderModal(folderId = null) {
@@ -4630,13 +4658,6 @@ function initEvents() {
   $("saveBtn").addEventListener("click", () => {
     saveState();
     showToast("저장했습니다.");
-  });
-  $("exportBtn").addEventListener("click", exportData);
-  $("importBtn").addEventListener("click", () => $("importFile").click());
-  $("importFile").addEventListener("change", (event) => {
-    const files = event.target.files;
-    if (files && files.length) importData(files);
-    event.target.value = "";
   });
   on("exportCardBtn", "click", exportSingleCard);
 
