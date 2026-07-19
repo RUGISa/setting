@@ -1168,11 +1168,13 @@ function cardRelationSummary(item) {
 function createCard(item) {
   const card = document.createElement("article");
   card.className = "card";
-  card.draggable = dataCategories.includes(currentCategory) && $("sortSelect").value === "manual";
+  const isManualSort = dataCategories.includes(currentCategory) && $("sortSelect").value === "manual";
+  card.draggable = isManualSort;
   card.dataset.id = item.id;
 
   const image = item.image ? `<img src="${item.image}" alt="">` : "이미지 없음";
   card.innerHTML = `
+    ${isManualSort ? `<span class="card-drag-handle" title="드래그해서 순서 변경">${dragHandleIconSvg}</span>` : ""}
     <button type="button" class="card-pin-btn ${item.pinned ? "pinned" : ""}" title="${item.pinned ? "고정 해제" : "고정"}" aria-label="${item.pinned ? "고정 해제" : "고정"}">${pinIconSvg(item.pinned)}</button>
     <div class="card-image">${image}</div>
     <h3>${escapeHTML(item.title || "제목 없음")}</h3>
@@ -1612,6 +1614,8 @@ function deleteCard(category, id) {
   if (closingActiveTab) navigateToTab(openTabs[openTabs.length - 1]);
   else { render(); renderTabStrip(); }
 }
+
+const dragHandleIconSvg = `<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="9" cy="6" r="1.4" fill="currentColor"/><circle cx="15" cy="6" r="1.4" fill="currentColor"/><circle cx="9" cy="12" r="1.4" fill="currentColor"/><circle cx="15" cy="12" r="1.4" fill="currentColor"/><circle cx="9" cy="18" r="1.4" fill="currentColor"/><circle cx="15" cy="18" r="1.4" fill="currentColor"/></svg>`;
 
 function pinIconSvg(filled) {
   const color = filled ? "currentColor" : "none";

@@ -5402,3 +5402,36 @@ body.relation-view-active .screen {
   border-color: var(--chip-color);
   color: var(--chip-color);
 }
+
+
+/* =========================================================================
+   전체 화면: 새 파일 버튼 아이콘, 직접 정렬 시 카드 드래그 핸들
+   ========================================================================= */
+#writeBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-drag-handle {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--ob-bg-elevated, #242327);
+  border: 1px solid var(--ob-line, #333138);
+  color: var(--ob-muted, #8d8b96);
+  cursor: grab;
+}
+.card[draggable="true"] {
+  cursor: grab;
+}
+.card[draggable="true"]:active {
+  cursor: grabbing;
+}
