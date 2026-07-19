@@ -437,7 +437,7 @@ function getVisibleItems() {
   } else if (sort === "title") {
     items.sort((a, b) => a.title.localeCompare(b.title, "ko"));
   }
-  items.sort((a, b) => Number(b.pinned) - Number(a.pinned));
+  items.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
   return items;
 }
 
@@ -898,6 +898,8 @@ function renderSidebarSearch() {
     results.innerHTML = `<div class="search-empty">검색 결과가 없습니다.</div>`;
     return;
   }
+
+  matches.sort((a, b) => (b.item.pinned ? 1 : 0) - (a.item.pinned ? 1 : 0));
 
   matches.slice(0, 80).forEach(({ category, item }) => {
     const row = document.createElement("div");
@@ -1587,7 +1589,7 @@ function deleteCard(category, id) {
 
 function pinIconSvg(filled) {
   const color = filled ? "currentColor" : "none";
-  return `<svg viewBox="0 0 24 24" width="16" height="16"><g transform="rotate(-45 12 12)"><circle cx="12" cy="7" r="5" fill="${color}" stroke="currentColor" stroke-width="1.6"/><path d="M8.5 10 L12 22 L15.5 10 Z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></g></svg>`;
+  return `<svg viewBox="0 0 24 24" width="16" height="16"><g transform="rotate(45 12 12)"><path d="M8,2 L16,2 L14.5,6 L14.5,9 L16,12 L8,12 L9.5,9 L9.5,6 Z" fill="${color}" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><line x1="12" y1="12" x2="12" y2="22" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></g></svg>`;
 }
 
 function closeCardMenu() {
@@ -1611,13 +1613,6 @@ function showCardMenu(x, y, item) {
   const menu = document.createElement("div");
   menu.id = "cardActionMenu";
   menu.className = "relation-node-menu";
-  const editBtn = document.createElement("button");
-  editBtn.type = "button";
-  editBtn.textContent = "수정";
-  editBtn.addEventListener("click", () => {
-    closeCardMenu();
-    openCardModal(item.category, item.id);
-  });
   const deleteBtn = document.createElement("button");
   deleteBtn.type = "button";
   deleteBtn.className = "danger rel-menu-icon-btn";
@@ -1628,7 +1623,6 @@ function showCardMenu(x, y, item) {
     closeCardMenu();
     deleteCard(item.category, item.id);
   });
-  menu.appendChild(editBtn);
   menu.appendChild(deleteBtn);
   document.body.appendChild(menu);
 
