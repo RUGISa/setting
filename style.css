@@ -5370,13 +5370,32 @@ body.relation-view-active .screen {
 
 
 /* =========================================================================
-   사이드바 검색: 분류별 체크박스 필터
+   사이드바 검색: 필터 버튼 + 클릭 시 뜨는 분류 체크박스 팝업
    ========================================================================= */
-.search-filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+.search-filter-bar {
   margin: 8px 2px 10px;
+}
+.search-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+.search-filter-menu {
+  position: fixed;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  min-width: 160px;
+  border-radius: 14px;
+  border: 1px solid var(--ob-line);
+  background: var(--ob-bg-elevated);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, .5);
 }
 .search-filter-chip {
   display: inline-flex;
@@ -5401,4 +5420,38 @@ body.relation-view-active .screen {
 .search-filter-chip:has(input:checked) {
   border-color: var(--chip-color);
   color: var(--chip-color);
+}
+
+
+/* =========================================================================
+   전체 화면: 새 파일 버튼 아이콘, 직접 정렬 시 카드 드래그 핸들
+   ========================================================================= */
+#writeBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.card-drag-handle {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: var(--ob-bg-elevated, #242327);
+  border: 1px solid var(--ob-line, #333138);
+  color: var(--ob-muted, #8d8b96);
+  cursor: grab;
+}
+.card[draggable="true"] {
+  cursor: grab;
+}
+.card[draggable="true"]:active {
+  cursor: grabbing;
 }

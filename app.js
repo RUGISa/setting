@@ -428,7 +428,7 @@ function getVisibleItems() {
   }
 
   const sort = $("sortSelect").value;
-  if (sort === "manual" && dataCategories.includes(currentCategory)) {
+  if (sort === "manual" && (dataCategories.includes(currentCategory) || currentCategory === "all")) {
     items.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   } else if (sort === "updated") {
     items.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
@@ -877,10 +877,39 @@ function renderExplorerTree() {
 
 let searchCategoryFilter = new Set(dataCategories);
 
-function renderSearchFilterRow() {
-  const row = $("searchFilterRow");
-  if (!row) return;
-  row.innerHTML = "";
+function renderSearchFilterButton() {
+  const label = $("searchFilterLabel");
+  if (!label) return;
+  const count = searchCategoryFilter.size;
+  label.textContent = count === dataCategories.length ? "필터" : `필터 ${count}/${dataCategories.length}`;
+}
+
+function closeSearchFilterMenu() {
+  document.getElementById("searchFilterMenu")?.remove();
+  document.removeEventListener("pointerdown", handleSearchFilterMenuOutsideClick, true);
+  document.removeEventListener("keydown", handleSearchFilterMenuEscape, true);
+}
+
+function handleSearchFilterMenuOutsideClick(event) {
+  if (event.target.closest("#searchFilterMenu") || event.target.closest("#searchFilterBtn")) return;
+  closeSearchFilterMenu();
+}
+
+function handleSearchFilterMenuEscape(event) {
+  if (event.key === "Escape") closeSearchFilterMenu();
+}
+
+function toggleSearchFilterMenu() {
+  if (document.getElementById("searchFilterMenu")) {
+    closeSearchFilterMenu();
+    return;
+  }
+  const btn = $("searchFilterBtn");
+  if (!btn) return;
+
+  const menu = document.createElement("div");
+  menu.id = "searchFilterMenu";
+  menu.className = "search-filter-menu";
   dataCategories.forEach((category) => {
     const badge = categoryBadge[category] || { color: "#999" };
     const chip = document.createElement("label");
@@ -893,10 +922,21 @@ function renderSearchFilterRow() {
     chip.querySelector("input").addEventListener("change", (event) => {
       if (event.target.checked) searchCategoryFilter.add(category);
       else searchCategoryFilter.delete(category);
+      renderSearchFilterButton();
       renderSidebarSearch();
     });
-    row.appendChild(chip);
+    menu.appendChild(chip);
   });
+  document.body.appendChild(menu);
+
+  const rect = btn.getBoundingClientRect();
+  menu.style.left = `${rect.left}px`;
+  menu.style.top = `${rect.bottom + 6}px`;
+
+  setTimeout(() => {
+    document.addEventListener("pointerdown", handleSearchFilterMenuOutsideClick, true);
+    document.addEventListener("keydown", handleSearchFilterMenuEscape, true);
+  }, 0);
 }
 
 function renderSidebarSearch() {
@@ -984,7 +1024,7 @@ function renderTagCloud() {
 function renderSidebar() {
   renderExplorerAll();
   renderExplorerTree();
-  renderSearchFilterRow();
+  renderSearchFilterButton();
   renderSidebarSearch();
   renderTagCloud();
 
@@ -1168,11 +1208,13 @@ function cardRelationSummary(item) {
 function createCard(item) {
   const card = document.createElement("article");
   card.className = "card";
-  card.draggable = dataCategories.includes(currentCategory) && $("sortSelect").value === "manual";
+  const isManualSort = (dataCategories.includes(currentCategory) || currentCategory === "all") && $("sortSelect").value === "manual";
+  card.draggable = isManualSort;
   card.dataset.id = item.id;
 
   const image = item.image ? `<img src="${item.image}" alt="">` : "이미지 없음";
   card.innerHTML = `
+    ${isManualSort ? `<span class="card-drag-handle" title="드래그해서 순서 변경">${dragHandleIconSvg}</span>` : ""}
     <button type="button" class="card-pin-btn ${item.pinned ? "pinned" : ""}" title="${item.pinned ? "고정 해제" : "고정"}" aria-label="${item.pinned ? "고정 해제" : "고정"}">${pinIconSvg(item.pinned)}</button>
     <div class="card-image">${image}</div>
     <h3>${escapeHTML(item.title || "제목 없음")}</h3>
@@ -1200,21 +1242,24 @@ function createCard(item) {
   card.addEventListener("dragover", (event) => event.preventDefault());
   card.addEventListener("drop", (event) => {
     event.preventDefault();
-    reorderCards(currentCategory, event.dataTransfer.getData("text/plain"), item.id);
+    reorderCards(event.dataTransfer.getData("text/plain"), item.id);
   });
 
   return card;
 }
 
-function reorderCards(category, fromId, toId) {
-  if (!dataCategories.includes(category) || fromId === toId) return;
-  const list = state[category];
-  const from = list.findIndex((item) => item.id === fromId);
-  const to = list.findIndex((item) => item.id === toId);
+function reorderCards(fromId, toId) {
+  if (fromId === toId) return;
+  const visible = getVisibleItems();
+  const from = visible.findIndex((item) => item.id === fromId);
+  const to = visible.findIndex((item) => item.id === toId);
   if (from < 0 || to < 0) return;
-  const [moved] = list.splice(from, 1);
-  list.splice(to, 0, moved);
-  list.forEach((item, index) => item.order = index);
+  const [moved] = visible.splice(from, 1);
+  visible.splice(to, 0, moved);
+  visible.forEach((entry, index) => {
+    const real = findItem(entry.category, entry.id);
+    if (real) real.order = index;
+  });
   saveState();
   render();
 }
@@ -1612,6 +1657,8 @@ function deleteCard(category, id) {
   if (closingActiveTab) navigateToTab(openTabs[openTabs.length - 1]);
   else { render(); renderTabStrip(); }
 }
+
+const dragHandleIconSvg = `<svg viewBox="0 0 24 24" width="14" height="14"><circle cx="9" cy="6" r="1.4" fill="currentColor"/><circle cx="15" cy="6" r="1.4" fill="currentColor"/><circle cx="9" cy="12" r="1.4" fill="currentColor"/><circle cx="15" cy="12" r="1.4" fill="currentColor"/><circle cx="9" cy="18" r="1.4" fill="currentColor"/><circle cx="15" cy="18" r="1.4" fill="currentColor"/></svg>`;
 
 function pinIconSvg(filled) {
   const color = filled ? "currentColor" : "none";
@@ -4670,6 +4717,10 @@ function initEvents() {
     });
   }
   on("sidebarSearchInput", "input", renderSidebarSearch);
+  on("searchFilterBtn", "click", (event) => {
+    event.stopPropagation();
+    toggleSearchFilterMenu();
+  });
 
   document.querySelectorAll("[data-close]").forEach((button) => {
     button.addEventListener("click", () => closeModal(button.dataset.close));
