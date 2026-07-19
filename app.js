@@ -902,15 +902,20 @@ function renderSidebarSearch() {
   matches.slice(0, 80).forEach(({ category, item }) => {
     const row = document.createElement("div");
     row.className = "search-result-row";
+    const badge = categoryBadge[category] || { icon: fileIcon, color: "#999" };
     row.innerHTML = `
-      <span class="explorer-icon file">${fileIcon}</span>
+      <span class="explorer-type-badge" style="color:${badge.color}" title="${escapeHTML(categories[category] || category)}">${badge.icon}</span>
       <span class="search-result-title">${escapeHTML(item.title)}</span>
-      <span class="search-result-cat">${categories[category]}</span>
+      <button type="button" class="search-result-pin ${item.pinned ? "pinned" : ""}" title="${item.pinned ? "고정 해제" : "고정"}" aria-label="${item.pinned ? "고정 해제" : "고정"}">${pinIconSvg(item.pinned)}</button>
     `;
     row.addEventListener("click", () => {
       currentCategory = category;
       render();
       openDetail(category, item.id);
+    });
+    row.querySelector(".search-result-pin").addEventListener("click", (event) => {
+      event.stopPropagation();
+      togglePin(category, item.id);
     });
     results.appendChild(row);
   });
