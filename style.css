@@ -5287,3 +5287,72 @@ body.relation-view-active .screen {
 #browseView .empty {
   flex: 1;
 }
+
+
+/* =========================================================================
+   전체 화면 상단: 검색/정렬을 타이틀 옆으로 이동, MD 내보내기/가져오기 및
+   폴더 필터 칩 제거에 맞춘 레이아웃 정리
+   ========================================================================= */
+.page-head {
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center !important;
+  gap: 14px 18px;
+}
+.page-head > div:first-child {
+  flex: 1 1 200px;
+  min-width: 160px;
+}
+.page-head-search {
+  flex: 1 1 240px;
+  max-width: 420px;
+}
+.page-head #sortSelect {
+  flex: 0 0 auto;
+}
+.page-head .action-row {
+  flex: 0 0 auto;
+  margin-left: auto;
+  max-width: none;
+}
+@media (max-width: 980px) {
+  .page-head {
+    align-items: stretch !important;
+  }
+  .page-head-search,
+  .page-head .action-row {
+    max-width: none;
+    flex-basis: 100%;
+  }
+}
+
+/* 카드: 텍스트 버튼 행 대신 고정 아이콘 + 더블클릭/우클릭 상호작용 */
+.card {
+  position: relative;
+}
+.card-pin-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  min-height: 0;
+  padding: 0;
+  border-radius: 999px;
+  background: var(--ob-bg-elevated, #242327);
+  border: 1px solid var(--ob-line, #333138);
+  color: var(--ob-muted, #8d8b96);
+  opacity: .6;
+}
+.card-pin-btn:hover {
+  opacity: 1;
+}
+.card-pin-btn.pinned {
+  opacity: 1;
+  color: var(--ob-accent, #ac7f5e);
+  border-color: var(--ob-accent, #ac7f5e);
+}

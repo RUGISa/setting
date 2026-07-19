@@ -90,16 +90,7 @@
             <h2 id="pageTitle">전체</h2>
             <p id="pageDesc">모든 서랍을 한 번에 봅니다.</p>
           </div>
-          <div class="action-row">
-            <button class="primary" id="writeBtn" type="button">새 파일</button>
-            <button id="exportBtn" type="button">MD 내보내기</button>
-            <button id="importBtn" type="button">MD 가져오기</button>
-            <input class="hidden" id="importFile" type="file" accept=".md,.markdown,.zip,text/markdown" multiple />
-          </div>
-        </section>
-
-        <section class="tools" id="listTools">
-          <label class="search">
+          <label class="search page-head-search">
             <span>⌕</span>
             <input id="searchInput" type="search" placeholder="검색" />
           </label>
@@ -109,9 +100,11 @@
             <option value="created">최근 작성순</option>
             <option value="title">이름순</option>
           </select>
+          <div class="action-row">
+            <button class="primary" id="writeBtn" type="button">새 파일</button>
+          </div>
         </section>
 
-        <section class="chip-row hidden" id="folderRow"></section>
         <section class="chip-row hidden" id="tagRow"></section>
 
         <section class="card-grid" id="cardGrid"></section>
